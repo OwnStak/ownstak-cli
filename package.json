@@ -1,0 +1,54 @@
+{
+  "name": "@ownstak/cli",
+  "version": "0.1.0",
+  "description": "OwnStak CLI",
+  "preferGlobal": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "ownstak": "node ./src/commands/index.js",
+    "@ownstak/cli": "node ./src/commands/index.js",
+    "ownstak-cli": "node ./src/commands/index.js"
+  },
+  "publishConfig": {
+    "directory": "dist",
+    "linkDirectory": true
+  },
+  "scripts": {
+    "dev": "npm run build && tsc --watch",
+    "build": "rm -rf dist && tsc && cp -r README.md dist && npm run build:server && npm run build:serverless",
+    "build:server": "esbuild src/compute/server/server.ts --bundle --platform=node --outfile=dist/src/compute/server/server.js",
+    "build:serverless": "esbuild src/compute/serverless/serverless.ts --bundle --platform=node --outfile=dist/src/compute/serverless/serverless.js",
+    "link": "cd dist && npm link && chmod +x ./ -R && cd ..",
+    "start": "node dist/src/commands/index.js",
+    "test": "echo \"No test specified\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OwnStak/ownstak-cli.git"
+  },
+  "dependencies": {
+    "@types/mime-types": "^2.1.4",
+    "bundle-require": "5.1.0",
+    "commander": "13.1.0",
+    "fs-extra": "^11.3.0",
+    "glob": "^11.0.1",
+    "mime-types": "^3.0.1",
+    "semver": "^7.7.1",
+    "typescript": "5.8.3"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "22.14.0",
+    "@types/semver": "^7.7.0",
+    "esbuild": "^0.25.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ownstak",
+    "cli",
+    "jamstack"
+  ]
+}
