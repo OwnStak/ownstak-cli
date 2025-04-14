@@ -30,21 +30,20 @@
         "url": "git+https://github.com/OwnStak/ownstak-cli.git"
     },
     "dependencies": {
-        "@types/mime-types": "^2.1.4",
         "bundle-require": "5.1.0",
         "commander": "13.1.0",
-        "fs-extra": "^11.3.0",
-        "glob": "^11.0.1",
-        "mime-types": "^3.0.1",
-        "semver": "^7.7.1",
+        "glob": "11.0.1",
+        "mime-types": "3.0.1",
+        "semver": "7.7.1",
         "typescript": "5.8.3"
     },
     "devDependencies": {
-        "@types/fs-extra": "^11.0.4",
-        "@types/node": "22.14.0",
-        "@types/semver": "^7.7.0",
-        "esbuild": "^0.25.2",
-        "prettier": "^3.5.3"
+      "@types/mime-types": "2.1.4",
+      "@types/fs-extra": "11.0.4",
+      "@types/node": "22.14.0",
+      "@types/semver": "7.7.0",
+      "esbuild": "0.25.2",
+      "prettier": "3.5.3"
     },
     "engines": {
         "node": ">=18.0.0"
