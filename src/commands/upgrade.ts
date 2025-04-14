@@ -38,11 +38,11 @@ export async function upgrade(options: UpgradeCommandOptions) {
     const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8')) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
-      };    
+    };
     Object.keys({
         ...(packageJson.dependencies || {}),
         ...(packageJson.devDependencies || {}),
-    }).forEach(name => {
+    }).forEach((name) => {
         if (name != NAME) return;
         if (packageJson.dependencies?.[name]) {
             packageJson.dependencies[name] = selectedVersion;
@@ -61,13 +61,12 @@ export async function upgrade(options: UpgradeCommandOptions) {
         logger.info(`Well done!`);
         return;
     }
-    
+
     logger.info(`We're done! Now it's your turn.`);
     logger.info(
-        `Please run 'npm install', 'yarn install' etc.. with your favorite package manager to finish the upgrade.`
+        `Please run 'npm install', 'yarn install' etc.. with your favorite package manager to finish the upgrade.`,
     );
 }
-
 
 export function installDependencies() {
     if (existsSync('package-lock.json')) {
@@ -84,4 +83,3 @@ export function installDependencies() {
     }
     return false;
 }
-  

@@ -12,7 +12,7 @@ export async function findModuleLocation(moduleName: string): Promise<string> {
     // Get the project root (where package.json is)
     const projectRoot = process.cwd();
     const require = createRequire(projectRoot + '/package.json');
-    
+
     try {
         // First get the package.json path
         const packageJsonPath = require.resolve(`${moduleName}/package.json`);
@@ -32,10 +32,10 @@ export async function findModuleLocation(moduleName: string): Promise<string> {
 export async function getModuleFileUrl(moduleName: string, filePath: string): Promise<string> {
     const modulePath = await findModuleLocation(moduleName);
     const fullPath = join(modulePath, filePath);
-    
-    if (!await exists(fullPath)) {
+
+    if (!(await exists(fullPath))) {
         throw new Error(`File ${filePath} not found in module ${moduleName} at ${modulePath}`);
     }
 
     return `file://${fullPath}`;
-} 
+}

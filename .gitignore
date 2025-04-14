@@ -3,7 +3,9 @@ node_modules
 
 # Build
 dist
-Build
+build
+.ownstak
+.next
 
 # Environment
 .env

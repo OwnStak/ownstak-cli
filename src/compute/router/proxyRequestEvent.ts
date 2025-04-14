@@ -22,5 +22,5 @@ export interface ProxyRequestEvent {
 export type Event = ProxyRequestEvent;
 
 export function isProxyRequestEvent(event: Event): event is ProxyRequestEvent {
-    return event.version === "2.0";
+    return event.version === '2.0';
 }

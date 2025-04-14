@@ -5,5 +5,5 @@ export interface DeployCommandOptions {
 }
 
 export async function deploy(_options: DeployCommandOptions) {
-    logger.info('Starting deployment...');
+    logger.info(`This feature is not available yet.`);
 }

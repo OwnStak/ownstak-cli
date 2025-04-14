@@ -10,6 +10,5 @@ export interface DevCommandOptions {
 }
 
 export async function dev(_options: DevCommandOptions) {
-    logger.info('Starting development server...');
-
+    logger.info(`This feature is not available yet.`);
 }

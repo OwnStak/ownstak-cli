@@ -7,137 +7,103 @@ import { logger } from '../../logger.js';
 import { findMonorepoRoot } from '../../utils/pathUtils.js';
 import semver from 'semver';
 import { Config } from '../../config.js';
-import { getModuleFileUrl } from '../../utils/moduleUtils.js'
-import { FRAMEWORK_NAMES } from '../../config.js';
-import { glob } from 'glob';
+import { getModuleFileUrl } from '../../utils/moduleUtils.js';
+import { FRAMEWORK_NAMES } from '../../constants.js';
 
 export const nextFramework: Framework = {
-  name: FRAMEWORK_NAMES.Next,
-  async build(config: Config): Promise<void> {
-    logger.info('Building Next.js application...');
-    
-    const monorepoRoot = await findMonorepoRoot() || process.cwd();
-    const packageJsonPath = resolve('package.json');
-    const monorepoPackageJsonPath = resolve(monorepoRoot, 'package.json');
-    const nextVersion = getNextVersion(packageJsonPath) || getNextVersion(monorepoPackageJsonPath);
-    if(!nextVersion) {
-      throw new Error(`Failed to detect installed Next.js version. Please install Next.js first.`);
-    }
+    name: FRAMEWORK_NAMES.Next,
+    async build(config: Config): Promise<void> {
+        logger.info('Building Next.js application...');
 
-    const minSupportedVersion = '13.4.0';
-    if(semver.lt(nextVersion, minSupportedVersion)) {
-      throw new Error(`Next.js version ${nextVersion} is not supported. Please upgrade to ${minSupportedVersion} or higher.`);
-    }
-
-    // Determine build command
-    const buildArgs = ['next', 'build'];
-    
-    // Log build command
-    logger.debug(`Running: npx ${buildArgs.join(' ')}`);
-    
-    // Run Next.js build
-    await new Promise<void>((resolve, reject) => {
-      const buildProcess = spawn('npx', buildArgs, {
-        stdio: 'inherit',
-        shell: true,
-        env: {
-          ...process.env,
-          NEXT_PRIVATE_STANDALONE: "true",
-          NEXT_PRIVATE_OUTPUT_TRACE_ROOT: monorepoRoot
+        const monorepoRoot = (await findMonorepoRoot()) || process.cwd();
+        const packageJsonPath = resolve('package.json');
+        const monorepoPackageJsonPath = resolve(monorepoRoot, 'package.json');
+        const nextVersion = getNextVersion(packageJsonPath) || getNextVersion(monorepoPackageJsonPath);
+        if (!nextVersion) {
+            throw new Error(`Failed to detect installed Next.js version. Please install Next.js first.`);
         }
-      });
-      
-      buildProcess.on('close', (code) => {
-        if (code === 0) {
-          logger.info('Next.js build completed successfully!');
-          resolve();
-        } else {
-          reject(new Error(`Next.js build failed with exit code ${code}`));
+
+        const minSupportedVersion = '13.4.0';
+        if (semver.lt(nextVersion, minSupportedVersion)) {
+            throw new Error(
+                `Next.js version ${nextVersion} is not supported. Please upgrade to ${minSupportedVersion} or higher.`,
+            );
         }
-      });
-      
-      buildProcess.on('error', (err) => {
-        reject(new Error(`Failed to start Next.js build: ${err.message}`));
-      });
-    });
 
-    const nextConfig = await loadNextConfig();
-    const distDir = nextConfig.distDir || '.next';
+        // Determine build command
+        const buildArgs = ['next', 'build'];
 
-    config.assets.include.push(`public/**`);
-    config.assets.include.push(`${distDir}/standalone/pages/**/*.{html,htm,json,rsc}`);
-    config.assets.include.push(`${distDir}/standalone/app/**/*.{html,htm,json,rsc}`);
+        // Log build command
+        logger.debug(`Running: npx ${buildArgs.join(' ')}`);
 
-    config.persistentAssets.include.push(`${distDir}/static/**`);
+        // Run Next.js build
+        await new Promise<void>((resolve, reject) => {
+            const buildProcess = spawn('npx', buildArgs, {
+                stdio: 'inherit',
+                shell: true,
+                env: {
+                    ...process.env,
+                    NEXT_PRIVATE_STANDALONE: 'true',
+                    NEXT_PRIVATE_OUTPUT_TRACE_ROOT: monorepoRoot,
+                },
+            });
 
-    config.compute.include.push(`${distDir}/standalone/`);
-    config.compute.exclude.push(`${distDir}/standalone/pages/**/*.{html,htm,json,rsc}`);
-    config.compute.exclude.push(`${distDir}/standalone/app/**/*.{html,htm,json,rsc}`);
-    config.compute.entrypoint = `${distDir}/standalone/server.js`;
+            buildProcess.on('close', (code) => {
+                if (code === 0) {
+                    logger.info('Next.js build completed successfully!');
+                    resolve();
+                } else {
+                    reject(new Error(`Next.js build failed with exit code ${code}`));
+                }
+            });
 
-    const persistentAssets = await glob.glob(`${distDir}/static/**`);
-    for(const asset of persistentAssets) {
+            buildProcess.on('error', (err) => {
+                reject(new Error(`Failed to start Next.js build: ${err.message}`));
+            });
+        });
 
-      config.router.addRoute({
-        done: true,
-        condition: {
-          path: asset.replace(`${distDir}/`, '/_next/'),
-        },
-        actions: [
-          {
-            type: 'servePersistentAsset',
-            path: asset,
-          }
-        ]
-      });
-    }
+        const nextConfig = await loadNextConfig();
+        const distDir = nextConfig.distDir || '.next';
 
-    const assets = [
-      ...await glob.glob(`public/**`),
-      ...await glob.glob(`${distDir}/standalone/pages/**/*.{html,htm,json,rsc}`),
-      ...await glob.glob(`${distDir}/standalone/app/**/*.{html,htm,json,rsc}`),
-    ]
-    for(const asset of assets) {
-      config.router.addRoute({
-        done: true,
-        condition: {
-          path: asset.replace(`${distDir}/standalone/pages/`, '/').replace(`${distDir}/standalone/app/`, '/').replace(`public/`, '/'),
-        },
-        actions: [
-          {
-            type: 'serveAsset',
-            path: asset,
-          }
-        ]
-      });
-    }
+        // Include next.config.js in debugAssets,
+        // so we can debug customer's issues with their next.config.js file.
+        config.debugAssets.include[`./next.config.{js,ts,mjs,cjs}`] = true;
 
-    // Proxy all other requests to the Next.js server
-    config.router.addRoute({
-      done: true,
-      actions: [
-        {
-          type: 'serveApp',
+        config.assets.htmlToFolders = true;
+        config.assets.include[`./public`] = `./`;
+        config.assets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = `./**`;
+        config.assets.include[`${distDir}/standalone/${distDir}/server/app/**/*.{html,htm,json,rsc}`] = `./**`;
+
+        config.persistentAssets.include[`${distDir}/static/**`] = `./_next/static/**`;
+
+        config.app.include[`${distDir}/standalone/`] = `./`;
+        config.app.include[`${distDir}/standalone/${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = false;
+        config.app.include[`${distDir}/standalone/${distDir}/server/app/**/*.{html,htm,json,rsc}`] = false;
+        config.app.entrypoint = `./server.js`;
+
+        // Proxy all other requests to the Next.js server
+        config.router.addRoute({}, [
+            {
+                type: 'serveApp',
+            },
+        ]);
+    },
+
+    dev() {
+        logger.info('Starting Next.js development server...');
+    },
+
+    async isPresent() {
+        const packageJsonPath = resolve('package.json');
+        if (!existsSync(packageJsonPath)) {
+            return false;
         }
-      ]
-    });
-  },
-
-  dev() {
-    logger.info('Starting Next.js development server...');
-  },
-
-  async isPresent() {
-    const packageJsonPath = resolve('package.json');
-    if (!existsSync(packageJsonPath)) {
-      return false;
-    }
-    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-    const hasNextDep = 
-      (packageJson.dependencies && packageJson.dependencies.next) || 
-      (packageJson.devDependencies && packageJson.devDependencies.next);
-    return hasNextDep;
-  }
+        const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+        const hasNextDep =
+            (packageJson.dependencies && packageJson.dependencies.next) ||
+            (packageJson.devDependencies && packageJson.devDependencies.next);
+        return hasNextDep;
+    },
 };
 
 /**
@@ -147,7 +113,7 @@ export const nextFramework: Framework = {
  */
 export function getNextVersion(packageJsonPath: string) {
     if (!existsSync(packageJsonPath)) {
-      return undefined;
+        return undefined;
     }
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
     return packageJson.dependencies.next || packageJson.devDependencies.next;
@@ -169,7 +135,7 @@ async function loadNextConfig() {
         console.error('Failed to load Next.js config. Using default config...', error);
         return {
             distDir: '.next',
-        }
+        };
     }
 }
 

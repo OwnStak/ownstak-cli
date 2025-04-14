@@ -1,20 +1,27 @@
-import { existsSync } from "fs";
-import { ASSETS_DIR_PATH, ASSETS_PORT, COMPUTE_DIR_PATH, PERSISTENT_ASSETS_DIR_PATH, PERSISTENT_ASSETS_PORT, PORT } from "../constants.js";
-import { resolve  } from "path";
-import { normalizePath } from "../utils/pathUtils.js";
-import { logger } from "../logger.js";
-import { readFile, stat, access } from "fs/promises";
-import http, { createServer, IncomingMessage, ServerResponse } from "http";
-import mime from "mime-types";
+import { existsSync } from 'fs';
+import {
+    ASSETS_DIR_PATH,
+    ASSETS_PORT,
+    COMPUTE_DIR_PATH,
+    PERSISTENT_ASSETS_DIR_PATH,
+    PERSISTENT_ASSETS_PORT,
+    PORT,
+} from '../constants.js';
+import { resolve } from 'path';
+import { normalizePath } from '../utils/pathUtils.js';
+import { logger } from '../logger.js';
+import { readFile, stat, access } from 'fs/promises';
+import http, { createServer, IncomingMessage, ServerResponse } from 'http';
+import mime from 'mime-types';
 import { createReadStream } from 'fs';
 import { join } from 'path';
-import { fork } from "child_process";
+import { fork } from 'child_process';
 
 export async function start() {
     process.env.LOCAL = 'true';
-    
+
     const computeServerPath = resolve(COMPUTE_DIR_PATH, 'server.cjs');
-    if(!existsSync(computeServerPath)) {
+    if (!existsSync(computeServerPath)) {
         logger.error(`The project was not built. Please run 'npx ownstak build' first.`);
         process.exit(1);
     }
@@ -61,7 +68,9 @@ export async function startAssetsServer(assetsDirPath: string, port: number) {
 }
 
 export async function startComputeServer(computeServerPath: string) {
-    const computeServer = fork(computeServerPath);
+    const computeServer = fork(computeServerPath, {
+        cwd: COMPUTE_DIR_PATH,
+    });
     computeServer.on('message', (message: string) => {
         logger.debug(`[Compute Server]: ${message}`);
     });

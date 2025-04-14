@@ -1,6 +1,6 @@
 # @ownstak/cli
 
-The **@ownstak/cli** is a powerful tool that allows users to build, deploy, and manage their projects on the Ownstak platform. 
+The **@ownstak/cli** is a powerful tool that allows users to build, deploy, and manage their projects on the Ownstak platform.
 With a focus on simplicity and efficiency, this CLI provides a seamless experience for developers.
 
 ## Installation
@@ -16,7 +16,6 @@ Or use any other favorite package manager:
 ```bash
 yarn global add @ownstak/cli
 ```
-
 
 ## Usage
 
