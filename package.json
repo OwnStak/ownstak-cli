@@ -6,9 +6,9 @@
     "main": "./src/index.js",
     "homepage": "https://ownstak.com",
     "bin": {
-        "ownstak": "node ./src/commands/index.js",
-        "@ownstak/cli": "node ./src/commands/index.js",
-        "ownstak-cli": "node ./src/commands/index.js"
+        "ownstak": "./src/commands/index.js",
+        "@ownstak/cli": "./src/commands/index.js",
+        "ownstak-cli": "./src/commands/index.js"
     },
     "publishConfig": {
         "directory": "dist",
