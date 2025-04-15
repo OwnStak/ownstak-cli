@@ -33,16 +33,16 @@ class Logger {
             .split('\n')
             .map((line) => {
                 if (logLevel === LogLevel.ERROR) {
-                    return chalk.red('[ERROR] ') + chalk.red(line);
+                    return chalk.redBright(`[ERROR] ${line}`);
                 }
                 if (logLevel === LogLevel.WARN) {
-                    return chalk.yellow('[WARN] ') + chalk.yellow(line);
+                    return chalk.yellowBright(`[WARN] ${line}`);
                 }
                 if (logLevel === LogLevel.DEBUG) {
-                    return chalk.gray('[DEBUG] ') + chalk.gray(line);
+                    return chalk.gray(`[DEBUG] ${line}`);
                 }
                 if (logLevel === LogLevel.INFO) {
-                    return chalk.green('[INFO] ') + line;
+                    return chalk.greenBright(`[INFO] `) + line;
                 }
                 return line;
             })
