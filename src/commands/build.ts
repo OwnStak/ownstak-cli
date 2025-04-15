@@ -9,25 +9,31 @@ import {
     PERSISTENT_ASSETS_DIR_PATH,
     VERSION,
     PROXY_DIR_PATH,
-    DEBUG_ASSETS_DIR_PATH,
+    DEBUG_DIR_PATH,
     APP_DIR_PATH,
+    NAME,
+    SUPPORT_URL,
+    ASSETS_DIR,
+    PERSISTENT_ASSETS_DIR,
+    APP_DIR,
+    DEBUG_DIR,
 } from '../constants.js';
 import { logger } from '../logger.js';
-import { getFramework, detectFramework, getAllFrameworks } from '../frameworks/index.js';
 import { BRAND, INPUT_CONFIG_FILE, OUTPUT_CONFIG_FILE } from '../constants.js';
 import { bundleRequire } from 'bundle-require';
 import { normalizePath } from '../utils/pathUtils.js';
 import { glob } from 'glob';
-import { Config, FilesConfig } from '../config.js';
-
-// Register all frameworks
-import * as _next from '../frameworks/nextjs/nextjs.js';
+import { Config, FilesConfig, Framework } from '../config.js';
+import { generateBase64Id } from '../utils/idUtils.js';
+import { detectFramework, getFrameworkAdapter, getFrameworkAdapters } from '../frameworks/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export interface BuildCommandOptions {
+    framework?: Framework;
     skipFrameworkBuild?: boolean;
+    assetsDir?: string;
 }
 
 export async function build(options: BuildCommandOptions) {
@@ -42,28 +48,46 @@ export async function build(options: BuildCommandOptions) {
     await mkdir(PERSISTENT_ASSETS_DIR_PATH, { recursive: true });
     await mkdir(PROXY_DIR_PATH, { recursive: true });
     await mkdir(APP_DIR_PATH, { recursive: true });
-    await mkdir(DEBUG_ASSETS_DIR_PATH, { recursive: true });
+    await mkdir(DEBUG_DIR_PATH, { recursive: true });
 
     const config = await loadConfig();
-    const framework = getFramework(config.framework) || (await detectFramework());
+    config.buildId ??= generateBase64Id();
+    config.framework = options.framework || config.framework || (await detectFramework());
+    config.frameworkAdapter ??= getFrameworkAdapter(config.framework);
+    config.skipFrameworkBuild = options.skipFrameworkBuild || config.skipFrameworkBuild;
 
-    if (!framework && config.framework) {
-        throw new Error(
-            `Framework ${config.framework} is not supported. Supported frameworks are: ${Object.keys(getAllFrameworks()).join(', ')}`,
+    if (options.assetsDir) {
+        config.assets.include[`${options.assetsDir}`] = './';
+    }
+
+    if (config.framework && !config.frameworkAdapter) {
+        logger.error(
+            `The specified framework '${config.framework}' is not supported. The ${NAME} ${VERSION} supports the following frameworks: ${getFrameworkAdapters()
+                .map((adapter) => adapter.name)
+                .join(', ')}`,
         );
+        logger.error(`Please try the following steps to resolve this issue:`);
+        logger.error('- Check the framework name first');
+        logger.error(`- Try to upgrade ${BRAND} CLI to the latest version by running 'npx ${NAME} upgrade' if you're sure the framework is supported.`);
+        logger.error(`\r\nNothing helped? Feel free to reach out to us at ${SUPPORT_URL}`);
+        process.exit(1);
     }
 
-    if (framework) {
-        logger.info(`Detected framework: ${framework.name}`);
-        config.framework = framework.name;
-        if (!options.skipFrameworkBuild) {
-            await framework?.build(config);
-        } else {
-            logger.info('Skipping framework build.');
-        }
-    } else {
-        logger.info('No framework was detected.');
+    if (!config.frameworkAdapter) {
+        logger.error(
+            `No supported framework was detected. The ${NAME} ${VERSION} supports the following frameworks: ${getFrameworkAdapters()
+                .map((adapter) => adapter.name)
+                .join(', ')}`,
+        );
+        logger.error(`If you would like to deploy just folder with static assets, please run 'npx ${NAME} build static'.`);
+        process.exit(1);
     }
+
+    logger.info(`Framework: ${config.framework}`);
+    logger.info(`Runtime: ${config.runtime}`);
+    logger.info(`Timeout: ${config.timeout}`);
+
+    await config.frameworkAdapter.build(config);
 
     // Add project's package.json to debugAssets folder,
     // so we can see the project's dependencies version.
@@ -75,14 +99,14 @@ export async function build(options: BuildCommandOptions) {
 
     // Copy all files under assets, persistentAssets, compute and debugAssets
     // config properties to corresponding build directory.
-    logger.debug(`Copying assets to build directory`);
+    logger.info(`Copying assets to ${ASSETS_DIR} directory...`);
     await copyFiles(config.assets, ASSETS_DIR_PATH);
-    logger.debug(`Copying persistent assets to build directory`);
+    logger.info(`Copying persistent assets to ${PERSISTENT_ASSETS_DIR} directory...`);
     await copyFiles(config.persistentAssets, PERSISTENT_ASSETS_DIR_PATH);
-    logger.debug(`Copying app files to build directory`);
+    logger.info(`Copying app files to ${APP_DIR} directory...`);
     await copyFiles(config.app, APP_DIR_PATH);
-    logger.debug(`Copying debug assets to build directory`);
-    await copyFiles(config.debugAssets, DEBUG_ASSETS_DIR_PATH);
+    logger.info(`Copying debug assets to ${DEBUG_DIR} directory...`);
+    await copyFiles(config.debugAssets, DEBUG_DIR_PATH);
 
     // Convert .HTML files to folders with index.html if htmlToFolders is true
     // For example:
@@ -112,9 +136,9 @@ export async function build(options: BuildCommandOptions) {
             path: assets.map(
                 (path) =>
                     `/${path}`
-                        .replace('/index.html', '/') // replace index.html with just / in paths
-                        .replace(/\/+/g, '/') // replace multiple slashes with a single slash //something//image.png => /something/image.png
-                        .replace(/\/(?=$)/, ''), // remove trailing slash if it exists
+                        .replace('index.html', '/') // replace index.html with just / in paths
+                        .replace(/\/(?=$)/, '') // remove trailing slash if it exists
+                        .replace(/\/+/g, '/'), // replace multiple slashes with a single slash //something//image.png => /something/image.png
             ),
         },
         [
@@ -139,9 +163,9 @@ export async function build(options: BuildCommandOptions) {
             path: persistentAssets.map(
                 (path) =>
                     `/${path}`
-                        .replace('/index.html', '/') // replace index.html with just / in paths
-                        .replace(/\/+/g, '/') // replace multiple slashes with a single slash //something//image.png => /something/image.png
-                        .replace(/\/(?=$)/, ''), // remove trailing slash if it exists
+                        .replace('index.html', '/') // replace index.html with just / in paths
+                        .replace(/\/(?=$)/, '') // remove trailing slash if it exists
+                        .replace(/\/+/g, '/'), // replace multiple slashes with a single slash //something//image.png => /something/image.png
             ),
         },
         [
@@ -153,11 +177,13 @@ export async function build(options: BuildCommandOptions) {
     );
 
     await saveConfig(config);
+
+    // Copy compute entrypoint for server and serverless environments
     await copyFile(resolve(__dirname, '../compute/server/server.js'), resolve(COMPUTE_DIR_PATH, 'server.cjs'));
-    await copyFile(
-        resolve(__dirname, '../compute/serverless/serverless.js'),
-        resolve(COMPUTE_DIR_PATH, 'serverless.cjs'),
-    );
+    await copyFile(resolve(__dirname, '../compute/server/server.js.map'), resolve(COMPUTE_DIR_PATH, 'server.cjs.map'));
+    await copyFile(resolve(__dirname, '../compute/serverless/serverless.js'), resolve(COMPUTE_DIR_PATH, 'serverless.cjs'));
+    await copyFile(resolve(__dirname, '../compute/serverless/serverless.js.map'), resolve(COMPUTE_DIR_PATH, 'serverless.cjs.map'));
+
     await writeFile(
         resolve(COMPUTE_DIR_PATH, 'package.json'),
         JSON.stringify(
@@ -258,10 +284,9 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
             } else if (destination === true) {
                 destFile = resolve(destDir, srcFile);
             } else if (destination === false) {
-                if (stat.isFile()) {
-                    logger.debug(`Excluding file ${srcFile}`);
-                    continue;
-                }
+                logger.debug(`Excluding file ${srcFile}`);
+                rm(destFile, { force: true });
+                continue;
             } else {
                 destFile = resolve(destDir, destination);
             }

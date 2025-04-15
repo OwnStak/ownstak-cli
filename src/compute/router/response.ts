@@ -19,15 +19,11 @@ export class Response {
     }
 
     toEvent(): ProxyResponseEvent {
-        const headers = Object.fromEntries(
-            Object.entries(this.headers).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value || '']),
-        );
+        const headers = Object.fromEntries(Object.entries(this.headers).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value || '']));
         return {
             statusCode: this.statusCode,
             headers,
-            body: Buffer.isBuffer(this.body)
-                ? this.body.toString('base64')
-                : Buffer.from(this.body?.toString() ?? '').toString('base64'),
+            body: Buffer.isBuffer(this.body) ? this.body.toString('base64') : Buffer.from(this.body?.toString() ?? '').toString('base64'),
             isBase64Encoded: true,
         };
     }

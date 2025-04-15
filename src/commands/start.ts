@@ -1,12 +1,5 @@
 import { existsSync } from 'fs';
-import {
-    ASSETS_DIR_PATH,
-    ASSETS_PORT,
-    COMPUTE_DIR_PATH,
-    PERSISTENT_ASSETS_DIR_PATH,
-    PERSISTENT_ASSETS_PORT,
-    PORT,
-} from '../constants.js';
+import { ASSETS_DIR_PATH, ASSETS_PORT, COMPUTE_DIR_PATH, PERSISTENT_ASSETS_DIR_PATH, PERSISTENT_ASSETS_PORT, PORT } from '../constants.js';
 import { resolve } from 'path';
 import { normalizePath } from '../utils/pathUtils.js';
 import { logger } from '../logger.js';

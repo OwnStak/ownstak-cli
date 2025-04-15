@@ -22,14 +22,10 @@ export class Request {
     static fromEvent(event: Event): Request {
         const request = new Request();
         if (isProxyRequestEvent(event)) {
-            request.host =
-                event.headers[HEADERS.XForwardedHost]?.toString()?.split(',')?.[0] || event.headers.host || 'localhost';
+            request.host = event.headers[HEADERS.XForwardedHost]?.toString()?.split(',')?.[0] || event.headers.host || 'localhost';
             request.protocol =
-                event.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] ||
-                (event.requestContext.http.protocol.toLowerCase() as 'http' | 'https');
-            request.url = new URL(
-                `${request.protocol}://${request.host}${event.rawPath}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`,
-            );
+                event.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (event.requestContext.http.protocol.toLowerCase() as 'http' | 'https');
+            request.url = new URL(`${request.protocol}://${request.host}${event.rawPath}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`);
             request.path = event.rawPath;
             request.method = event.requestContext.http.method;
             request.headers = event.headers;
@@ -42,23 +38,14 @@ export class Request {
 
     static async fromNodeRequest(nodeRequest: http.IncomingMessage): Promise<Request> {
         const request = new Request();
-        request.host =
-            nodeRequest.headers[HEADERS.XForwardedHost]?.toString()?.split(',')[0] ||
-            nodeRequest.headers.host ||
-            'localhost';
+        request.host = nodeRequest.headers[HEADERS.XForwardedHost]?.toString()?.split(',')[0] || nodeRequest.headers.host || 'localhost';
         request.protocol =
-            nodeRequest.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] ||
-            (nodeRequest.socket instanceof tls.TLSSocket ? 'https' : 'http');
+            nodeRequest.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (nodeRequest.socket instanceof tls.TLSSocket ? 'https' : 'http');
         request.port = request.protocol === 'https' ? 443 : 80;
         request.url = new URL(`${request.protocol}://${request.host}${nodeRequest.url}`);
         request.path = nodeRequest.url || '/';
         request.method = nodeRequest.method || 'GET';
-        request.headers = Object.fromEntries(
-            Object.entries(nodeRequest.headers).map(([key, value]) => [
-                key,
-                Array.isArray(value) ? value[0] : value || '',
-            ]),
-        );
+        request.headers = Object.fromEntries(Object.entries(nodeRequest.headers).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value || '']));
 
         // Read body from request
         const chunks: Buffer[] = [];

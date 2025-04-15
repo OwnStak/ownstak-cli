@@ -71,9 +71,7 @@ export class Router {
     async execute(request: Request): Promise<Response> {
         const response = new Response();
         const matchedRoutes = this.matchRoutes(request);
-        logger.debug(
-            `[Router][MatchedRoutes]: ${request.method} ${request.url.toString()} => Matched ${matchedRoutes.length} routes`,
-        );
+        logger.debug(`[Router][MatchedRoutes]: ${request.method} ${request.url.toString()} => Matched ${matchedRoutes.length} routes`);
         for (const route of matchedRoutes) {
             await this.executeRoute(route, request, response);
             if (route.done) break;
@@ -156,12 +154,9 @@ export class Router {
             if (typeof condition.url === 'string') {
                 urlMatch = request.url.toString() === condition.url || request.url.toString() === `${condition.url}/`;
             } else if (Array.isArray(condition.url)) {
-                urlMatch = condition.url.some(
-                    (url) => request.url.toString() === url || request.url.toString() === `${url}/`,
-                );
+                urlMatch = condition.url.some((url) => request.url.toString() === url || request.url.toString() === `${url}/`);
             } else if (condition.url instanceof RegExp) {
-                urlMatch =
-                    condition.url.test(request.url.toString()) || condition.url.test(`${request.url.toString()}/`);
+                urlMatch = condition.url.test(request.url.toString()) || condition.url.test(`${request.url.toString()}/`);
             }
         }
 
@@ -220,9 +215,7 @@ export class Router {
     async executeProxy(action: Proxy, request: Request, response: Response): Promise<void> {
         const proxyReqUrl = new URL(`${request.path}${request.url.search}`, action.url);
         logger.debug(`[Router][ProxyRequest]: ${action.url} => ${proxyReqUrl}`);
-        const proxyReqHeaders = Object.fromEntries(
-            Object.entries(request.headers).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value || '']),
-        );
+        const proxyReqHeaders = Object.fromEntries(Object.entries(request.headers).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value || '']));
         const proxyRes = await fetch(proxyReqUrl, {
             method: request.method,
             headers: proxyReqHeaders,
@@ -268,11 +261,7 @@ export class Router {
      * @param response The response to serve the asset on.
      * @private
      */
-    async executeServePersistentAsset(
-        action: ServePersistentAsset,
-        request: Request,
-        response: Response,
-    ): Promise<void> {
+    async executeServePersistentAsset(action: ServePersistentAsset, request: Request, response: Response): Promise<void> {
         const assetPath = action.path || request.path;
         request.url.pathname = assetPath;
         if (request.headers[HEADERS.XOwnProxy]) {
@@ -322,8 +311,6 @@ export class Router {
         if (!action.from) {
             request.url.pathname = action.to;
         }
-        logger.debug(
-            `[Router][Rewrite]: ${action.from ? action.from.toString() : 'no from'} ${before} => ${request.url.pathname}`,
-        );
+        logger.debug(`[Router][Rewrite]: ${action.from ? action.from.toString() : 'no from'} ${before} => ${request.url.pathname}`);
     }
 }

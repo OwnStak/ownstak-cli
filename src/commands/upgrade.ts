@@ -63,9 +63,7 @@ export async function upgrade(options: UpgradeCommandOptions) {
     }
 
     logger.info(`We're done! Now it's your turn.`);
-    logger.info(
-        `Please run 'npm install', 'yarn install' etc.. with your favorite package manager to finish the upgrade.`,
-    );
+    logger.info(`Please run 'npm install', 'yarn install' etc.. with your favorite package manager to finish the upgrade.`);
 }
 
 export function installDependencies() {

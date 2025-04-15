@@ -1,20 +1,17 @@
 import { existsSync, readFileSync } from 'fs';
-import { readFile, rm, mkdir, cp } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import { spawn } from 'child_process';
-import { Framework, registerFramework } from '../index.js';
 import { logger } from '../../logger.js';
 import { findMonorepoRoot } from '../../utils/pathUtils.js';
 import semver from 'semver';
-import { Config } from '../../config.js';
+import { Config, FrameworkAdapter } from '../../config.js';
 import { getModuleFileUrl } from '../../utils/moduleUtils.js';
-import { FRAMEWORK_NAMES } from '../../constants.js';
+import { FRAMEWORKS } from '../../constants.js';
 
-export const nextFramework: Framework = {
-    name: FRAMEWORK_NAMES.Next,
+export const nextjsFrameworkAdapter: FrameworkAdapter = {
+    name: FRAMEWORKS.NextJs,
     async build(config: Config): Promise<void> {
-        logger.info('Building Next.js application...');
-
         const monorepoRoot = (await findMonorepoRoot()) || process.cwd();
         const packageJsonPath = resolve('package.json');
         const monorepoPackageJsonPath = resolve(monorepoRoot, 'package.json');
@@ -25,42 +22,43 @@ export const nextFramework: Framework = {
 
         const minSupportedVersion = '13.4.0';
         if (semver.lt(nextVersion, minSupportedVersion)) {
-            throw new Error(
-                `Next.js version ${nextVersion} is not supported. Please upgrade to ${minSupportedVersion} or higher.`,
-            );
+            throw new Error(`Next.js version ${nextVersion} is not supported. Please upgrade to ${minSupportedVersion} or higher.`);
         }
 
-        // Determine build command
-        const buildArgs = ['next', 'build'];
+        if (!config.skipFrameworkBuild) {
+            logger.info('Building Next.js application...');
 
-        // Log build command
-        logger.debug(`Running: npx ${buildArgs.join(' ')}`);
+            const buildArgs = ['next', 'build'];
+            logger.debug(`Running: npx ${buildArgs.join(' ')}`);
 
-        // Run Next.js build
-        await new Promise<void>((resolve, reject) => {
-            const buildProcess = spawn('npx', buildArgs, {
-                stdio: 'inherit',
-                shell: true,
-                env: {
-                    ...process.env,
-                    NEXT_PRIVATE_STANDALONE: 'true',
-                    NEXT_PRIVATE_OUTPUT_TRACE_ROOT: monorepoRoot,
-                },
+            // Run Next.js build
+            await new Promise<void>((resolve, reject) => {
+                const buildProcess = spawn('npx', buildArgs, {
+                    stdio: 'inherit',
+                    shell: true,
+                    env: {
+                        ...process.env,
+                        NEXT_PRIVATE_STANDALONE: 'true',
+                        NEXT_PRIVATE_OUTPUT_TRACE_ROOT: monorepoRoot,
+                    },
+                });
+
+                buildProcess.on('close', (code) => {
+                    if (code === 0) {
+                        logger.info('Next.js build completed successfully!');
+                        resolve();
+                    } else {
+                        reject(new Error(`Next.js build failed with exit code ${code}`));
+                    }
+                });
+
+                buildProcess.on('error', (err) => {
+                    reject(new Error(`Failed to start Next.js build: ${err.message}`));
+                });
             });
-
-            buildProcess.on('close', (code) => {
-                if (code === 0) {
-                    logger.info('Next.js build completed successfully!');
-                    resolve();
-                } else {
-                    reject(new Error(`Next.js build failed with exit code ${code}`));
-                }
-            });
-
-            buildProcess.on('error', (err) => {
-                reject(new Error(`Failed to start Next.js build: ${err.message}`));
-            });
-        });
+        } else {
+            logger.info(`Skipping Next.js build and using existing build output...`);
+        }
 
         const nextConfig = await loadNextConfig();
         const distDir = nextConfig.distDir || '.next';
@@ -99,9 +97,7 @@ export const nextFramework: Framework = {
             return false;
         }
         const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-        const hasNextDep =
-            (packageJson.dependencies && packageJson.dependencies.next) ||
-            (packageJson.devDependencies && packageJson.devDependencies.next);
+        const hasNextDep = (packageJson.dependencies && packageJson.dependencies.next) || (packageJson.devDependencies && packageJson.devDependencies.next);
         return hasNextDep;
     },
 };
@@ -138,6 +134,3 @@ async function loadNextConfig() {
         };
     }
 }
-
-// Register the Next.js framework
-registerFramework(nextFramework);

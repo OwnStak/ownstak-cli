@@ -1,0 +1,36 @@
+name: Format
+
+on:
+    push:
+        # only trigger on branches, not on tags
+        branches: '**'
+
+# Stop previous runs when new commit is pushed into the MR
+concurrency:
+    group: format-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    DEBIAN_FRONTEND: noninteractive
+
+defaults:
+    run:
+        shell: bash
+
+jobs:
+    format-check:
+        name: Format check
+        runs-on: [self-hosted, linux, arm64]
+        timeout-minutes: 10
+        continue-on-error: true
+        container:
+            image: node:20
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Install dependencies
+              run: npm install --no-audit
+
+            - name: Run format check
+              run: npm run format:check

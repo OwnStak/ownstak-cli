@@ -1,47 +1,26 @@
-import { Config } from '../config.js';
+import { Framework, FrameworkAdapter } from '../config.js';
 import { logger } from '../logger.js';
 
-export interface Framework {
-    name: string;
-    build: (config: Config) => Promise<void> | void;
-    dev: () => Promise<void> | void;
-    isPresent: () => Promise<boolean> | boolean;
+// Import available framework adapters
+import { nextjsFrameworkAdapter } from './nextjs/nextjs.js';
+import { astroFrameworkAdapter } from './astro/astro.js';
+import { staticFrameworkAdapter } from './static/static.js';
+
+const FRAMEWORK_ADAPTERS = [nextjsFrameworkAdapter, astroFrameworkAdapter, staticFrameworkAdapter];
+
+export function getFrameworkAdapter(framework?: Framework): FrameworkAdapter | undefined {
+    return framework ? FRAMEWORK_ADAPTERS.find((adapter) => adapter.name === framework) : undefined;
 }
 
-// Registry of supported frameworks
-const frameworks: Record<string, Framework> = {};
-
-/**
- * Register a framework implementation
- */
-export function registerFramework(framework: Framework): void {
-    logger.debug(`Registering framework: ${framework.name}`);
-    frameworks[framework.name] = framework;
+export function getFrameworkAdapters(): FrameworkAdapter[] {
+    return FRAMEWORK_ADAPTERS;
 }
 
-/**
- * Get a framework implementation by ID
- */
-export function getFramework(name?: string): Framework | undefined {
-    if (!name) return undefined;
-    return frameworks[name];
-}
-
-/**
- * Get all registered frameworks
- */
-export function getAllFrameworks(): Record<string, Framework> {
-    return { ...frameworks };
-}
-
-/**
- * Detect if a framework is installed
- */
 export async function detectFramework(): Promise<Framework | undefined> {
-    for (const framework of Object.values(frameworks)) {
-        logger.debug(`Checking if ${framework.name} is installed...`);
-        if (await framework.isPresent()) {
-            return framework;
+    logger.info(`Detecting framework...`);
+    for (const frameworkAdapter of FRAMEWORK_ADAPTERS) {
+        if (await frameworkAdapter.isPresent()) {
+            return frameworkAdapter.name;
         }
     }
     return undefined;

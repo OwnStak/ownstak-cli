@@ -1,7 +1,7 @@
 import { Router } from './compute/router/router.js';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { BRAND, OUTPUT_CONFIG_FILE, PORT, VERSION, FRAMEWORK_NAMES, RUNTIMES } from './constants.js';
+import { BRAND, OUTPUT_CONFIG_FILE, PORT, VERSION, FRAMEWORKS, RUNTIMES } from './constants.js';
 import { resolve } from 'path';
 import { logger } from './logger.js';
 
@@ -39,10 +39,29 @@ export class Config {
     router: Router = new Router();
 
     /**
-     * The framework to use for the app.
+     * The framework name to use for the app.
      * @default undefined
      */
-    framework?: FrameworkName;
+    framework?: Framework;
+
+    /**
+     * The framework adapter to use for the app.
+     * @default undefined
+     */
+    frameworkAdapter?: FrameworkAdapter;
+
+    /**
+     * Whether to skip the framework build
+     * and use existing build output of your app.
+     * @default false
+     */
+    skipFrameworkBuild?: boolean;
+
+    /**
+     * The buildId for this build.
+     * @default generateBase64Id()
+     */
+    buildId?: string;
 
     /**
      * The assets config for the project.
@@ -187,7 +206,14 @@ export class Config {
     }
 }
 
-export type FrameworkName = (typeof FRAMEWORK_NAMES)[keyof typeof FRAMEWORK_NAMES] | string;
+export interface FrameworkAdapter {
+    name: string;
+    build: (config: Config) => Promise<void> | void;
+    dev: () => Promise<void> | void;
+    isPresent: () => Promise<boolean> | boolean;
+}
+
+export type Framework = (typeof FRAMEWORKS)[keyof typeof FRAMEWORKS] | string;
 export type Runtime = (typeof RUNTIMES)[keyof typeof RUNTIMES] | string;
 
 export interface FilesConfig {

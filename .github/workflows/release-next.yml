@@ -1,0 +1,66 @@
+name: Release Next
+on:
+    pull_request:
+
+# Stop previous runs when new commit is pushed into the MR
+concurrency:
+    group: release-next-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    DEBIAN_FRONTEND: noninteractive
+    NODE_VERSION: 20.x
+    NPM_TOKEN: ${{ secrets.OWNSTAK_NPM_TOKEN }}
+    NPM_REGISTRY: '//registry.npmjs.org'
+
+defaults:
+    run:
+        shell: bash
+
+jobs:
+    release-next:
+        name: Build and release under next tag
+        timeout-minutes: 10
+        runs-on: [self-hosted, linux, arm64]
+        container:
+            image: node:20
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup cache
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      node_modules
+                      ~/.npm
+                  key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
+            - name: Configure GIT
+              run: |
+                  git config --global --add safe.directory $(pwd)
+                  git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                  git config --global user.name "github-actions[bot]"
+
+            - name: Configure NPM authentication
+              run: npm set "${{ env.NPM_REGISTRY }}/:_authToken=${{ env.NPM_TOKEN }}"
+
+            - name: Configure NPM registry
+              run: npm whoami
+
+            - name: Install dependencies
+              run: npm install --no-audit
+
+            - name: Set next version
+              run: npm version prerelease --preid="next-$(date +%s)-${GITHUB_SHA:0:6}" --no-git-tag-version # e.g. 1.0.1-next-1712868600-66b6a8
+
+            - name: Build
+              run: npm run build
+
+            - name: Release Next
+              run: cd ./dist && npm publish --access public --tag=next

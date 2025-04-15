@@ -1,3 +1,5 @@
+import chalk from 'chalk';
+import { BRAND, VERSION } from './constants.js';
 /**
  * Log levels in increasing order of severity
  */
@@ -6,6 +8,7 @@ export enum LogLevel {
     INFO = 1,
     WARN = 2,
     ERROR = 3,
+    NONE = 4,
 }
 
 /**
@@ -16,98 +19,44 @@ const LOG_LEVEL_MAP: Record<string, LogLevel> = {
     info: LogLevel.INFO,
     warn: LogLevel.WARN,
     error: LogLevel.ERROR,
+    none: LogLevel.NONE,
 };
-
-/**
- * ANSI color codes
- */
-const colors = {
-    reset: '\x1b[0m',
-    // Regular colors
-    black: '\x1b[30m',
-    red: '\x1b[31m',
-    green: '\x1b[32m',
-    yellow: '\x1b[33m',
-    blue: '\x1b[34m',
-    magenta: '\x1b[35m',
-    cyan: '\x1b[36m',
-    white: '\x1b[37m',
-    // Bright colors
-    brightRed: '\x1b[91m',
-    brightGreen: '\x1b[92m',
-    brightYellow: '\x1b[93m',
-    brightBlue: '\x1b[94m',
-    brightMagenta: '\x1b[95m',
-    brightCyan: '\x1b[96m',
-    brightWhite: '\x1b[97m',
-    // Background colors
-    bgBlack: '\x1b[40m',
-    bgRed: '\x1b[41m',
-    bgGreen: '\x1b[42m',
-    bgYellow: '\x1b[43m',
-    bgBlue: '\x1b[44m',
-    bgMagenta: '\x1b[45m',
-    bgCyan: '\x1b[46m',
-    bgWhite: '\x1b[47m',
-};
-
-export interface LoggerOptions {
-    level?: LogLevel;
-    useColors?: boolean;
-    captureLogs?: boolean;
-}
 
 class Logger {
-    private useColors: boolean;
-    private captureLogs: boolean;
-    private logs: string[] = [];
-
-    constructor(options: LoggerOptions = {}) {
-        this.useColors = options.useColors ?? this.shouldUseColors();
-        this.captureLogs = options.captureLogs ?? false;
-    }
-
     get level(): LogLevel {
         const envLevel = process.env.LOG_LEVEL?.toLowerCase();
         return envLevel && envLevel in LOG_LEVEL_MAP ? LOG_LEVEL_MAP[envLevel] : LogLevel.INFO;
     }
 
-    /**
-     * Determine if colors should be enabled
-     */
-    private shouldUseColors(): boolean {
-        // Check for NO_COLOR environment variable (https://no-color.org/)
-        if (process.env.NO_COLOR !== undefined) {
-            return false;
-        }
+    private logInternal(logLevel: LogLevel, message: string, ...args: any[]): void {
+        const logMessage = message
+            .split('\n')
+            .map((line) => {
+                if (logLevel === LogLevel.ERROR) {
+                    return chalk.red('[ERROR] ') + chalk.red(line);
+                }
+                if (logLevel === LogLevel.WARN) {
+                    return chalk.yellow('[WARN] ') + chalk.yellow(line);
+                }
+                if (logLevel === LogLevel.DEBUG) {
+                    return chalk.gray('[DEBUG] ') + chalk.gray(line);
+                }
+                if (logLevel === LogLevel.INFO) {
+                    return chalk.green('[INFO] ') + line;
+                }
+                return line;
+            })
+            .join('\n');
 
-        // Check if FORCE_COLOR is set
-        if (process.env.FORCE_COLOR !== undefined) {
-            return process.env.FORCE_COLOR !== '0';
-        }
+        const logFunction = {
+            [LogLevel.ERROR]: console.error,
+            [LogLevel.WARN]: console.warn,
+            [LogLevel.DEBUG]: console.log,
+            [LogLevel.INFO]: console.log,
+            [LogLevel.NONE]: console.log,
+        }[logLevel];
 
-        // Check if we're in a CI environment
-        if (process.env.CI !== undefined) {
-            return true;
-        }
-
-        // Check if stdout is a TTY
-        return process.stdout.isTTY;
-    }
-
-    /**
-     * Enable or disable colors
-     */
-    public setUseColors(useColors: boolean): void {
-        this.useColors = useColors;
-    }
-
-    /**
-     * Apply color to text if colors are enabled
-     */
-    private colorize(text: string, color: keyof typeof colors): string {
-        if (!this.useColors) return text;
-        return colors[color] + text + colors.reset;
+        logFunction?.(logMessage, ...args);
     }
 
     /**
@@ -115,8 +64,7 @@ class Logger {
      */
     public debug(message: string, ...args: any[]): void {
         if (this.level <= LogLevel.DEBUG) {
-            const prefix = this.colorize('[DEBUG]', 'cyan');
-            console.log(`${prefix} ${message}`, ...args);
+            this.logInternal(LogLevel.DEBUG, message, ...args);
         }
     }
 
@@ -125,8 +73,7 @@ class Logger {
      */
     public info(message: string, ...args: any[]): void {
         if (this.level <= LogLevel.INFO) {
-            const prefix = this.colorize('[INFO]', 'green');
-            console.info(`${prefix} ${message}`, ...args);
+            this.logInternal(LogLevel.INFO, message, ...args);
         }
     }
 
@@ -135,8 +82,7 @@ class Logger {
      */
     public warn(message: string, ...args: any[]): void {
         if (this.level <= LogLevel.WARN) {
-            const prefix = this.colorize('[WARN]', 'yellow');
-            console.warn(`${prefix} ${message}`, ...args);
+            this.logInternal(LogLevel.WARN, message, ...args);
         }
     }
 
@@ -145,20 +91,77 @@ class Logger {
      */
     public error(message: string, ...args: any[]): void {
         if (this.level <= LogLevel.ERROR) {
-            const prefix = this.colorize('[ERROR]', 'red');
-            console.error(`${prefix} ${message}`, ...args);
+            this.logInternal(LogLevel.ERROR, message, ...args);
         }
     }
 
     /**
-     * Logs to console without any colorization or prefix
+     * Log to stdout without any prefix
      */
     public log(message: string, ...args: any[]): void {
-        console.log(message, ...args);
+        this.logInternal(LogLevel.NONE, message, ...args);
+    }
+
+    /**
+     * Draws "nice-looking" title to the console
+     */
+    public drawTitle(message: string, ...args: any[]): void {
+        this.logInternal(LogLevel.NONE, chalk.bgBlue.bold.whiteBright(` ${BRAND} CLI `) + chalk.white.bgBlackBright(` v${VERSION} `), message, ...args);
+    }
+
+    /**
+     * Draws a table to the console
+     * @example
+     *  ╭─ title ─────────────────────╮
+     *  │ Runtime: nodejs20.x         │
+     *  ╰─────────────────────────────╯
+     */
+    public drawTable(lines: string[], options: DrawTableOptions = {}): void {
+        if (lines.length === 0) return;
+
+        // Find the longest line length
+        const logLevel = options.logLevel ?? LogLevel.INFO;
+        const maxLength = Math.max(...lines.map((line) => line.length));
+        const padding = options.padding ?? 1; // Padding on each side
+        const totalWidth = maxLength + padding * 2;
+
+        // Create the top border with title if provided
+        let topBorder: string;
+        if (options.title) {
+            const title = ` ${options.title} `;
+            const remainingWidth = totalWidth - title.length;
+            const leftBorder = '─'.repeat(Math.floor(remainingWidth / 2));
+            const rightBorder = '─'.repeat(Math.ceil(remainingWidth / 2));
+            topBorder = `╭${leftBorder}${title}${rightBorder}╮`;
+        } else {
+            const border = '─'.repeat(totalWidth);
+            topBorder = `╭${border}╮`;
+        }
+
+        // Create the bottom border
+        const bottomBorder = `╰${'─'.repeat(totalWidth)}╯`;
+
+        // Create the content lines with padding
+        const contentLines = lines.map((line) => {
+            const paddedLine = line.padEnd(maxLength);
+            return `│${' '.repeat(padding)}${paddedLine}${' '.repeat(padding)}│`;
+        });
+
+        // Combine all parts
+        const table = [topBorder, ...contentLines, bottomBorder].join('\n');
+
+        // Apply border color if specified
+        const coloredTable = options.borderColor ? chalk[options.borderColor](table) : table;
+        this.logInternal(logLevel, coloredTable);
     }
 }
 
+export interface DrawTableOptions {
+    title?: string;
+    borderColor?: 'gray' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white';
+    padding?: number;
+    logLevel?: LogLevel;
+}
+
 // Export a default instance for convenience
-export const logger = new Logger({
-    captureLogs: process.env.CAPTURE_LOGS === 'true',
-});
+export const logger = new Logger();

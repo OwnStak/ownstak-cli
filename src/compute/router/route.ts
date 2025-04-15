@@ -45,8 +45,7 @@ export interface ServeApp extends BaseRouteAction {
     type: 'serveApp';
 }
 
-export type RouteAction = BaseRouteAction &
-    (Proxy | SetResponseHeader | SetRequestHeader | ServeAsset | ServePersistentAsset | ServeApp | Redirect | Rewrite);
+export type RouteAction = BaseRouteAction & (Proxy | SetResponseHeader | SetRequestHeader | ServeAsset | ServePersistentAsset | ServeApp | Redirect | Rewrite);
 
 export interface RouteCondition {
     url?: string | string[] | RegExp;
