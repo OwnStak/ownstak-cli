@@ -48,10 +48,8 @@ jobs:
                   git config --global user.name "github-actions[bot]"
 
             - name: Configure NPM authentication
+              if: env.NPM_TOKEN != ''
               run: npm set "${{ env.NPM_REGISTRY }}/:_authToken=${{ env.NPM_TOKEN }}"
-
-            - name: Configure NPM registry
-              run: npm whoami
 
             - name: Install dependencies
               run: npm install --no-audit
@@ -63,4 +61,5 @@ jobs:
               run: npm run build
 
             - name: Release Next
+              if: env.NPM_TOKEN != ''
               run: cd ./dist && npm publish --access public --tag=next
