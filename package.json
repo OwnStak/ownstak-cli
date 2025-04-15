@@ -7,7 +7,6 @@
     "homepage": "https://ownstak.com",
     "bin": {
         "ownstak": "./src/commands/index.js",
-        "@ownstak/cli": "./src/commands/index.js",
         "ownstak-cli": "./src/commands/index.js"
     },
     "publishConfig": {
