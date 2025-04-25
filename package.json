@@ -1,6 +1,6 @@
 {
     "name": "@ownstak/cli",
-    "version": "1.5.3",
+    "version": "0.1.0",
     "description": "OwnStak CLI",
     "type": "module",
     "main": "./src/index.js",
@@ -19,6 +19,7 @@
         "build:server": "esbuild src/compute/server/server.ts --sourcemap --bundle --platform=node --outfile=dist/src/compute/server/server.js --log-level=error",
         "build:serverless": "esbuild src/compute/serverless/serverless.ts --sourcemap --bundle --platform=node --outfile=dist/src/compute/serverless/serverless.js --log-level=error",
         "build:copy-templates": "cp -r src/templates/* dist/src/templates/",
+        "bump-version": "npm version patch --no-git-tag-version",
         "link": "cd dist && npm link > /dev/null 2>&1 || npm link && chmod +x ./ -R && cd ..",
         "start": "node dist/src/commands/index.js",
         "format": "prettier --write 'src/**/*.ts'",
