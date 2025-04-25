@@ -1,6 +1,6 @@
 {
     "name": "@ownstak/cli",
-    "version": "0.1.0",
+    "version": "1.5.3",
     "description": "OwnStak CLI",
     "type": "module",
     "main": "./src/index.js",
