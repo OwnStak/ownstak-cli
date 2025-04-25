@@ -1,30 +1,138 @@
+import http from 'http';
+import https from 'https';
+import { ASSETS_URL, PERSISTENT_ASSETS_URL, APP_URL, HEADERS } from '../../constants.js';
+import { Request } from './request.js';
+import { Response } from './response.js';
+import { logger } from '../../logger.js';
+import { extractPathToRegexpParams, pathToRegexp, substitutePathToRegexpParams } from '../../utils/pathUtils.js';
+import { isNot, Route, RouteCondition } from './route.js';
+import { RouteActionsCreator } from './routeActionsCreator.js';
 import {
-    Route,
     RouteAction,
+    SetResponseHeader,
+    SetRequestHeader,
+    AddResponseHeader,
+    AddRequestHeader,
+    SetResponseStatus,
+    DeleteResponseHeader,
+    DeleteRequestHeader,
+    Redirect,
+    Rewrite,
+    Proxy,
+    ServeAsset,
+    ServePersistentAsset,
+    isEchoAction,
+    isImageOptimizerAction,
+    isAddResponseHeaderAction,
+    isAddRequestHeaderAction,
     isProxyAction,
     isSetResponseHeaderAction,
     isSetRequestHeaderAction,
     isServeAssetAction,
     isServePersistentAssetAction,
     isServeAppAction,
-    SetResponseHeader,
-    SetRequestHeader,
-    isRedirectAction,
-    Redirect,
     isRewriteAction,
-    Rewrite,
-    RouteCondition,
-    Proxy,
-    ServeAsset,
-    ServePersistentAsset,
-} from './route.js';
-import { Request } from './request.js';
-import { Response } from './response.js';
-import { logger } from '../../logger.js';
-import { ASSETS_URL, PERSISTENT_ASSETS_URL, APP_URL, HEADERS } from '../../constants.js';
+    isRedirectAction,
+    isSetResponseStatusAction,
+    isDeleteResponseHeaderAction,
+    isDeleteRequestHeaderAction,
+    isSetDefaultRequestHeaderAction,
+    isSetDefaultResponseHeaderAction,
+    SetDefaultResponseHeader,
+    SetDefaultRequestHeader,
+} from './routeAction.js';
 
 export class Router {
     routes: Route[] = [];
+
+    /**
+     * Adds a GET route to the router.
+     * @param condition The condition that the route will match. Use {} to match every GET request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    get(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal('GET', condition, actions, done);
+    }
+
+    /**
+     * Adds a POST route to the router.
+     * @param condition The condition that the route will match. Use {} to match every POST request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    post(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal('POST', condition, actions, done);
+    }
+
+    /**
+     * Adds a PUT route to the router.
+     * @param condition The condition that the route will match. Use {} to match every PUT request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    put(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal('PUT', condition, actions, done);
+    }
+
+    /**
+     * Adds a DELETE route to the router.
+     * @param condition The condition that the route will match. Use {} to match every DELETE request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    delete(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal('DELETE', condition, actions, done);
+    }
+
+    /**
+     * Adds a PATCH route to the router.
+     * @param condition The condition that the route will match. Use {} to match every PATCH request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    patch(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal('PATCH', condition, actions, done);
+    }
+
+    /**
+     * Adds an OPTIONS route to the router.
+     * @param condition The condition that the route will match. Use {} to match every OPTIONS request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    options(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal('OPTIONS', condition, actions, done);
+    }
+
+    /**
+     * Adds a HEAD route to the router.
+     * @param condition The condition that the route will match. Use {} to match every HEAD request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    head(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal('HEAD', condition, actions, done);
+    }
+
+    /**
+     * Adds a route to the router that matches specfied condition.
+     * @param condition The condition that the route will match. Use {} to match every request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    match(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal(undefined, condition, actions, done);
+    }
+
+    /**
+     * Adds a route to the router that matches every request with all the methods.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     */
+    any(actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal(undefined, {}, actions, done);
+    }
 
     /**
      * Adds a route to the router.
@@ -39,9 +147,15 @@ export class Router {
      * }, [
      *     { type: "serveApp" },
      * ]);
+     *
+     * router.addRoute({
+     *     url: "/",
+     *     path: "/",
+     *     method: "GET",
+     * }, r => r.setResponseHeader("x-custom-header", "custom-value").setResponseHeader("x-custom-header-2", "custom-value-2"));
      */
-    addRoute(condition: RouteCondition, actions: RouteAction[], done: boolean = false) {
-        this.routes.push({ condition, actions, done });
+    addRoute(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal(undefined, condition, actions, done);
     }
 
     /**
@@ -58,23 +172,68 @@ export class Router {
      *     { type: "serveApp" },
      * ]);
      */
-    addRouteFront(condition: RouteCondition, actions: RouteAction[], done: boolean = false) {
-        this.routes.unshift({ condition, actions, done });
+    addRouteFront(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+        this.addRouteInternal(undefined, condition, actions, done, true);
+    }
+
+    /**
+     * Adds a route either to the front or back of the router.
+     * @param condition The condition that the route will match. Use {} to match every request.
+     * @param actions The actions that will be executed if the route matches.
+     * @param done Whether the route is the last route to be executed.
+     * @param front Whether the route should be added to the front of the router.
+     * @param method The method that the route will match.
+     * @private
+     */
+    addRouteInternal(
+        method: string | undefined,
+        condition: RouteCondition | string,
+        actions: RouteAction[] | ((r: RouteActionsCreator) => any),
+        done: boolean = false,
+        front: boolean = false,
+    ) {
+        // If condition is a string, we convert it to a valid condition object.
+        // "/products/123" -> { path: "/products/123" }
+        if (typeof condition === 'string') {
+            condition = { path: condition };
+        }
+        // If path is a string and doesn't start with 'path-to-regex:' and contains ':',
+        // we assume it's a path-to-regex pattern and mark it with correct prefix.
+        // { path: "/products/:id" } -> { path: "path-to-regex:/products/:id" }
+        // { path: "path-to-regex:/products/:id" } => { path: "path-to-regex:/products/:id" } - no change
+        if (typeof condition.path === 'string' && !condition.path.startsWith('path-to-regex:') && condition.path.match(/(?<!\\):/)) {
+            condition.path = `path-to-regex:${condition.path}`;
+        }
+        // Add method to condition if present
+        if (method) {
+            condition.method = method;
+        }
+        // Actions can be either an array of actions or a callback function that stores the actions in the RouteActionsCreator instance.
+        // () => {} -> [{ type: "serveApp" }]
+        if (typeof actions === 'function') {
+            const actionCreator = new RouteActionsCreator();
+            actions(actionCreator);
+            actions = actionCreator.actions;
+        }
+        // Add route to the front or back of the router.
+        if (front) {
+            this.routes.unshift({ condition, actions, done });
+        } else {
+            this.routes.push({ condition, actions, done });
+        }
     }
 
     /**
      * Executes the router.
      * @param request The request to execute the router on.
+     * @param response The response to execute the router on. Defaults to a new Response object.
      * @returns The response from the router.
-     * @private
      */
-    async execute(request: Request): Promise<Response> {
-        const response = new Response();
+    async execute(request: Request, response = new Response()): Promise<Response> {
         const matchedRoutes = this.matchRoutes(request);
         logger.debug(`[Router][MatchedRoutes]: ${request.method} ${request.url.toString()} => Matched ${matchedRoutes.length} routes`);
         for (const route of matchedRoutes) {
             await this.executeRoute(route, request, response);
-            if (route.done) break;
         }
         return response;
     }
@@ -87,6 +246,14 @@ export class Router {
      * @private
      */
     async executeRoute(route: Route, request: Request, response: Response): Promise<void> {
+        // Extract params from path condition if it's a path-to-regex pattern,
+        // so it can be later references in rewrite, redirect actions etc...
+        // NOTE: This feature is useful for Next.js redirects that have destination only in path-to-regex format.
+        const pathCondition = route.condition?.path;
+        if (typeof pathCondition === 'string' && pathCondition.startsWith('path-to-regex:')) {
+            request.params = extractPathToRegexpParams(pathCondition, request.path);
+        }
+
         for (const action of route.actions || []) {
             await this.executeRouteAction(action, request, response);
         }
@@ -100,11 +267,35 @@ export class Router {
      * @private
      */
     async executeRouteAction(action: RouteAction, request: Request, response: Response): Promise<void> {
+        // Append executed action type to x-own-actions header for debugging
+        response.addHeader(HEADERS.XOwnActions, action.type);
+
         if (isSetResponseHeaderAction(action)) {
             return this.executeSetResponseHeader(action, response);
         }
         if (isSetRequestHeaderAction(action)) {
             return this.executeSetRequestHeader(action, request);
+        }
+        if (isAddResponseHeaderAction(action)) {
+            return this.executeAddResponseHeader(action, response);
+        }
+        if (isAddRequestHeaderAction(action)) {
+            return this.executeAddRequestHeader(action, request);
+        }
+        if (isSetResponseStatusAction(action)) {
+            return this.executeSetResponseStatus(action, response);
+        }
+        if (isDeleteResponseHeaderAction(action)) {
+            return this.executeDeleteResponseHeader(action, response);
+        }
+        if (isDeleteRequestHeaderAction(action)) {
+            return this.executeDeleteRequestHeader(action, request);
+        }
+        if (isSetDefaultResponseHeaderAction(action)) {
+            return this.executeSetDefaultResponseHeader(action, response);
+        }
+        if (isSetDefaultRequestHeaderAction(action)) {
+            return this.executeSetDefaultRequestHeader(action, request);
         }
         if (isRewriteAction(action)) {
             return this.executeRewrite(action, request);
@@ -122,18 +313,34 @@ export class Router {
             return this.executeServeApp(request, response);
         }
         if (isRedirectAction(action)) {
-            return this.executeRedirect(action, response);
+            return this.executeRedirect(action, request, response);
+        }
+        if (isEchoAction(action)) {
+            return this.executeEcho(request, response);
+        }
+        if (isImageOptimizerAction(action)) {
+            return this.executeImageOptimizer(request, response);
         }
     }
 
     /**
      * Returns the list of all the routes that match the request.
      * @param request The request to match the routes to.
+     * @param includeDone Whether to include routes after matched route that has the done flag set to true.
      * @returns The routes that match the request.
      * @private
      */
-    matchRoutes(request: Request): Route[] {
-        return this.routes.filter((route) => this.matchRoute(route, request));
+    matchRoutes(request: Request, includeAfterDone: boolean = false): Route[] {
+        let matchedRoutes: Route[] = [];
+        for (const route of this.routes) {
+            if (this.matchRoute(route, request)) {
+                matchedRoutes.push(route);
+                // Stop matching routes after a route that has the done flag set to true.
+                // All other routes won't be executed.
+                if (!includeAfterDone && route.done) break;
+            }
+        }
+        return matchedRoutes;
     }
 
     /**
@@ -145,44 +352,200 @@ export class Router {
      */
     matchRoute(route: Route, request: Request): boolean {
         const condition = route.condition;
+        // Routes with empty condition match every request
         if (!condition) {
             return true;
         }
 
+        // URL condition
+        // For example:
+        // condition.url = ["https://example.com/blog", /https:\/\/example\.com\/blog\/.+/]
+        // condition.url.not = ["https://example.com/blog/2", /https:\/\/example\.com\/blog\/.+/]
+        // condition.url = /https:\/\/example\.com\/blog\/.+/
+        // condition.url.not = "https://example.com/blog/2"
         let urlMatch = true;
-        if (condition.url) {
-            if (typeof condition.url === 'string') {
-                urlMatch = request.url.toString() === condition.url || request.url.toString() === `${condition.url}/`;
-            } else if (Array.isArray(condition.url)) {
-                urlMatch = condition.url.some((url) => request.url.toString() === url || request.url.toString() === `${url}/`);
-            } else if (condition.url instanceof RegExp) {
-                urlMatch = condition.url.test(request.url.toString()) || condition.url.test(`${request.url.toString()}/`);
+        const urlCondition = isNot(condition.url) ? condition.url.not : condition.url;
+        if (urlCondition !== undefined) {
+            if (typeof urlCondition === 'string') {
+                urlMatch = request.url.toString() === urlCondition || request.url.toString() === `${urlCondition}/`;
+            } else if (Array.isArray(urlCondition)) {
+                // OR between all the values in the condition.url array
+                // For example: condition.url = ["https://example.com/blog", /https:\/\/example\.com\/blog\/.+/]
+                urlMatch = urlCondition.some((url) => {
+                    if (typeof url === 'string') {
+                        return request.url.toString() === url || request.url.toString() === `${url}/`;
+                    } else if (url instanceof RegExp) {
+                        return url.test(request.url.toString()) || url.test(`${request.url.toString()}/`);
+                    }
+                    return false;
+                });
+            } else if (urlCondition instanceof RegExp) {
+                urlMatch = urlCondition.test(request.url.toString()) || urlCondition.test(`${request.url.toString()}/`);
             }
         }
+        urlMatch = isNot(condition.url) ? !urlMatch : urlMatch;
 
+        // Path condition
+        // For example:
+        // condition.path = ["/blog", /^\/blog\/[^\/]+$/]
+        // condition.path = "path-to-regex:/blog/:postId"
+        // condition.path.not = ["/blog/2", /^\/blog\/[^\/]+$/]
+        // condition.path = /^\/blog\/[^\/]+$/
+        // condition.path.not = "/blog/2"
         let pathMatch = true;
-        if (condition.path) {
-            if (typeof condition.path === 'string') {
-                pathMatch = request.path === condition.path || request.path === `${condition.path}/`;
-            } else if (Array.isArray(condition.path)) {
-                pathMatch = condition.path.some((path) => request.path === path || request.path === `${path}/`);
-            } else if (condition.path instanceof RegExp) {
-                pathMatch = condition.path.test(request.path) || condition.path.test(`${request.path}/`);
+        const pathCondition = isNot(condition.path) ? condition.path.not : condition.path;
+        if (pathCondition !== undefined) {
+            if (typeof pathCondition === 'string' && pathCondition.startsWith('path-to-regex:')) {
+                // Convert path-to-regex pattern to regex
+                const pathConditionRegex = pathToRegexp(pathCondition).pathRegex;
+                pathMatch = pathConditionRegex.test(request.path) || pathConditionRegex.test(`${request.path}/`);
+            } else if (typeof pathCondition === 'string') {
+                // Compare exact path or path with trailing slash
+                pathMatch = request.path === pathCondition || request.path === `${pathCondition}/`;
+            } else if (Array.isArray(pathCondition)) {
+                // OR between all the values in the condition.path array
+                // For example: condition.path = ["/blog", /^\/blog\/[^\/]+$/]
+                pathMatch = pathCondition.some((path) => {
+                    if (typeof path === 'string') {
+                        return request.path === path || request.path === `${path}/`;
+                    } else if (path instanceof RegExp) {
+                        return path.test(request.path) || path.test(`${request.path}/`);
+                    }
+                    return false;
+                });
+            } else if (pathCondition instanceof RegExp) {
+                pathMatch = pathCondition.test(request.path) || pathCondition.test(`${request.path}/`);
             }
         }
+        pathMatch = isNot(condition.path) ? !pathMatch : pathMatch;
 
+        // Path extension condition
+        // For example:
+        // condition.pathExtension = ["css", "js"]
+        // condition.pathExtension.not = ["png", "jpg"]
+        // condition.pathExtension = "css"
+        // condition.pathExtension.not = "png"
+        let pathExtensionMatch = true;
+        const pathExtensionCondition = isNot(condition.pathExtension) ? condition.pathExtension.not : condition.pathExtension;
+        if (pathExtensionCondition !== undefined) {
+            if (typeof pathExtensionCondition === 'string') {
+                pathExtensionMatch = request.pathExtension === pathExtensionCondition;
+            } else if (Array.isArray(pathExtensionCondition)) {
+                pathExtensionMatch = pathExtensionCondition.some((pathExtension) => {
+                    if (typeof pathExtension === 'string') {
+                        return request.pathExtension === pathExtension;
+                    } else if (pathExtension instanceof RegExp) {
+                        return pathExtension.test(request.pathExtension || '');
+                    }
+                    return false;
+                });
+            } else if (pathExtensionCondition instanceof RegExp) {
+                pathExtensionMatch = pathExtensionCondition.test(request.pathExtension || '');
+            }
+        }
+        pathExtensionMatch = isNot(condition.pathExtension) ? !pathExtensionMatch : pathExtensionMatch;
+
+        // Method condition
+        // For example:
+        // condition.method = ["GET", /OPTIONS|HEAD/]
+        // condition.method.not = ["POST", /OPTIONS|HEAD/]
+        // condition.method = /OPTIONS|HEAD/
+        // condition.method.not = "POST"
         let methodMatch = true;
-        if (condition.method) {
-            if (typeof condition.method === 'string') {
-                methodMatch = request.method.toLowerCase() === condition.method.toLowerCase();
-            } else if (Array.isArray(condition.method)) {
-                methodMatch = condition.method.some((method) => request.method.toLowerCase() === method.toLowerCase());
-            } else if (condition.method instanceof RegExp) {
-                methodMatch = condition.method.test(request.method);
+        const methodCondition = isNot(condition.method) ? condition.method.not : condition.method;
+        if (methodCondition !== undefined) {
+            if (typeof methodCondition === 'string') {
+                methodMatch = request.method.toLowerCase() === methodCondition.toLowerCase();
+            } else if (Array.isArray(methodCondition)) {
+                // OR between all the values in the condition.method array
+                // For example: condition.method = ["GET", /OPTIONS|HEAD/]
+                methodMatch = methodCondition.some((method) => {
+                    if (typeof method === 'string') {
+                        return request.method.toLowerCase() === method.toLowerCase();
+                    } else if (method instanceof RegExp) {
+                        return method.test(request.method);
+                    }
+                    return false;
+                });
+            } else if (methodCondition instanceof RegExp) {
+                methodMatch = methodCondition.test(request.method);
             }
         }
+        methodMatch = isNot(condition.method) ? !methodMatch : methodMatch;
 
-        return urlMatch && pathMatch && methodMatch;
+        // Cookie condition
+        // For example:
+        // condition.cookie = {
+        //     "name": "value",
+        //     "name2": ["value1", /value2/],
+        // }
+        let cookieMatch = true;
+        if (condition.cookie) {
+            // AND between all the cookie values in condition.cookie
+            // For example: condition.cookie = {
+            //     "name": "value",
+            //     "name2": ["value1", /value2/]
+            // }
+            cookieMatch = Object.entries(condition.cookie).every(([key, value]) => {
+                if (typeof value === 'string') {
+                    return request.getCookieArray(key)?.includes(value);
+                } else if (value instanceof RegExp) {
+                    // OR if we have multiple values for the same cookie name
+                    return request.getCookieArray(key)?.some(value.test);
+                }
+                return false;
+            });
+        }
+
+        // Header condition
+        // For example:
+        // condition.header = {
+        //     "name": "value",
+        //     "name2": ["value1", /value2/]
+        // }
+        let headerMatch = true;
+        if (condition.header) {
+            // AND between all the header values in condition.header
+            // For example: condition.header = {
+            //     "name": "value",
+            //     "name2": ["value1", /value2/]
+            // }
+            headerMatch = Object.entries(condition.header).every(([key, value]) => {
+                if (typeof value === 'string') {
+                    return request.getHeaderArray(key)?.includes(value);
+                } else if (value instanceof RegExp) {
+                    // OR if we have multiple values for the same header name
+                    return request.getHeaderArray(key)?.some(value.test);
+                }
+                return false;
+            });
+        }
+
+        // Query condition
+        // For example:
+        // condition.query = {
+        //     "name": "value",
+        //     "name2": ["value1", /value2/]
+        // }
+        let queryMatch = true;
+        if (condition.query) {
+            // AND between all the query parameters in condition.query
+            // For example: condition.query = {
+            //     "name": "value",
+            //     "name2": ["value1", /value2/]
+            // }
+            queryMatch = Object.entries(condition.query).every(([key, value]) => {
+                if (typeof value === 'string') {
+                    return request.getQueryArray(key)?.includes(value);
+                } else if (value instanceof RegExp) {
+                    // OR if we have multiple values for the same query parameter
+                    return request.getQueryArray(key)?.some(value.test);
+                }
+                return false;
+            });
+        }
+
+        return urlMatch && pathMatch && pathExtensionMatch && methodMatch && cookieMatch && headerMatch && queryMatch;
     }
 
     /**
@@ -206,6 +569,80 @@ export class Router {
     }
 
     /**
+     * Executes an add response header action.
+     * @param action The action to execute.
+     * @param response The response to execute the action on.
+     * @private
+     */
+    async executeAddResponseHeader(action: AddResponseHeader, response: Response): Promise<void> {
+        response.headers[action.key] = response.getHeaderArray(action.key)?.concat(action.value);
+    }
+
+    /**
+     * Executes an add request header action.
+     * @param action The action to execute.
+     * @param request The request to execute the action on.
+     * @private
+     */
+    async executeAddRequestHeader(action: AddRequestHeader, request: Request): Promise<void> {
+        request.headers[action.key] = request.getHeaderArray(action.key)?.concat(action.value);
+    }
+
+    /**
+     * Executes a set response status action.
+     * @param action The action to execute.
+     * @param response The response to execute the action on.
+     * @private
+     */
+    async executeSetResponseStatus(action: SetResponseStatus, response: Response): Promise<void> {
+        response.statusCode = action.statusCode;
+    }
+
+    /**
+     * Executes a delete response header action.
+     * @param action The action to execute.
+     * @param response The response to execute the action on.
+     * @private
+     */
+    async executeDeleteResponseHeader(action: DeleteResponseHeader, response: Response): Promise<void> {
+        delete response.headers[action.key];
+    }
+
+    /**
+     * Executes a delete request header action.
+     * @param action The action to execute.
+     * @param request The request to execute the action on.
+     * @private
+     */
+    async executeDeleteRequestHeader(action: DeleteRequestHeader, request: Request): Promise<void> {
+        delete request.headers[action.key];
+    }
+
+    /**
+     * Executes a set default response header action.
+     * This action sets defined value for a response header only if the header is not defined or is empty.
+     * @param action The action to execute.
+     * @param response The response to execute the action on.
+     * @private
+     */
+    async executeSetDefaultResponseHeader(action: SetDefaultResponseHeader, response: Response): Promise<void> {
+        if (response.getHeaderArray(action.key)?.length) return;
+        response.headers[action.key] = action.value;
+    }
+
+    /**
+     * Executes a set default request header action.
+     * This action sets defined value for a request header only if the header is not defined or is empty.
+     * @param action The action to execute.
+     * @param request The request to execute the action on.
+     * @private
+     */
+    async executeSetDefaultRequestHeader(action: SetDefaultRequestHeader, request: Request): Promise<void> {
+        if (request.getHeaderArray(action.key)?.length) return;
+        request.headers[action.key] = action.value;
+    }
+
+    /**
      * Executes a proxy action.
      * @param action The action to execute.
      * @param request The request to proxy.
@@ -213,26 +650,63 @@ export class Router {
      * @private
      */
     async executeProxy(action: Proxy, request: Request, response: Response): Promise<void> {
-        const proxyReqUrl = new URL(`${request.path}${request.url.search}`, action.url);
+        const proxyReqUrl = new URL(action.url);
+        const proxyHostHeader = action.preserveHostHeader !== false ? request.headers.host.toString() : proxyReqUrl.hostname;
+        const proxyHeaders = action.preserveHeaders !== false ? { ...request.headers } : {};
+        proxyHeaders.host = proxyHostHeader;
         logger.debug(`[Router][ProxyRequest]: ${action.url} => ${proxyReqUrl}`);
-        const proxyReqHeaders = Object.fromEntries(Object.entries(request.headers).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value || '']));
-        const proxyRes = await fetch(proxyReqUrl, {
-            method: request.method,
-            headers: proxyReqHeaders,
-            // Only send body for non-GET/HEAD requests,
-            // otherwise fetch throws exception even though the body is empty. It needs to be null.
-            body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
+
+        return new Promise((resolve, reject) => {
+            const requestOptions: https.RequestOptions = {
+                path: `${request.path}${request.url.search}`,
+                method: request.method,
+                headers: proxyHeaders,
+                rejectUnauthorized: !action.verifyTls, // ignore TLS errors by default if verifyTls is false/undefined
+            };
+
+            // We need to use http/https libs instead of fetch,
+            // because there's no way to get raw compressed response body from fetch without decompressing it.
+            const proxyReq = (proxyReqUrl.protocol === 'https:' ? https : http).request(proxyReqUrl, requestOptions, (proxyRes) => {
+                // Forward status code
+                response.statusCode = proxyRes.statusCode || 500;
+
+                // Forward headers, converting undefined values to empty strings
+                const headers: Record<string, string | string[]> = {};
+                for (const [key, value] of Object.entries(proxyRes.headers)) {
+                    if (value !== undefined) {
+                        headers[key] = value;
+                    }
+                }
+                response.headers = {
+                    ...response.headers,
+                    ...headers,
+                };
+
+                // Read the response body
+                const chunks: Buffer[] = [];
+                proxyRes.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+
+                proxyRes.on('end', () => {
+                    response.body = Buffer.concat(chunks);
+                    logger.debug(`[Router][ProxyResponse]: ${response.statusCode} ${response.body?.length || 0} bytes`);
+                    resolve();
+                });
+            });
+
+            proxyReq.on('error', (error) => {
+                logger.error(`[Router][ProxyError]: ${error.message}`);
+                reject(error);
+            });
+
+            // Only send body for non-GET/HEAD requests
+            if (!['GET', 'HEAD'].includes(request.method) && request.body) {
+                proxyReq.write(request.body);
+            }
+
+            proxyReq.end();
         });
-        const proxyResBody = Buffer.from(await proxyRes.arrayBuffer());
-        const proxyResHeaders: Record<string, string | string[]> = {};
-        proxyRes.headers.forEach((value, key) => {
-            proxyResHeaders[key] = value;
-        });
-        delete proxyResHeaders[HEADERS.ContentEncoding];
-        response.statusCode = proxyRes.status;
-        response.body = proxyResBody;
-        response.headers = proxyResHeaders;
-        logger.debug(`[Router][ProxyResponse]: ${response.statusCode} ${response.body.length} bytes`);
     }
 
     /**
@@ -242,16 +716,29 @@ export class Router {
      * @param response The response to serve the asset on.
      * @private
      */
-    async executeServeAsset(action: ServeAsset, request: Request, response: Response): Promise<void> {
-        const assetPath = action.path || request.path;
+    async executeServeAsset(action: ServeAsset | ServePersistentAsset, request: Request, response: Response, proxyUrl: string = ASSETS_URL): Promise<void> {
+        let assetPath = action.path || request.path;
+        // If path doesn't end with a file extension, add index.html to it
+        // Example:
+        // /assets/css/style.css => /assets/css/style.css
+        // /images -> /images/index.html
+        if (!assetPath.match(/\.[^\.]+$/)) {
+            assetPath = `${assetPath}/index.html`.replace(/(?<!:)\/+/g, '/');
+        }
         request.url.pathname = assetPath;
-        if (request.headers[HEADERS.XOwnProxy]) {
-            response.headers[HEADERS.Location] = `${ASSETS_URL}/${assetPath}`.replace(/\/+/g, '/');
-            response.headers[HEADERS.XOwnFollowRedirect] = 'true';
-            response.statusCode = 302;
+        // If the request is coming from the ownstak-proxy, we need to redirect to the S3 bucket
+        if (request.getHeader(HEADERS.XOwnProxy)) {
+            response.setHeader(HEADERS.Location, `${proxyUrl}${assetPath}`.replace(/(?<!:)\/+/g, '/'));
+            // Tell the ownstak-proxy to follow the redirect to the S3 bucket
+            response.setHeader(HEADERS.XOwnFollowRedirect, 'true');
+            // Tell the ownstak-proxy to merge headers from this response with the headers from the S3 responses.
+            // Conflicting headers are overridden by the headers from the S3 responses.
+            response.setHeader(HEADERS.XOwnMergeHeaders, 'true');
+            response.statusCode = 301;
             return;
         }
-        return this.executeProxy({ url: ASSETS_URL, type: 'proxy' }, request, response);
+        // Otherwise, we need to proxy the request to the S3 bucket
+        return this.executeProxy({ url: ASSETS_URL, type: 'proxy', preserveHostHeader: false, preserveHeaders: false }, request, response);
     }
 
     /**
@@ -262,15 +749,7 @@ export class Router {
      * @private
      */
     async executeServePersistentAsset(action: ServePersistentAsset, request: Request, response: Response): Promise<void> {
-        const assetPath = action.path || request.path;
-        request.url.pathname = assetPath;
-        if (request.headers[HEADERS.XOwnProxy]) {
-            response.headers[HEADERS.Location] = `${PERSISTENT_ASSETS_URL}/${assetPath}`.replace(/\/+/g, '/');
-            response.headers[HEADERS.XOwnFollowRedirect] = 'true';
-            response.statusCode = 302;
-            return;
-        }
-        return this.executeProxy({ url: PERSISTENT_ASSETS_URL, type: 'proxy' }, request, response);
+        return this.executeServeAsset(action, request, response, PERSISTENT_ASSETS_URL);
     }
 
     /**
@@ -280,7 +759,16 @@ export class Router {
      * @private
      */
     async executeServeApp(request: Request, response: Response): Promise<void> {
-        return this.executeProxy({ url: APP_URL, type: 'proxy' }, request, response);
+        return this.executeProxy(
+            {
+                url: APP_URL,
+                type: 'proxy',
+                preserveHostHeader: true,
+                preserveHeaders: true,
+            },
+            request,
+            response,
+        );
     }
 
     /**
@@ -289,9 +777,9 @@ export class Router {
      * @param response The response to execute the action on.
      * @private
      */
-    async executeRedirect(action: Redirect, response: Response): Promise<void> {
+    async executeRedirect(action: Redirect, request: Request, response: Response): Promise<void> {
         response.statusCode = action.statusCode;
-        response.headers[HEADERS.Location] = action.to;
+        response.headers[HEADERS.Location] = substitutePathToRegexpParams(action.to, request.params);
     }
 
     /**
@@ -301,16 +789,106 @@ export class Router {
      * @private
      */
     async executeRewrite(action: Rewrite, request: Request): Promise<void> {
-        const before = request.url.pathname;
+        const pathBefore = request.path;
+        const from = action.from;
+        const to = substitutePathToRegexpParams(action.to, request.params);
+
         if (action.from && typeof action.from === 'string') {
-            request.url.pathname = request.url.pathname.replace(action.from, action.to);
+            request.path = request.path.replace(action.from, action.to);
         }
         if (action.from && action.from instanceof RegExp) {
-            request.url.pathname = request.url.pathname.replace(action.from, action.to);
+            request.path = request.path.replace(action.from, action.to);
         }
         if (!action.from) {
-            request.url.pathname = action.to;
+            request.path = action.to;
         }
-        logger.debug(`[Router][Rewrite]: ${action.from ? action.from.toString() : 'no from'} ${before} => ${request.url.pathname}`);
+        logger.debug(`[Router][Rewrite]: ${action.from ? action.from.toString() : 'no from'} ${pathBefore} => ${request.path}`);
+    }
+
+    /**
+     * Executes an echo action.
+     * @param request The request to echo.
+     * @param response The response to echo.
+     * @private
+     */
+    async executeEcho(request: Request, response: Response): Promise<void> {
+        response.setHeader(HEADERS.ContentType, 'application/json');
+        response.body = JSON.stringify(
+            {
+                req: {
+                    url: request.url.toString(),
+                    path: request.path,
+                    method: request.method,
+                    headers: request.headers,
+                    query: request.url.searchParams,
+                    body: request.body?.toString(),
+                    host: request.host,
+                    protocol: request.protocol,
+                },
+                originalEvent: request.originalEvent,
+            },
+            null,
+            2,
+        );
+    }
+
+    /**
+     * Executes an image optimizer action.
+     * This action just simulates image optimizer,
+     * doesn't do any image transformations and only returns source image unchaged, so projects work even locally without ownstak-proxy.
+     * The actual Image Optimizer is part of ownstak-proxy.
+     * @param request The request to optimize the image on.
+     * @param response The response to optimize the image on.
+     * @private
+     */
+    async executeImageOptimizer(request: Request, response: Response): Promise<void> {
+        const imageUrl = request.url.searchParams.get('url');
+        if (!imageUrl) {
+            response.clear();
+            response.statusCode = 400;
+            response.body = 'The image URL is required';
+            return;
+        }
+
+        const parsedUrl = new URL(imageUrl, `http://${request.host}`);
+        if (parsedUrl.pathname.startsWith('/__internal__/')) {
+            response.clear();
+            response.statusCode = 400;
+            response.body = 'The image URL cannot point back to the /__internal__/ path';
+            return;
+        }
+
+        if (parsedUrl.host !== request.host) {
+            response.clear();
+            response.statusCode = 400;
+            response.body = 'The image URL must be relative or point to the same domain';
+            return;
+        }
+
+        // Rewrite path to new URL, preserve path and query params
+        request.url.pathname = parsedUrl.pathname;
+        request.url.search = parsedUrl.search;
+
+        await this.executeProxy(
+            {
+                url: parsedUrl.toString(),
+                type: 'proxy',
+                preserveHostHeader: false,
+                preserveHeaders: false,
+            },
+            request,
+            response,
+        );
+
+        if (response.getHeader(HEADERS.Location)) {
+            return;
+        }
+        const contentType = response.getHeader(HEADERS.ContentType)?.toString();
+        if (!contentType || !contentType.startsWith('image/')) {
+            response.clear();
+            response.statusCode = 400;
+            response.body = 'The fetched resource is not an image';
+            return;
+        }
     }
 }

@@ -1,7 +1,8 @@
 import { dirname, join, resolve } from 'path';
-import { fileURLToPath } from 'url';
 import { exists } from './fsUtils.js';
 import { createRequire } from 'module';
+import { existsSync, readFileSync } from 'fs';
+import { execSync } from 'child_process';
 
 /**
  * Finds the location of a module in the project's node_modules
@@ -38,4 +39,33 @@ export async function getModuleFileUrl(moduleName: string, filePath: string): Pr
     }
 
     return `file://${fullPath}`;
+}
+
+export function installDependencies() {
+    if (existsSync('package-lock.json')) {
+        execSync('npm install', { stdio: 'inherit' });
+        return true;
+    }
+    if (existsSync('yarn.lock')) {
+        execSync('yarn install', { stdio: 'inherit' });
+        return true;
+    }
+    if (existsSync('pnpm-lock.yaml')) {
+        execSync('pnpm install', { stdio: 'inherit' });
+        return true;
+    }
+    return false;
+}
+
+export function getProjectType(): 'commonjs' | 'module' | 'typescript' {
+    if (existsSync('tsconfig.json')) {
+        return 'typescript';
+    }
+
+    const packageJson = existsSync('package.json') ? JSON.parse(readFileSync('package.json', 'utf8')) : null;
+    if (packageJson?.type) {
+        return packageJson?.type;
+    }
+
+    return 'commonjs';
 }

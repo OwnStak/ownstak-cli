@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'url';
 import { dirname, resolve, join, relative, basename } from 'path';
-import { mkdir, rm, writeFile, copyFile, readdir, cp } from 'fs/promises';
+import { mkdir, rm, writeFile, copyFile, readdir, readFile } from 'fs/promises';
 import { existsSync, statSync } from 'fs';
 import {
     BUILD_DIR_PATH,
@@ -17,15 +17,20 @@ import {
     PERSISTENT_ASSETS_DIR,
     APP_DIR,
     DEBUG_DIR,
+    CACHE_CONTROL_CONFIG,
+    HEADERS,
+    BUILD_DIR,
+    NAME_SHORT,
+    ASSETS_MANIFEST_FILE_PATH,
+    PERSISTENT_ASSETS_MANIFEST_FILE_PATH,
 } from '../constants.js';
 import { logger } from '../logger.js';
-import { BRAND, INPUT_CONFIG_FILE, OUTPUT_CONFIG_FILE } from '../constants.js';
-import { bundleRequire } from 'bundle-require';
+import { BRAND } from '../constants.js';
 import { normalizePath } from '../utils/pathUtils.js';
 import { glob } from 'glob';
 import { Config, FilesConfig, Framework } from '../config.js';
-import { generateBase64Id } from '../utils/idUtils.js';
 import { detectFramework, getFrameworkAdapter, getFrameworkAdapters } from '../frameworks/index.js';
+import { CliError } from '../cliError.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -37,9 +42,17 @@ export interface BuildCommandOptions {
 }
 
 export async function build(options: BuildCommandOptions) {
+    const startTime = Date.now();
+
     // Prepare build directories
     logger.debug(`Cleaning build directory: ${BUILD_DIR_PATH}`);
-    await rm(BUILD_DIR_PATH, { recursive: true, force: true });
+    // Clear everything under the build directory except the proxy,
+    // so we can copy binaries there and test everything locally.
+    await rm(COMPUTE_DIR_PATH, { recursive: true, force: true });
+    await rm(APP_DIR_PATH, { recursive: true, force: true });
+    await rm(ASSETS_DIR_PATH, { recursive: true, force: true });
+    await rm(PERSISTENT_ASSETS_DIR_PATH, { recursive: true, force: true });
+    await rm(DEBUG_DIR_PATH, { recursive: true, force: true });
 
     logger.debug(`Creating build directories`);
     await mkdir(BUILD_DIR_PATH, { recursive: true });
@@ -50,44 +63,52 @@ export async function build(options: BuildCommandOptions) {
     await mkdir(APP_DIR_PATH, { recursive: true });
     await mkdir(DEBUG_DIR_PATH, { recursive: true });
 
-    const config = await loadConfig();
-    config.buildId ??= generateBase64Id();
+    // Add build directory to .gitignore file if not already present
+    await addToGitignore(BUILD_DIR);
+
+    // Load config from source file ownstak.config.ts if present.
+    // If not, default config is returned.
+    const config = await Config.loadFromSource();
     config.framework = options.framework || config.framework || (await detectFramework());
     config.frameworkAdapter ??= getFrameworkAdapter(config.framework);
     config.skipFrameworkBuild = options.skipFrameworkBuild || config.skipFrameworkBuild;
 
+    // Add assets directory to config if specified
     if (options.assetsDir) {
         config.assets.include[`${options.assetsDir}`] = './';
     }
 
+    // Check if framework is supported
     if (config.framework && !config.frameworkAdapter) {
-        logger.error(
-            `The specified framework '${config.framework}' is not supported. The ${NAME} ${VERSION} supports the following frameworks: ${getFrameworkAdapters()
-                .map((adapter) => adapter.name)
-                .join(', ')}`,
+        throw new CliError(
+            `The specified framework '${config.framework}' is not supported. \r\n` +
+                `The ${NAME} ${VERSION} supports the following frameworks: \r\n` +
+                getFrameworkAdapters()
+                    .map((adapter) => `- ${adapter.name}`)
+                    .join('\r\n') +
+                `\r\n\r\n` +
+                `Please try the following steps to resolve this issue:\r\n` +
+                `- Check the framework name first\r\n` +
+                `- Try to upgrade ${BRAND} CLI to the latest version by running 'npx ${NAME_SHORT} upgrade' if you're sure the framework is supported.\r\n` +
+                `\r\nNothing helped? Feel free to reach out to us at ${SUPPORT_URL}`,
         );
-        logger.error(`Please try the following steps to resolve this issue:`);
-        logger.error('- Check the framework name first');
-        logger.error(`- Try to upgrade ${BRAND} CLI to the latest version by running 'npx ${NAME} upgrade' if you're sure the framework is supported.`);
-        logger.error(`\r\nNothing helped? Feel free to reach out to us at ${SUPPORT_URL}`);
-        process.exit(1);
     }
 
+    // If no framework adapter is found, throw an error
     if (!config.frameworkAdapter) {
-        logger.error(
-            `No supported framework was detected. The ${NAME} ${VERSION} supports the following frameworks: ${getFrameworkAdapters()
-                .map((adapter) => adapter.name)
-                .join(', ')}`,
+        throw new CliError(
+            `No supported framework was detected. \r\n` +
+                `The ${NAME} ${VERSION} supports the following frameworks: \r\n` +
+                getFrameworkAdapters()
+                    .map((adapter) => `- ${adapter.name}`)
+                    .join('\r\n') +
+                `\r\n\r\n` +
+                `If you would like to deploy just folder with static assets, please run 'npx ${NAME_SHORT} build static'.`,
         );
-        logger.error(`If you would like to deploy just folder with static assets, please run 'npx ${NAME} build static'.`);
-        process.exit(1);
     }
 
-    logger.info(`Framework: ${config.framework}`);
-    logger.info(`Runtime: ${config.runtime}`);
-    logger.info(`Timeout: ${config.timeout}`);
-
-    await config.frameworkAdapter.build(config);
+    // Run build:start hook
+    await config.frameworkAdapter?.hooks['build:start']?.(config);
 
     // Add project's package.json to debugAssets folder,
     // so we can see the project's dependencies version.
@@ -96,6 +117,15 @@ export async function build(options: BuildCommandOptions) {
     // Put the project's package.json in the app directory too,
     // so app runs with correct module type either commonjs or module (ESM).
     config.app.include[`./package.json`] = true;
+
+    // Normalize all paths in the config first
+    // For example:
+    // \\my\folder\..\folder2 -> /my/folder2
+    // /my//folder1 -> /my/folder1
+    config.assets = normalizeFilesConfig(config.assets);
+    config.persistentAssets = normalizeFilesConfig(config.persistentAssets);
+    config.app = normalizeFilesConfig(config.app);
+    config.debugAssets = normalizeFilesConfig(config.debugAssets);
 
     // Copy all files under assets, persistentAssets, compute and debugAssets
     // config properties to corresponding build directory.
@@ -120,6 +150,9 @@ export async function build(options: BuildCommandOptions) {
         await convertHtmlToFolders(PERSISTENT_ASSETS_DIR_PATH);
     }
 
+    // Run build:routes:start hook before we start creating default routes
+    await config.frameworkAdapter?.hooks['build:routes:start']?.(config);
+
     // Create routes for assets
     // For example:
     // .ownstak/assets/logo.png -> /logo.png
@@ -130,18 +163,48 @@ export async function build(options: BuildCommandOptions) {
         absolute: false,
         nodir: true,
     });
-    config.router.addRouteFront(
+    const assetsPaths = assets.map((path) => {
+        const tranformedPath = `/${path}`
+            .replace('index.html', '/') // replace index.html with just / in paths
+            .replace(/\/+/g, '/') // replace multiple slashes with a single slash //something//image.png => /something/image.png
+            .replace(/\/(?=$)/, ''); // remove trailing slash if it exists
+        return tranformedPath ? tranformedPath : '/'; // return "/" if the path is empty
+    });
+    const assetsPathsWithoutExtensions = assetsPaths.filter((path) => !path.match(/\.(.+)$/));
+    const assetsPathsWithExtensions = assetsPaths.filter((path) => path.match(/\.(.+)$/));
+
+    // Serve assets with file extensions
+    config.router.match(
         {
             method: ['GET', 'HEAD'],
-            path: assets.map(
-                (path) =>
-                    `/${path}`
-                        .replace('index.html', '/') // replace index.html with just / in paths
-                        .replace(/\/(?=$)/, '') // remove trailing slash if it exists
-                        .replace(/\/+/g, '/'), // replace multiple slashes with a single slash //something//image.png => /something/image.png
-            ),
+            path: assetsPathsWithExtensions,
         },
         [
+            {
+                type: 'setDefaultResponseHeader',
+                key: HEADERS.CacheControl,
+                value: CACHE_CONTROL_CONFIG.assets,
+            },
+            {
+                type: 'serveAsset',
+            },
+        ],
+        true,
+    );
+
+    // Serve assets without file extensions (prerendered pages)
+    config.router.match(
+        {
+            method: ['GET', 'HEAD'],
+            // Prerendered pages are assets without any extensions
+            path: assetsPathsWithoutExtensions,
+        },
+        [
+            {
+                type: 'setDefaultResponseHeader',
+                key: HEADERS.CacheControl,
+                value: CACHE_CONTROL_CONFIG.prerenderedPages,
+            },
             {
                 type: 'serveAsset',
             },
@@ -157,18 +220,24 @@ export async function build(options: BuildCommandOptions) {
         absolute: false,
         nodir: true,
     });
-    config.router.addRouteFront(
+    const persistentAssetsPaths = persistentAssets.map((path) => {
+        const tranformedPath = `/${path}`
+            .replace('index.html', '/') // replace index.html with just / in paths
+            .replace(/\/+/g, '/') // replace multiple slashes with a single slash //something//image.png => /something/image.png
+            .replace(/\/(?=$)/, ''); // remove trailing slash if it exists
+        return tranformedPath ? tranformedPath : '/'; // return "/" if the path is empty
+    });
+    config.router.match(
         {
             method: ['GET', 'HEAD'],
-            path: persistentAssets.map(
-                (path) =>
-                    `/${path}`
-                        .replace('index.html', '/') // replace index.html with just / in paths
-                        .replace(/\/(?=$)/, '') // remove trailing slash if it exists
-                        .replace(/\/+/g, '/'), // replace multiple slashes with a single slash //something//image.png => /something/image.png
-            ),
+            path: persistentAssetsPaths,
         },
         [
+            {
+                type: 'setDefaultResponseHeader',
+                key: HEADERS.CacheControl,
+                value: CACHE_CONTROL_CONFIG.persistentAssets,
+            },
             {
                 type: 'servePersistentAsset',
             },
@@ -176,7 +245,23 @@ export async function build(options: BuildCommandOptions) {
         true,
     );
 
-    await saveConfig(config);
+    // Add Image Optimizer route for local development
+    // For example:
+    // http://localhost:3000/__internal__/image?url=/image.png -> http://localhost:3000/image.png
+    config.router.match(
+        {
+            path: '/__internal__/image',
+        },
+        [
+            {
+                type: 'imageOptimizer',
+            },
+        ],
+        true,
+    );
+
+    // Run build:routes:finish hook after we created default routes
+    await config.frameworkAdapter?.hooks['build:routes:finish']?.(config);
 
     // Copy compute entrypoint for server and serverless environments
     await copyFile(resolve(__dirname, '../compute/server/server.js'), resolve(COMPUTE_DIR_PATH, 'server.cjs'));
@@ -197,38 +282,60 @@ export async function build(options: BuildCommandOptions) {
         ),
     );
 
-    logger.info('Build completed successfully! 🎉');
+    // Finally build the project from source ownstak.config.js/ts/mjs
+    // to .ownstak/compute/ownstak.config.json and .ownstak/ownstak.config.json
+    await config.build(COMPUTE_DIR_PATH);
+    await config.build(BUILD_DIR_PATH);
+
+    // Run build:finish hook right before we finish the build
+    await config.frameworkAdapter?.hooks['build:finish']?.(config);
+
+    // Create manifest files
+    await writeFile(ASSETS_MANIFEST_FILE_PATH, JSON.stringify(assets, null, 2));
+    await writeFile(PERSISTENT_ASSETS_MANIFEST_FILE_PATH, JSON.stringify(persistentAssets, null, 2));
+
+    const endTime = Date.now();
+    const duration = (endTime - startTime) / 1000;
+
+    // Print build summary
+    logger.info('');
+    logger.drawTable(
+        [
+            `Framework: ${config.framework}   `,
+            `Runtime: ${config.runtime}       `,
+            `RAM: ${config.ram}MB             `,
+            `Timeout: ${config.timeout}s      `,
+            `Routes: ${config.router.routes.length}`,
+            `Build duration: ${duration}s`,
+        ],
+        { title: 'Project Summary' },
+    );
+
+    logger.info('');
+    logger.info(`Build completed successfully 🎉`);
+    logger.info(
+        `You can now run \`npx ${NAME_SHORT} start\` to test your project locally and \`npx ${NAME_SHORT} deploy\` when you're ready to deploy it to ${BRAND}.`,
+    );
 }
 
 /**
- * Loads the Config from config file.
- * If no config file is found, a new Config instance is returned.
- * @returns {Promise<Config>} The loaded Config instance.
+ * Normalizes the paths in the files configuration
+ * For example:
+ * - \\my\folder\..\folder2 -> /my/folder2
+ * - /my//folder1 -> /my/folder1
+ * - ./src/public -> src/public
+ * @param filesConfig - The files configuration
+ * @returns The normalized files configuration
  */
-export async function loadConfig(): Promise<Config> {
-    const inputConfigFilePath = [
-        resolve(INPUT_CONFIG_FILE),
-        resolve(INPUT_CONFIG_FILE).replace('.js', '.mjs'),
-        resolve(INPUT_CONFIG_FILE).replace('.js', '.cjs'),
-        resolve(INPUT_CONFIG_FILE).replace('.js', '.ts'),
-    ].find(existsSync);
-
-    if (!inputConfigFilePath) {
-        logger.info(`No ${BRAND} config file found. Using default config...`);
-        return new Config();
-    }
-
-    logger.info(`Loading ${BRAND} config: ${relative(process.cwd(), inputConfigFilePath)}`);
-    const { mod } = await bundleRequire({
-        filepath: normalizePath(inputConfigFilePath),
+export function normalizeFilesConfig(filesConfig: FilesConfig) {
+    const normalizedFilesConfig: FilesConfig = { ...filesConfig };
+    normalizedFilesConfig.include = {};
+    Object.entries(filesConfig.include).forEach(([source, destination]) => {
+        const normalizedSource = normalizePath(source);
+        const normalizedDestination = typeof destination === 'string' ? normalizePath(destination || './') : destination;
+        normalizedFilesConfig.include[normalizedSource] = normalizedDestination;
     });
-
-    return mod?.default?.default || mod?.default || new Config();
-}
-
-export async function saveConfig(config: Config) {
-    logger.debug(`Saving ${BRAND} config to ${OUTPUT_CONFIG_FILE}`);
-    await writeFile(resolve(COMPUTE_DIR_PATH, OUTPUT_CONFIG_FILE), config.serialize());
+    return normalizedFilesConfig;
 }
 
 /**
@@ -267,7 +374,7 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
         const globFiles = isGlob ? await glob.glob(pattern) : [pattern];
         for (const srcFile of globFiles) {
             const stat = statSync(srcFile);
-            let destFile = srcFile;
+            let destFile = resolve(destDir, srcFile);
 
             if (destination === './') {
                 destFile = resolve(destDir, relative(baseDir, srcFile));
@@ -284,8 +391,12 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
             } else if (destination === true) {
                 destFile = resolve(destDir, srcFile);
             } else if (destination === false) {
-                logger.debug(`Excluding file ${srcFile}`);
-                rm(destFile, { force: true });
+                const destFileRelative = relative(process.cwd(), destFile);
+                // Make sure to remove only files under the build directory .ownstak
+                if (destFileRelative.startsWith(BUILD_DIR)) {
+                    logger.debug(`Removing '${srcFile}' from '${destFileRelative}'`);
+                    rm(destFile, { force: true, recursive: true });
+                }
                 continue;
             } else {
                 destFile = resolve(destDir, destination);
@@ -293,11 +404,10 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
 
             const destFileDir = dirname(destFile);
 
+            logger.debug(`Copying '${srcFile}' to '${destFile}'`);
             if (stat.isDirectory()) {
-                logger.debug(`Copying directory ${srcFile} to ${destFile}`);
                 await copyDir(srcFile, destFile);
             } else {
-                logger.debug(`Copying file ${srcFile} to ${destFile}`);
                 await mkdir(destFileDir, { recursive: true });
                 await copyFile(srcFile, destFile);
             }
@@ -348,4 +458,18 @@ async function convertHtmlToFolders(dir: string) {
             await copyFile(srcPath, join(destPath, 'index.html'));
         }
     }
+}
+
+/**
+ * Adds specified pattern to .gitignore file if present
+ * @param pattern
+ */
+async function addToGitignore(pattern: string) {
+    const gitignorePath = join(process.cwd(), '.gitignore');
+    const gitignoreContent = existsSync(gitignorePath) ? await readFile(gitignorePath, 'utf-8') : '';
+    if (gitignoreContent.includes(pattern)) {
+        return;
+    }
+    logger.info(`Adding ${pattern} to .gitignore file...`);
+    await writeFile(gitignorePath, `${gitignoreContent}\r\n# ${BRAND} build directory\r\n${pattern}`);
 }

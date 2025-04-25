@@ -1,13 +1,9 @@
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
+import { resolve } from 'path';
 import { logger } from '../logger.js';
 import { VERSION, NAME } from '../constants.js';
 import { readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { execSync } from 'child_process';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { installDependencies } from '../utils/moduleUtils.js';
+import { CliError } from '../cliError.js';
 
 export interface UpgradeCommandOptions {
     version?: string;
@@ -20,8 +16,7 @@ export async function upgrade(options: UpgradeCommandOptions) {
 
     const res = await fetch(`https://registry.npmjs.org/-/package/${NAME}/dist-tags`);
     if (!res.ok) {
-        logger.error(`ERROR: Failed to fetch latest version of ${NAME} from NPM. Please try it again later.`);
-        process.exit(1);
+        throw new CliError(`Failed to fetch latest version of ${NAME} from NPM. Please try it again later.`);
     }
 
     const tags = (await res.json()) as Record<string, string>;
@@ -58,26 +53,10 @@ export async function upgrade(options: UpgradeCommandOptions) {
     logger.info(`Installing dependencies`);
     if (installDependencies()) {
         logger.info(`${NAME} upgraded to ${selectedVersion}!`);
-        logger.info(`Well done!`);
+        logger.info(`Upgrade completed successfully.`);
         return;
     }
 
     logger.info(`We're done! Now it's your turn.`);
     logger.info(`Please run 'npm install', 'yarn install' etc.. with your favorite package manager to finish the upgrade.`);
-}
-
-export function installDependencies() {
-    if (existsSync('package-lock.json')) {
-        execSync('npm install', { stdio: 'inherit' });
-        return true;
-    }
-    if (existsSync('yarn.lock')) {
-        execSync('yarn install', { stdio: 'inherit' });
-        return true;
-    }
-    if (existsSync('pnpm-lock.yaml')) {
-        execSync('pnpm install', { stdio: 'inherit' });
-        return true;
-    }
-    return false;
 }

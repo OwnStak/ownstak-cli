@@ -40,10 +40,10 @@ export async function findMonorepoRoot() {
 
 /**
  * Converts express style path pattern to a regex pattern.
- * @param pathPattern - The path pattern to convert.
+ * @param pathToRegexPattern - The path pattern to convert.
  * @returns The regex pattern.
  */
-export function pathToRegexp(pathPattern: string) {
+export function pathToRegexp(pathToRegexPattern: string) {
     const groupRx = /:([A-Za-z0-9_]+)([?+*]?)/g;
 
     let match = null,
@@ -51,7 +51,7 @@ export function pathToRegexp(pathPattern: string) {
         keys = [],
         result = '';
 
-    while ((match = groupRx.exec(pathPattern)) !== null) {
+    while ((match = groupRx.exec(pathToRegexPattern)) !== null) {
         const [_, segment, mod] = match;
 
         // :foo  [1]      (  )
@@ -60,9 +60,9 @@ export function pathToRegexp(pathPattern: string) {
         // :foo* [0 - ∞]  (ro)
         const repeat = mod === '+' || mod === '*';
         const optional = mod === '?' || mod === '*';
-        const prefix = optional && pathPattern[match.index - 1] === '/' ? 1 : 0;
+        const prefix = optional && pathToRegexPattern[match.index - 1] === '/' ? 1 : 0;
 
-        const prev = pathPattern.substring(lastIndex, match.index - prefix);
+        const prev = pathToRegexPattern.substring(lastIndex, match.index - prefix);
 
         keys.push(segment);
         lastIndex = groupRx.lastIndex;
@@ -70,12 +70,47 @@ export function pathToRegexp(pathPattern: string) {
         result += escapeRx(prev) + rxForSegment(repeat, optional, prefix);
     }
 
-    result += escapeRx(pathPattern.substring(lastIndex));
+    result += escapeRx(pathToRegexPattern.substring(lastIndex));
 
     return {
         pathParams: keys,
         pathRegex: new RegExp('^' + result + '(?:\\/)?$', 'i'),
     };
+}
+
+/**
+ * Extracts the params from the path using the provided pathToRegexp pattern.
+ * @param pathToRegexPattern - The path pattern to convert.
+ * @param path - The path to extract the params from.
+ * @returns The params from the path.
+ * @example extractPathToRegexpParams('/users/:id', '/users/123') -> { id: '123' }
+ */
+export function extractPathToRegexpParams(pathToRegexPattern: string, path: string) {
+    const { pathParams, pathRegex } = pathToRegexp(pathToRegexPattern);
+    const match = pathRegex.exec(path);
+    if (match) {
+        return pathParams.reduce(
+            (acc, param, index) => {
+                acc[param] = match[index + 1];
+                return acc;
+            },
+            {} as Record<string, string>,
+        );
+    }
+    return {};
+}
+
+/**
+ * Substitutes the path params in the path-to-regex pattern with the provided params.
+ * If no match is found, the string is returned as is.
+ * @param pathToRegexPattern - The path-to-regex pattern.
+ * @param params - The params to substitute.
+ * @returns The path with the substituted params.
+ * @example substitutePathToRegexpParams('/products/:id', { id: '123' }) -> '/products/123'
+ * @example substitutePathToRegexpParams('/products/:id*', { id: '123' }) -> '/products/123'
+ */
+export function substitutePathToRegexpParams(pathToRegexPattern: string, params: Record<string, string>) {
+    return pathToRegexPattern.replace(/:(\w+)[?+*]?/g, (match, p1) => params[p1] || match);
 }
 
 /**

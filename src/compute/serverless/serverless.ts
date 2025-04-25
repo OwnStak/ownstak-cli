@@ -21,7 +21,7 @@ export async function handler(event: Event, context: Context) {
     try {
         context.callbackWaitsForEmptyEventLoop = false;
 
-        configPromise ??= Config.load();
+        configPromise ??= Config.loadFromBuild();
         const config = await configPromise;
         appPromise ??= config.startApp();
         await appPromise;
@@ -38,6 +38,7 @@ export async function handler(event: Event, context: Context) {
             JSON.stringify({
                 error: e.message,
                 stack: e.stack.split('\n').map((line: string) => line.trim()),
+                event,
             }),
             {
                 statusCode: 500,

@@ -15,9 +15,10 @@
     },
     "scripts": {
         "dev": "nodemon --watch 'src/**/*.ts' --ext 'ts' --exec 'clear && npm run build && npm run link'",
-        "build": "tsc && cp -r README_NPM.md dist/README.md && npm run build:server && npm run build:serverless",
+        "build": "tsc && cp -r README_NPM.md dist/README.md && npm run build:server && npm run build:serverless && npm run build:copy-templates",
         "build:server": "esbuild src/compute/server/server.ts --sourcemap --bundle --platform=node --outfile=dist/src/compute/server/server.js --log-level=error",
         "build:serverless": "esbuild src/compute/serverless/serverless.ts --sourcemap --bundle --platform=node --outfile=dist/src/compute/serverless/serverless.js --log-level=error",
+        "build:copy-templates": "cp -r src/templates/* dist/src/templates/",
         "link": "cd dist && npm link > /dev/null 2>&1 || npm link && chmod +x ./ -R && cd ..",
         "start": "node dist/src/commands/index.js",
         "format": "prettier --write 'src/**/*.ts'",
@@ -29,7 +30,7 @@
         "bundle-require": "5.1.0",
         "chalk": "5.4.1",
         "commander": "13.1.0",
-        "glob": "11.0.2",
+        "glob": "11.0.1",
         "mime-types": "3.0.1",
         "semver": "7.7.1",
         "typescript": "5.8.3"
@@ -40,7 +41,7 @@
         "@types/node": "20.14.8",
         "@types/semver": "7.7.0",
         "esbuild": "0.25.2",
-        "nodemon": "3.1.10",
+        "nodemon": "3.1.9",
         "prettier": "3.5.3"
     },
     "engines": {

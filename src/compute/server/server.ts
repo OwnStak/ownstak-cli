@@ -6,7 +6,7 @@ import http from 'http';
 import { logger } from '../../logger.js';
 
 (async () => {
-    const configPromise = Config.load();
+    const configPromise = Config.loadFromBuild();
     const config = await configPromise;
     await config.startApp();
 
@@ -38,6 +38,6 @@ import { logger } from '../../logger.js';
     });
 
     server.listen(PORT, () => {
-        logger.info(`${BRAND} server is running on port ${PORT}`);
+        logger.info(`${BRAND} is running on port ${PORT}`);
     });
 })();

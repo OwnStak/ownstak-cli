@@ -42,7 +42,7 @@ class Logger {
                     return chalk.gray(`[DEBUG] ${line}`);
                 }
                 if (logLevel === LogLevel.INFO) {
-                    return chalk.greenBright(`[INFO] `) + line;
+                    return chalk.blueBright(`[INFO] `) + line;
                 }
                 return line;
             })
