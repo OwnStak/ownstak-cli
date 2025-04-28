@@ -43,11 +43,11 @@ export async function getModuleFileUrl(moduleName: string, filePath: string): Pr
 
 export function installDependencies() {
     if (existsSync('package-lock.json')) {
-        execSync('npm install', { stdio: 'inherit' });
+        execSync('npm install --no-audit --no-fund --legacy-peer-deps', { stdio: 'inherit' });
         return true;
     }
     if (existsSync('yarn.lock')) {
-        execSync('yarn install', { stdio: 'inherit' });
+        execSync('yarn install --no-audit', { stdio: 'inherit' });
         return true;
     }
     if (existsSync('pnpm-lock.yaml')) {

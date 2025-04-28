@@ -24,13 +24,14 @@ import {
     ASSETS_MANIFEST_FILE_PATH,
     PERSISTENT_ASSETS_MANIFEST_FILE_PATH,
 } from '../constants.js';
-import { logger } from '../logger.js';
+import { logger, LogLevel } from '../logger.js';
 import { BRAND } from '../constants.js';
 import { normalizePath } from '../utils/pathUtils.js';
 import { glob } from 'glob';
 import { Config, FilesConfig, Framework } from '../config.js';
 import { detectFramework, getFrameworkAdapter, getFrameworkAdapters } from '../frameworks/index.js';
 import { CliError } from '../cliError.js';
+import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,7 +46,7 @@ export async function build(options: BuildCommandOptions) {
     const startTime = Date.now();
 
     // Prepare build directories
-    logger.debug(`Cleaning build directory: ${BUILD_DIR_PATH}`);
+    logger.debug(`Cleaning build directory  '${BUILD_DIR_PATH}'...`);
     // Clear everything under the build directory except the proxy,
     // so we can copy binaries there and test everything locally.
     await rm(COMPUTE_DIR_PATH, { recursive: true, force: true });
@@ -54,7 +55,7 @@ export async function build(options: BuildCommandOptions) {
     await rm(PERSISTENT_ASSETS_DIR_PATH, { recursive: true, force: true });
     await rm(DEBUG_DIR_PATH, { recursive: true, force: true });
 
-    logger.debug(`Creating build directories`);
+    logger.debug(`Creating build directories...`);
     await mkdir(BUILD_DIR_PATH, { recursive: true });
     await mkdir(COMPUTE_DIR_PATH, { recursive: true });
     await mkdir(ASSETS_DIR_PATH, { recursive: true });
@@ -89,8 +90,8 @@ export async function build(options: BuildCommandOptions) {
                 `\r\n\r\n` +
                 `Please try the following steps to resolve this issue:\r\n` +
                 `- Check the framework name first\r\n` +
-                `- Try to upgrade ${BRAND} CLI to the latest version by running 'npx ${NAME_SHORT} upgrade' if you're sure the framework is supported.\r\n` +
-                `\r\nNothing helped? Feel free to reach out to us at ${SUPPORT_URL}`,
+                `- If you don't know which framework to use, just run 'npx ${NAME_SHORT} build' and let ${BRAND} detect the framework for you.\r\n` +
+                `- If don't see your framework in the list, try to upgrade ${BRAND} CLI to the latest version first by running 'npx ${NAME_SHORT} upgrade'.`,
         );
     }
 
@@ -297,24 +298,39 @@ export async function build(options: BuildCommandOptions) {
     const endTime = Date.now();
     const duration = (endTime - startTime) / 1000;
 
+    // Calculate the max content width needed for consistent tables
+    const tableMinWidth = 63;
+
     // Print build summary
     logger.info('');
     logger.drawTable(
         [
-            `Framework: ${config.framework}   `,
-            `Runtime: ${config.runtime}       `,
-            `RAM: ${config.ram}MB             `,
-            `Timeout: ${config.timeout}s      `,
-            `Routes: ${config.router.routes.length}`,
-            `Build duration: ${duration}s`,
+            `Framework: ${chalk.cyan(config.framework)}`,
+            `Runtime: ${chalk.cyan(config.runtime)}`,
+            `RAM: ${chalk.cyan(`${config.ram}MB`)}`,
+            `Timeout: ${chalk.cyan(`${config.timeout}s`)}`,
+            `Routes: ${chalk.cyan(config.router.routes.length.toString())}`,
+            `Build duration: ${chalk.cyan(`${duration.toFixed(2)}s`)}`,
         ],
-        { title: 'Project Summary' },
+        {
+            title: 'Build Successful',
+            logLevel: LogLevel.SUCCESS,
+            minWidth: tableMinWidth,
+        },
     );
 
+    // Display what to do next ibfo
     logger.info('');
-    logger.info(`Build completed successfully 🎉`);
-    logger.info(
-        `You can now run \`npx ${NAME_SHORT} start\` to test your project locally and \`npx ${NAME_SHORT} deploy\` when you're ready to deploy it to ${BRAND}.`,
+    logger.drawTable(
+        [
+            `Run ${chalk.cyan(`npx ${NAME_SHORT} start`)} to test your project locally.`,
+            `When you're ready, run ${chalk.cyan(`npx ${NAME_SHORT} deploy`)} to deploy to ${BRAND}.`,
+        ],
+        {
+            title: "What's Next",
+            borderColor: 'brand',
+            minWidth: tableMinWidth,
+        },
     );
 }
 

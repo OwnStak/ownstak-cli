@@ -7,6 +7,7 @@ import { BRAND, NAME, VERSION } from '../../constants.js';
 import { fileURLToPath } from 'url';
 import { installDependencies } from '../../utils/moduleUtils.js';
 import { CliError } from '../../cliError.js';
+import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,13 +19,6 @@ export async function configInit() {
     const configTemplatePath = resolve(__dirname, `../../templates/config/ownstak.config.${configTemplateExtension}`);
     if (!existsSync(configTemplatePath)) {
         throw new Error(`The ${BRAND} project config template was not found at ${configTemplatePath}`);
-    }
-
-    const destConfigExtension = projectType === 'typescript' ? 'ts' : 'mjs';
-    const destConfigPath = resolve(`ownstak.config.${destConfigExtension}`);
-    if (existsSync(destConfigPath)) {
-        logger.warn(`The ${BRAND} project config file already exists at '${destConfigPath}'. \r\nNothing to do here.`);
-        return;
     }
 
     // Install the current version of CLI into the project
@@ -43,11 +37,32 @@ export async function configInit() {
         packageJson.devDependencies[NAME] = VERSION;
         await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
         installDependencies();
-    } else {
-        logger.info(`${NAME} ${packageJson.devDependencies[NAME]} is already installed in the project. Skipping installation...`);
+    }
+
+    const destConfigExtension = projectType === 'typescript' ? 'ts' : 'mjs';
+    const destConfigPath = `ownstak.config.${destConfigExtension}`;
+    if (existsSync(destConfigPath)) {
+        logger.warn(`The ${BRAND} project config file exists at '${destConfigPath}'. \r\nNothing to do here.`);
+        return;
     }
 
     await copyFile(configTemplatePath, destConfigPath);
-    logger.info(`The ${BRAND} project config file was created at '${destConfigPath}' 🚀`);
-    logger.info(`Now you can edit it to override the default config`);
+    logger.success(`New ${BRAND} project config was created at '${destConfigPath}'`);
+
+    // Display what to do next ibfo
+    logger.info('');
+    logger.drawTable(
+        [
+            `Now you can edit the ${BRAND} project config '${destConfigPath}' to customize the project behavior. ` +
+                `\r\n\r\n` +
+                `For example:\r\n` +
+                chalk.cyan(`import { Config } from '${NAME}';\r\n`) +
+                chalk.cyan(`export default new Config({ runtime: 'nodejs20.x' });`),
+        ],
+        {
+            title: "What's Next",
+            borderColor: 'brand',
+            maxWidth: 65,
+        },
+    );
 }

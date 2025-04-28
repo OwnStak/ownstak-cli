@@ -16,6 +16,8 @@ export async function start() {
         throw new CliError(`The ${BRAND} project build does not exist. Please run \`npx ${NAME_SHORT} build\` first.`);
     }
 
+    logger.info(`Starting ${BRAND} project...`);
+
     // By default, we listen on 3000 port and all other apps 3001, 3002, etc...
     // If there's a port conflict, we'll try to find the nearest unused port and move to that one (4000, 5000, etc...)
     const freeMainPort = (await getNearestFreePort(PORT)) || PORT;

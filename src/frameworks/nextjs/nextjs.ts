@@ -54,7 +54,6 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             if (config.skipFrameworkBuild) {
                 logger.info(`Skipping Next.js build and using existing build output...`);
             } else {
-                logger.info('Building Next.js application...');
                 process.env.NEXT_PRIVATE_MINIMAL_MODE = 'true';
                 process.env.NEXT_PRIVATE_STANDALONE = 'true';
                 process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT = monorepoRoot;
@@ -271,6 +270,7 @@ export async function buildNextApp() {
     }
 
     // Run Next.js build
+    logger.info('Building Next.js application...');
     const buildArgs = ['next', 'build'];
     logger.debug(`Running: npx ${buildArgs.join(' ')}`);
     await new Promise<void>((promiseResolve, promiseReject) => {
@@ -280,7 +280,7 @@ export async function buildNextApp() {
         });
 
         buildProcess.on('close', async (code) => {
-            logger.info(`Cleaning up after Next.js build...`);
+            logger.debug(`Cleaning up after Next.js build...`);
             await rm(imageLoaderPath);
             await rm(nextConfigPath);
             await rename(nextConfigOriginalPath, nextConfigPath);

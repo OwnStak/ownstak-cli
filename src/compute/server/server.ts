@@ -1,9 +1,10 @@
 import { Request } from '../router/request.js';
 import { Response } from '../router/response.js';
 import { Config } from '../../config.js';
-import { OUTPUT_CONFIG_FILE, PORT, BRAND } from '../../constants.js';
+import { PORT, BRAND, HOST, NAME_SHORT } from '../../constants.js';
 import http from 'http';
-import { logger } from '../../logger.js';
+import { logger, LogLevel } from '../../logger.js';
+import chalk from 'chalk';
 
 (async () => {
     const configPromise = Config.loadFromBuild();
@@ -38,6 +39,22 @@ import { logger } from '../../logger.js';
     });
 
     server.listen(PORT, () => {
-        logger.info(`${BRAND} is running on port ${PORT}`);
+        // Draw "fancy table" if we're running locally
+        if (process.env.LOCAL) {
+            logger.success(`${BRAND} project is ready`);
+            logger.drawTable(
+                [
+                    `Host: ${chalk.cyan(`http://127.0.0.1:${PORT}`)}`,
+                    `Mode: ${chalk.cyan(process.env.NODE_ENV)}`,
+                    ``,
+                    chalk.gray(`Add ${chalk.cyan(`--debug`)} flag to see all logs.`),
+                    chalk.gray(`Press ${chalk.cyan('CTRL+C')} to stop the server.`),
+                ],
+                {
+                    logLevel: LogLevel.SUCCESS,
+                },
+            );
+        }
+        logger.info('');
     });
 })();

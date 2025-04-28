@@ -278,8 +278,15 @@ export class Config {
         ].find(existsSync);
 
         if (!configFilePath) {
+            // Display hint what to do to customize the default config
             logger.info(`Using default ${BRAND} config....`);
-            logger.info(chalk.gray(`Run "npx ${NAME_SHORT} config init" to create a custom config`));
+            logger.info('');
+            logger.drawTable([`Run ${chalk.cyan(`npx ${NAME_SHORT} config init`)} to customize your project's config.`], {
+                title: 'Hint',
+                borderColor: 'brand',
+            });
+            logger.info('');
+
             return new Config();
         }
 

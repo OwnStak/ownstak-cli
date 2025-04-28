@@ -2,7 +2,7 @@
 import chalk from 'chalk';
 import { CliError } from '../cliError.js';
 import { Command } from 'commander';
-import { logger } from '../logger.js';
+import { logger, LogLevel } from '../logger.js';
 import { BRAND, NAME, NAME_SHORT, SUPPORT_URL, VERSION } from '../constants.js';
 
 import { build } from './build.js';
@@ -16,26 +16,44 @@ import { configInit } from './config/init.js';
 import { configPrint } from './config/print.js';
 
 process.on('uncaughtException', (e: any) => {
-    logger.error(e.message);
+    const errorMessage: string = e.message;
+    const errorStack: string = e.stack
+        .split('\n')
+        .map((line: string) => line.trim())
+        .slice(1)
+        .join('\n'); // remove the first line with the error message
 
-    // CLI Errors are expected, intentional errors.
-    // We don't want to show the stack trace for them.
-    if (e instanceof CliError) {
-        process.exit(1);
+    // Show stack trace only for unexpected errors. Not for CLI errors.
+    // Do not show stack trace in table, the lines are too long.
+    if (!(e instanceof CliError)) {
+        logger.info('');
+        logger.error(
+            chalk.gray.bold(`Stack trace`) +
+                '\r\n\r\n' +
+                chalk.gray(errorStack) +
+                '\r\n\r\n' +
+                chalk.gray(`You can try to run the command again with the ${chalk.cyan('--debug')} flag to get more information.`),
+        );
     }
 
-    // Show the stack trace for unexpected errors.
-    logger.error(chalk.gray(`\r\nYou can try to run the command again with the --debug flag to get more information.`));
-    logger.error(chalk.gray(`If you need help or you think this is an bug, please reach out to us at ${SUPPORT_URL}`));
-    logger.error(chalk.gray(`\r\nStack trace:`));
-    logger.error(
-        chalk.gray(
-            e.stack
-                .split('\n')
-                .map((line: string) => `    ${line}`)
-                .join('\n'),
-        ),
-    );
+    // Show error message in table and intentionally under the stack trace,
+    // that can be pretty long.
+    logger.info('');
+    logger.drawTable([errorMessage], {
+        title: 'Error',
+        logLevel: LogLevel.ERROR,
+        minWidth: 70,
+        maxWidth: 70,
+    });
+
+    // Show help
+    logger.info('');
+    logger.drawTable([`Nothing helped? Do you think this is a bug? Reach out to us at ${SUPPORT_URL}`], {
+        title: 'Support is here for you',
+        logLevel: LogLevel.ERROR,
+        minWidth: 70,
+        maxWidth: 70,
+    });
     process.exit(1);
 });
 
