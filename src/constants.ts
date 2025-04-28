@@ -104,7 +104,7 @@ export const HEADERS = {
 };
 
 export const CACHE_CONTROL_CONFIG = {
-    prerenderedPages: `public, max-age=0, s-maxage=3600, no-store`, // cache pre-rendered pages for 1 hour by the CDN and never in the browser
-    assets: `public, max-age=3600, s-maxage=31536000, no-store`, // cache assets for 1 hour in the browser and 1 year by the CDN
+    prerenderedPages: `public, max-age=0, s-maxage=3600`, // cache pre-rendered pages for 1 hour by the CDN and never in the browser
+    assets: `public, max-age=3600, s-maxage=31536000`, // cache assets for 1 hour in the browser and 1 year by the CDN
     persistentAssets: `public, max-age=86400, s-maxage=31536000, immutable`, // cache persistent assets for 1 day in the browser and 1 year by the CDN
 } as const;
