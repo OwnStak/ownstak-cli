@@ -12,5 +12,7 @@ export default function ImageLoader({ src, width, height, quality }: { src: stri
     if (height) searchParams.set('h', height.toString());
     if (quality) searchParams.set('q', quality.toString());
 
-    return `/__internal__/image?${searchParams.toString()}`;
+    // NOTE: Do not import the INTERNAL_PATH_PREFIX constant here,
+    // to keep this code as small as possible without any dependencies.
+    return `/__ownstak__/image?${searchParams.toString()}`;
 }

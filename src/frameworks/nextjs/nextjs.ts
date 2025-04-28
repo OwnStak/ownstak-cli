@@ -24,6 +24,11 @@ export type NextJsConfig = {
         loader?: string;
         loaderFile?: string;
     };
+    i18n?: {
+        locales?: string[];
+        defaultLocale?: string;
+        localeDetection?: boolean;
+    };
     headers?: Array<any> | (() => Promise<Array<any>>);
     redirects?: Array<any> | (() => Promise<Array<any>>);
     rewrites?: Array<any> | (() => Promise<Array<any>>);
@@ -83,6 +88,16 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             config.assets.include[`./public`] = `.${basePath}/`;
             config.assets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = `.${basePath}/**`;
             config.assets.include[`${distDir}/standalone/${distDir}/server/app/**/*.{html,htm,json,rsc}`] = `.${basePath}/**`;
+            // Edge case: If i18n is enabled, we need to also copy default locale pre-rendered pages to the base path.
+            // Usually, this is handled by the Next.js server, but because we moved the pre-rendered pages to S3, we need to handle it here.
+            // For example: /en/products/123.html -> /products/123/index.html
+            // For example: /en/index.html -> /docs/index.html
+            if (nextConfig.i18n?.defaultLocale) {
+                config.assets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.{html,htm,json,rsc}`] =
+                    `.${basePath}/**`;
+                config.assets.include[`${distDir}/standalone/${distDir}/server/app/${nextConfig.i18n.defaultLocale}/**/*.{html,htm,json,rsc}`] =
+                    `.${basePath}/**`;
+            }
 
             // Include static assets with file hash
             config.persistentAssets.include[`${distDir}/static/**`] = `.${basePath}/_next/static/**`;
@@ -99,6 +114,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             // Exclude prerendered pages from compute folder to save space
             config.app.include[`${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = false;
             config.app.include[`${distDir}/server/app/**/*.{html,htm,json,rsc}`] = false;
+
             // Keep only 404.html,500.html files
             config.app.include[`${distDir}/standalone/${distDir}/server/pages/**/{404,500}.html`] = `${distDir}/server/pages/**`;
             config.app.entrypoint = `./server.js`;

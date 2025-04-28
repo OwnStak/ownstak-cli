@@ -23,6 +23,7 @@ import {
     NAME_SHORT,
     ASSETS_MANIFEST_FILE_PATH,
     PERSISTENT_ASSETS_MANIFEST_FILE_PATH,
+    INTERNAL_PATH_PREFIX,
 } from '../constants.js';
 import { logger, LogLevel } from '../logger.js';
 import { BRAND } from '../constants.js';
@@ -248,10 +249,10 @@ export async function build(options: BuildCommandOptions) {
 
     // Add Image Optimizer route for local development
     // For example:
-    // http://localhost:3000/__internal__/image?url=/image.png -> http://localhost:3000/image.png
+    // http://localhost:3000/__ownstak__/image?url=/image.png -> http://localhost:3000/image.png
     config.router.match(
         {
-            path: '/__internal__/image',
+            path: `${INTERNAL_PATH_PREFIX}/image`,
         },
         [
             {

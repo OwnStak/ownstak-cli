@@ -150,42 +150,52 @@ export class Config {
 
     setRuntime(runtime: Runtime) {
         this.runtime = runtime;
+        return this;
     }
 
     setRam(ram: number) {
         this.ram = ram;
+        return this;
     }
 
     setTimeout(timeout: number) {
         this.timeout = timeout;
+        return this;
     }
 
     setFramework(framework: Framework) {
         this.framework = framework;
+        return this;
     }
 
     setFrameworkAdapter(frameworkAdapter: FrameworkAdapter) {
         this.frameworkAdapter = frameworkAdapter;
+        return this;
     }
 
     includeAsset(path: string, destination?: string) {
         this.assets.include[path] = destination ?? true;
+        return this;
     }
 
     includePersistentAsset(path: string, destination?: string) {
         this.persistentAssets.include[path] = destination ?? true;
+        return this;
     }
 
     includeDebugAsset(path: string, destination?: string) {
         this.debugAssets.include[path] = destination ?? true;
+        return this;
     }
 
     includeApp(path: string, destination?: string) {
         this.app.include[path] = destination ?? true;
+        return this;
     }
 
     setAppEntrypoint(entrypoint: string) {
         this.app.entrypoint = entrypoint;
+        return this;
     }
 
     async startApp() {

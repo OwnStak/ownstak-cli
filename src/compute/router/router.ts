@@ -1,6 +1,6 @@
 import http from 'http';
 import https from 'https';
-import { ASSETS_URL, PERSISTENT_ASSETS_URL, APP_URL, HEADERS } from '../../constants.js';
+import { ASSETS_URL, PERSISTENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX } from '../../constants.js';
 import { Request } from './request.js';
 import { Response } from './response.js';
 import { logger } from '../../logger.js';
@@ -738,7 +738,7 @@ export class Router {
             return;
         }
         // Otherwise, we need to proxy the request to the S3 bucket
-        return this.executeProxy({ url: ASSETS_URL, type: 'proxy', preserveHostHeader: false, preserveHeaders: false }, request, response);
+        return this.executeProxy({ url: proxyUrl, type: 'proxy', preserveHostHeader: false, preserveHeaders: false }, request, response);
     }
 
     /**
@@ -851,17 +851,17 @@ export class Router {
         }
 
         const parsedUrl = new URL(imageUrl, `http://${request.host}`);
-        if (parsedUrl.pathname.startsWith('/__internal__/')) {
+        if (parsedUrl.pathname.startsWith(INTERNAL_PATH_PREFIX)) {
             response.clear();
             response.statusCode = 400;
-            response.body = 'The image URL cannot point back to the /__internal__/ path';
+            response.body = `The image URL cannot point back to the ${INTERNAL_PATH_PREFIX} path`;
             return;
         }
 
         if (parsedUrl.host !== request.host) {
             response.clear();
             response.statusCode = 400;
-            response.body = 'The image URL must be relative or point to the same domain';
+            response.body = `The image URL must be relative or point to the same domain: ${request.host}`;
             return;
         }
 

@@ -47,10 +47,17 @@ export const PERSISTENT_ASSETS_PORT = Number(process.env.PERSISTENT_ASSETS_PORT 
 export const APP_PORT = Number(process.env.APP_PORT || PORT + 100);
 
 // Default URLs for our proxy
-export const APP_URL = process.env.OWNSTAK_APP_HOST ? `https://${process.env.OWNSTAK_APP_HOST}` : `http://${HOST}:${APP_PORT}`;
-export const ASSETS_URL = process.env.OWNSTAK_ASSETS_HOST ? `https://${process.env.OWNSTAK_ASSETS_HOST}` : `http://${HOST}:${ASSETS_PORT}`;
+// These should be provided as ENV variables to lambda:
+// OWNSTAK_ASSETS_HOST=http://ownstak-nextjs-assets.s3.amazonaws.com
+// OWNSTAK_ASSETS_FOLDER=deployment-123
+// OWNSTAK_PERSISTENT_ASSETS_HOST=http://ownstak-nextjs-persistent-assets.s3.amazonaws.com
+export const ASSETS_FOLDER = process.env.OWNSTAK_ASSETS_FOLDER || '/'; // e.g. /deployment-123
+export const APP_URL = process.env.OWNSTAK_APP_HOST ? `http://${process.env.OWNSTAK_APP_HOST}` : `http://${HOST}:${APP_PORT}`;
+export const ASSETS_URL = process.env.OWNSTAK_ASSETS_HOST
+    ? `http://${process.env.OWNSTAK_ASSETS_HOST}${ASSETS_FOLDER}`
+    : `http://${HOST}:${ASSETS_PORT}${ASSETS_FOLDER}`.replace(/(?<!:)\/+/g, '/');
 export const PERSISTENT_ASSETS_URL = process.env.OWNSTAK_PERSISTENT_ASSETS_HOST
-    ? `https://${process.env.OWNSTAK_PERSISTENT_ASSETS_HOST}`
+    ? `http://${process.env.OWNSTAK_PERSISTENT_ASSETS_HOST}`
     : `http://${HOST}:${PERSISTENT_ASSETS_PORT}`;
 
 // Supported frameworks
@@ -67,6 +74,10 @@ export const RUNTIMES = {
     Nodejs18: 'nodejs18.x',
 };
 
+// This is prefix for all our internal endpoints.
+// For example: /__ownstak__/health, /__ownstak__/image etc...
+// This needs to be in sync with ownstak-proxy
+export const INTERNAL_PATH_PREFIX = '/__ownstak__';
 export const HEADERS = {
     Host: 'host',
     Cookie: 'cookie',
