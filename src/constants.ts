@@ -22,7 +22,7 @@ export const COMPUTE_DIR = `${BUILD_DIR}/compute`;
 export const APP_DIR = `${BUILD_DIR}/compute/app`;
 export const PROXY_DIR = `${BUILD_DIR}/proxy`;
 export const ASSETS_DIR = `${BUILD_DIR}/assets`;
-export const PERSISTENT_ASSETS_DIR = `${BUILD_DIR}/persistent-assets`;
+export const PERMANENT_ASSETS_DIR = `${BUILD_DIR}/permanent-assets`;
 export const DEBUG_DIR = `${BUILD_DIR}/debug`;
 
 export const BUILD_DIR_PATH = normalizePath(resolve(BUILD_DIR));
@@ -30,35 +30,35 @@ export const COMPUTE_DIR_PATH = normalizePath(resolve(COMPUTE_DIR));
 export const APP_DIR_PATH = normalizePath(resolve(APP_DIR));
 export const PROXY_DIR_PATH = normalizePath(resolve(PROXY_DIR));
 export const ASSETS_DIR_PATH = normalizePath(resolve(ASSETS_DIR));
-export const PERSISTENT_ASSETS_DIR_PATH = normalizePath(resolve(PERSISTENT_ASSETS_DIR));
+export const PERMANENT_ASSETS_DIR_PATH = normalizePath(resolve(PERMANENT_ASSETS_DIR));
 export const DEBUG_DIR_PATH = normalizePath(resolve(DEBUG_DIR));
 
 export const ASSETS_MANIFEST_FILE = 'assets.manifest.json';
 export const ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(BUILD_DIR, ASSETS_MANIFEST_FILE));
-export const PERSISTENT_ASSETS_MANIFEST_FILE = 'persistent-assets.manifest.json';
-export const PERSISTENT_ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(BUILD_DIR, PERSISTENT_ASSETS_MANIFEST_FILE));
+export const PERMANENT_ASSETS_MANIFEST_FILE = 'permanent-assets.manifest.json';
+export const PERMANENT_ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(BUILD_DIR, PERMANENT_ASSETS_MANIFEST_FILE));
 
 // Default ports
 // The CLI will try to find the nearest free port if the specified port is already in use.
 export const HOST = process.env.HOST || '0.0.0.0';
 export const PORT = Number(process.env.PORT || 3000);
 export const ASSETS_PORT = Number(process.env.ASSETS_PORT || PORT + 1);
-export const PERSISTENT_ASSETS_PORT = Number(process.env.PERSISTENT_ASSETS_PORT || PORT + 2);
+export const PERMANENT_ASSETS_PORT = Number(process.env.PERMANENT_ASSETS_PORT || PORT + 2);
 export const APP_PORT = Number(process.env.APP_PORT || PORT + 100);
 
 // Default URLs for our proxy
 // These should be provided as ENV variables to lambda:
 // OWNSTAK_ASSETS_HOST=http://ownstak-nextjs-assets.s3.amazonaws.com
 // OWNSTAK_ASSETS_FOLDER=deployment-123
-// OWNSTAK_PERSISTENT_ASSETS_HOST=http://ownstak-nextjs-persistent-assets.s3.amazonaws.com
+// OWNSTAK_PERMANENT_ASSETS_HOST=http://ownstak-nextjs-permanent-assets.s3.amazonaws.com
 export const ASSETS_FOLDER = process.env.OWNSTAK_ASSETS_FOLDER || '/'; // e.g. /deployment-123
 export const APP_URL = process.env.OWNSTAK_APP_HOST ? `http://${process.env.OWNSTAK_APP_HOST}` : `http://${HOST}:${APP_PORT}`;
 export const ASSETS_URL = process.env.OWNSTAK_ASSETS_HOST
     ? `http://${process.env.OWNSTAK_ASSETS_HOST}${ASSETS_FOLDER}`
     : `http://${HOST}:${ASSETS_PORT}${ASSETS_FOLDER}`.replace(/(?<!:)\/+/g, '/');
-export const PERSISTENT_ASSETS_URL = process.env.OWNSTAK_PERSISTENT_ASSETS_HOST
-    ? `http://${process.env.OWNSTAK_PERSISTENT_ASSETS_HOST}`
-    : `http://${HOST}:${PERSISTENT_ASSETS_PORT}`;
+export const PERMANENT_ASSETS_URL = process.env.OWNSTAK_PERMANENT_ASSETS_HOST
+    ? `http://${process.env.OWNSTAK_PERMANENT_ASSETS_HOST}`
+    : `http://${HOST}:${PERMANENT_ASSETS_PORT}`;
 
 // Supported frameworks
 export const FRAMEWORKS = {
@@ -112,5 +112,5 @@ export const HEADERS = {
 export const CACHE_CONTROL_CONFIG = {
     prerenderedPages: `public, max-age=0, s-maxage=3600`, // cache pre-rendered pages for 1 hour by the CDN and never in the browser
     assets: `public, max-age=3600, s-maxage=31536000`, // cache assets for 1 hour in the browser and 1 year by the CDN
-    persistentAssets: `public, max-age=86400, s-maxage=31536000, immutable`, // cache persistent assets for 1 day in the browser and 1 year by the CDN
+    permanentAssets: `public, max-age=86400, s-maxage=31536000, immutable`, // cache persistent assets for 1 day in the browser and 1 year by the CDN
 } as const;

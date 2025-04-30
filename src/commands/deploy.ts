@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { stat, unlink } from 'fs/promises';
 import { logger, LogLevel } from '../logger.js';
-import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, NAME_SHORT, PERSISTENT_ASSETS_DIR, BUILD_DIR } from '../constants.js';
+import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, NAME_SHORT, PERMANENT_ASSETS_DIR, BUILD_DIR } from '../constants.js';
 import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
@@ -17,7 +17,7 @@ export async function deploy() {
 
     logger.info('');
     logger.drawSubtitle(`Step 1/3`, 'Zipping');
-    for (const dirName of [ASSETS_DIR, PERSISTENT_ASSETS_DIR, COMPUTE_DIR]) {
+    for (const dirName of [ASSETS_DIR, PERMANENT_ASSETS_DIR, COMPUTE_DIR]) {
         const zipFilePath = `${dirName}.zip`;
         logger.startSpinner(`Zipping ${dirName}...`);
 
@@ -29,7 +29,7 @@ export async function deploy() {
 
     logger.info('');
     logger.drawSubtitle(`Step 2/3`, 'Uploading');
-    for (const zipFilePath of [ASSETS_DIR, PERSISTENT_ASSETS_DIR, COMPUTE_DIR].map((dirName) => `${dirName}.zip`)) {
+    for (const zipFilePath of [ASSETS_DIR, PERMANENT_ASSETS_DIR, COMPUTE_DIR].map((dirName) => `${dirName}.zip`)) {
         logger.startSpinner(`Uploading ${zipFilePath}...`);
 
         // Fake upload simulation

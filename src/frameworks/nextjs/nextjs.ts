@@ -100,7 +100,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             }
 
             // Include static assets with file hash
-            config.persistentAssets.include[`${distDir}/static/**`] = `.${basePath}/_next/static/**`;
+            config.permanentAssets.include[`${distDir}/static/**`] = `.${basePath}/_next/static/**`;
 
             // Includes all required JS files to run the Next.js server in compute.
             config.app.include[`${distDir}/standalone/`] = `./`;

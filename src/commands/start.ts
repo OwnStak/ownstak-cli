@@ -1,5 +1,5 @@
 import { existsSync } from 'fs';
-import { ASSETS_DIR_PATH, BRAND, BUILD_DIR_PATH, COMPUTE_DIR_PATH, NAME, NAME_SHORT, PERSISTENT_ASSETS_DIR_PATH, PORT, PROXY_DIR_PATH } from '../constants.js';
+import { ASSETS_DIR_PATH, BRAND, BUILD_DIR_PATH, COMPUTE_DIR_PATH, NAME, NAME_SHORT, PERMANENT_ASSETS_DIR_PATH, PORT, PROXY_DIR_PATH } from '../constants.js';
 import { resolve } from 'path';
 import { logger } from '../logger.js';
 import { stat, access } from 'fs/promises';
@@ -22,14 +22,14 @@ export async function start() {
     // If there's a port conflict, we'll try to find the nearest unused port and move to that one (4000, 5000, etc...)
     const freeMainPort = (await getNearestFreePort(PORT)) || PORT;
     const freeAssetsPort = (await getNearestFreePort(freeMainPort + 1)) || freeMainPort + 1;
-    const freePersistentAssetsPort = (await getNearestFreePort(freeMainPort + 2)) || freeMainPort + 2;
+    const freepermanentAssetsPort = (await getNearestFreePort(freeMainPort + 2)) || freeMainPort + 2;
     const freeAppPort = (await getNearestFreePort(freeMainPort + 100)) || freeMainPort + 100;
 
     // Set env vars before starting the compute server
     process.env.LOCAL = 'true';
     process.env.PORT = freeMainPort.toString();
     process.env.ASSETS_PORT = freeAssetsPort.toString();
-    process.env.PERSISTENT_ASSETS_PORT = freePersistentAssetsPort.toString();
+    process.env.PERMANENT_ASSETS_PORT = freepermanentAssetsPort.toString();
     process.env.APP_PORT = freeAppPort.toString();
 
     // Normalize the OS and architecture to match the proxy binary names
@@ -39,8 +39,8 @@ export async function start() {
     const assetsDirPath = resolve(ASSETS_DIR_PATH);
     await startAssetsServer(assetsDirPath, freeAssetsPort);
 
-    const persistentAssetsDirPath = resolve(PERSISTENT_ASSETS_DIR_PATH);
-    await startAssetsServer(persistentAssetsDirPath, freePersistentAssetsPort);
+    const permanentAssetsDirPath = resolve(PERMANENT_ASSETS_DIR_PATH);
+    await startAssetsServer(permanentAssetsDirPath, freepermanentAssetsPort);
 
     // Runs the actual ownstak-proxy server if present
     // This is useful for local development.

@@ -1,6 +1,6 @@
 import http from 'http';
 import https from 'https';
-import { ASSETS_URL, PERSISTENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX } from '../../constants.js';
+import { ASSETS_URL, PERMANENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX } from '../../constants.js';
 import { Request } from './request.js';
 import { Response } from './response.js';
 import { logger } from '../../logger.js';
@@ -749,7 +749,7 @@ export class Router {
      * @private
      */
     async executeServePersistentAsset(action: ServePersistentAsset, request: Request, response: Response): Promise<void> {
-        return this.executeServeAsset(action, request, response, PERSISTENT_ASSETS_URL);
+        return this.executeServeAsset(action, request, response, PERMANENT_ASSETS_URL);
     }
 
     /**

@@ -6,14 +6,14 @@ import {
     BUILD_DIR_PATH,
     COMPUTE_DIR_PATH,
     ASSETS_DIR_PATH,
-    PERSISTENT_ASSETS_DIR_PATH,
+    PERMANENT_ASSETS_DIR_PATH,
     VERSION,
     PROXY_DIR_PATH,
     DEBUG_DIR_PATH,
     APP_DIR_PATH,
     NAME,
     ASSETS_DIR,
-    PERSISTENT_ASSETS_DIR,
+    PERMANENT_ASSETS_DIR,
     APP_DIR,
     DEBUG_DIR,
     CACHE_CONTROL_CONFIG,
@@ -21,7 +21,7 @@ import {
     BUILD_DIR,
     NAME_SHORT,
     ASSETS_MANIFEST_FILE_PATH,
-    PERSISTENT_ASSETS_MANIFEST_FILE_PATH,
+    PERMANENT_ASSETS_MANIFEST_FILE_PATH,
     INTERNAL_PATH_PREFIX,
 } from '../constants.js';
 import { logger, LogLevel } from '../logger.js';
@@ -52,14 +52,14 @@ export async function build(options: BuildCommandOptions) {
     await rm(COMPUTE_DIR_PATH, { recursive: true, force: true });
     await rm(APP_DIR_PATH, { recursive: true, force: true });
     await rm(ASSETS_DIR_PATH, { recursive: true, force: true });
-    await rm(PERSISTENT_ASSETS_DIR_PATH, { recursive: true, force: true });
+    await rm(PERMANENT_ASSETS_DIR_PATH, { recursive: true, force: true });
     await rm(DEBUG_DIR_PATH, { recursive: true, force: true });
 
     logger.debug(`Creating build directories...`);
     await mkdir(BUILD_DIR_PATH, { recursive: true });
     await mkdir(COMPUTE_DIR_PATH, { recursive: true });
     await mkdir(ASSETS_DIR_PATH, { recursive: true });
-    await mkdir(PERSISTENT_ASSETS_DIR_PATH, { recursive: true });
+    await mkdir(PERMANENT_ASSETS_DIR_PATH, { recursive: true });
     await mkdir(PROXY_DIR_PATH, { recursive: true });
     await mkdir(APP_DIR_PATH, { recursive: true });
     await mkdir(DEBUG_DIR_PATH, { recursive: true });
@@ -127,16 +127,16 @@ export async function build(options: BuildCommandOptions) {
     // \\my\folder\..\folder2 -> /my/folder2
     // /my//folder1 -> /my/folder1
     config.assets = normalizeFilesConfig(config.assets);
-    config.persistentAssets = normalizeFilesConfig(config.persistentAssets);
+    config.permanentAssets = normalizeFilesConfig(config.permanentAssets);
     config.app = normalizeFilesConfig(config.app);
     config.debugAssets = normalizeFilesConfig(config.debugAssets);
 
-    // Copy all files under assets, persistentAssets, compute and debugAssets
+    // Copy all files under assets, permanentAssets, compute and debugAssets
     // config properties to corresponding build directory.
     logger.info(`Copying assets to ${ASSETS_DIR} directory...`);
     await copyFiles(config.assets, ASSETS_DIR_PATH);
-    logger.info(`Copying persistent assets to ${PERSISTENT_ASSETS_DIR} directory...`);
-    await copyFiles(config.persistentAssets, PERSISTENT_ASSETS_DIR_PATH);
+    logger.info(`Copying permanent assets to ${PERMANENT_ASSETS_DIR} directory...`);
+    await copyFiles(config.permanentAssets, PERMANENT_ASSETS_DIR_PATH);
     logger.info(`Copying app files to ${APP_DIR} directory...`);
     await copyFiles(config.app, APP_DIR_PATH);
     logger.info(`Copying debug assets to ${DEBUG_DIR} directory...`);
@@ -149,9 +149,9 @@ export async function build(options: BuildCommandOptions) {
         logger.debug(`Converting HTML files to folders in ${ASSETS_DIR_PATH}`);
         await convertHtmlToFolders(ASSETS_DIR_PATH);
     }
-    if (config.persistentAssets.htmlToFolders) {
-        logger.debug(`Converting HTML files to folders in ${PERSISTENT_ASSETS_DIR_PATH}`);
-        await convertHtmlToFolders(PERSISTENT_ASSETS_DIR_PATH);
+    if (config.permanentAssets.htmlToFolders) {
+        logger.debug(`Converting HTML files to folders in ${PERMANENT_ASSETS_DIR_PATH}`);
+        await convertHtmlToFolders(PERMANENT_ASSETS_DIR_PATH);
     }
 
     // Run build:routes:start hook before we start creating default routes
@@ -216,15 +216,15 @@ export async function build(options: BuildCommandOptions) {
         true,
     );
 
-    // Create routes for persistent assets
+    // Create routes for permanent assets
     // For example:
-    // .ownstak/persistentAssets/chunks/af0123456789.js -> /chunks/af0123456789.js
-    const persistentAssets = await glob.glob(join(PERSISTENT_ASSETS_DIR_PATH, '**/*'), {
-        cwd: PERSISTENT_ASSETS_DIR_PATH,
+    // .ownstak/permanentAssets/chunks/af0123456789.js -> /chunks/af0123456789.js
+    const permanentAssets = await glob.glob(join(PERMANENT_ASSETS_DIR_PATH, '**/*'), {
+        cwd: PERMANENT_ASSETS_DIR_PATH,
         absolute: false,
         nodir: true,
     });
-    const persistentAssetsPaths = persistentAssets.map((path) => {
+    const permanentAssetsPaths = permanentAssets.map((path) => {
         const tranformedPath = `/${path}`
             .replace('index.html', '/') // replace index.html with just / in paths
             .replace(/\/+/g, '/') // replace multiple slashes with a single slash //something//image.png => /something/image.png
@@ -234,13 +234,13 @@ export async function build(options: BuildCommandOptions) {
     config.router.match(
         {
             method: ['GET', 'HEAD'],
-            path: persistentAssetsPaths,
+            path: permanentAssetsPaths,
         },
         [
             {
                 type: 'setDefaultResponseHeader',
                 key: HEADERS.CacheControl,
-                value: CACHE_CONTROL_CONFIG.persistentAssets,
+                value: CACHE_CONTROL_CONFIG.permanentAssets,
             },
             {
                 type: 'servePersistentAsset',
@@ -296,7 +296,7 @@ export async function build(options: BuildCommandOptions) {
 
     // Create manifest files
     await writeFile(ASSETS_MANIFEST_FILE_PATH, JSON.stringify(assets, null, 2));
-    await writeFile(PERSISTENT_ASSETS_MANIFEST_FILE_PATH, JSON.stringify(persistentAssets, null, 2));
+    await writeFile(PERMANENT_ASSETS_MANIFEST_FILE_PATH, JSON.stringify(permanentAssets, null, 2));
 
     const endTime = Date.now();
     const duration = (endTime - startTime) / 1000;

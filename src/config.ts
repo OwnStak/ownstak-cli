@@ -120,7 +120,7 @@ export interface ConfigOptions {
      *     },
      * }
      */
-    persistentAssets?: PersistentAssetsConfig;
+    permanentAssets?: AssetsConfig;
 
     /**
      * The debug assets config for the project.
@@ -155,7 +155,7 @@ export class Config {
     frameworkAdapter?: FrameworkAdapter;
     skipFrameworkBuild?: boolean;
     assets: AssetsConfig;
-    persistentAssets: PersistentAssetsConfig;
+    permanentAssets: AssetsConfig;
     debugAssets: DebugAssetsConfig;
     app: AppConfig;
 
@@ -168,7 +168,7 @@ export class Config {
         this.timeout ??= 20;
         this.router ??= new Router();
         this.assets ??= { include: {} };
-        this.persistentAssets ??= { include: {} };
+        this.permanentAssets ??= { include: {} };
         this.debugAssets ??= { include: {} };
         this.app ??= { include: {}, entrypoint: undefined };
     }
@@ -209,7 +209,7 @@ export class Config {
     }
 
     includePersistentAsset(path: string, destination?: string) {
-        this.persistentAssets.include[path] = destination ?? true;
+        this.permanentAssets.include[path] = destination ?? true;
         return this;
     }
 
@@ -410,10 +410,6 @@ export interface FilesConfig {
 }
 
 export interface AssetsConfig extends FilesConfig {
-    htmlToFolders?: boolean;
-}
-
-export interface PersistentAssetsConfig extends FilesConfig {
     htmlToFolders?: boolean;
 }
 

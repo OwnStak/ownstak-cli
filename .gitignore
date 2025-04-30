@@ -14,3 +14,7 @@ build
 logs
 *.log
 npm-debug.log*
+
+# IDEs
+.vscode
+.idea

@@ -8,6 +8,7 @@ import { BRAND, FRAMEWORKS } from '../../constants.js';
 import { bundleRequire } from 'bundle-require';
 import { nodeFileTrace } from '@vercel/nft';
 import { CliError } from '../../cliError.js';
+import chalk from 'chalk';
 
 export type AstroConfig = {
     adapter?: {
@@ -135,15 +136,22 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
             config.assets.include[`./_astro`] = false;
 
             // Configure persistent assets
-            config.persistentAssets.include[join(clientOutputDir, '_astro')] = `./_astro`;
+            config.permanentAssets.include[join(clientOutputDir, '_astro')] = `./_astro`;
 
             if (outputMode === 'static') {
-                logger.info(`-----------------------------------------------------------------------------------------------------`);
-                logger.info(`| 💡 Looks like your project uses Astro in static mode without server-side rendering support.       |`);
-                logger.info(`| If you want to use all the features of SSR rendering, please install @astrojs/node adapter.       |`);
-                logger.info(`| You can do this by running: npx astro add node                                                    |`);
-                logger.info(`| See more at: https://docs.astro.build/en/guides/integrations-guide/node/                          |`);
-                logger.info(`-----------------------------------------------------------------------------------------------------`);
+                logger.info('');
+                logger.drawTable(
+                    [
+                        `Looks like your project uses Astro in static mode without server-side rendering support.`,
+                        `If you want to use all the features of SSR rendering, please install @astrojs/node adapter.`,
+                        `You can do this by running: ${chalk.cyan(`npx astro add node`)}`,
+                        `See more at: ${chalk.cyan(`https://docs.astro.build/en/guides/integrations-guide/node/`)}`,
+                    ],
+                    {
+                        title: "Hint",
+                        borderColor: 'brand'
+                    },
+                );
             }
         },
 
