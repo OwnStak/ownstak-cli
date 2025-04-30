@@ -46,31 +46,45 @@ class Logger {
         return envLevel && envLevel in LOG_LEVEL_MAP ? LOG_LEVEL_MAP[envLevel] : LogLevel.INFO;
     }
 
-    private getLogPrefix(logLevel: LogLevel): string {
-        // Format time consistently with leading zeros: HH:MM:SS AM/PM
+    /**
+     * Helper function to format time consistently: HH:MM:SS AM/PM
+     */
+    private getFormattedTime(): string {
         const now = new Date();
         const hours = now.getHours();
         const minutes = now.getMinutes().toString().padStart(2, '0');
         const seconds = now.getSeconds().toString().padStart(2, '0');
         const ampm = hours >= 12 ? 'PM' : 'AM';
         const hour12 = (hours % 12 || 12).toString().padStart(2, '0'); // Convert to 12h format with leading zero
-        const time = `${hour12}:${minutes}:${seconds} ${ampm}`;
+        return `${hour12}:${minutes}:${seconds} ${ampm}`;
+    }
 
-        const afterSpace = '  ';
+    /**
+     * Get the appropriate symbol and color for a log level
+     */
+    private getLogLevelStyle(logLevel: LogLevel): { symbol: string; color: any } {
         switch (logLevel) {
             case LogLevel.ERROR:
-                return chalk.redBright(`${SYMBOLS.error} ${chalk.dim(time)}${afterSpace}`);
+                return { symbol: SYMBOLS.error, color: chalk.redBright };
             case LogLevel.WARN:
-                return chalk.yellowBright(`${SYMBOLS.warn} ${chalk.dim(time)}${afterSpace}`);
+                return { symbol: SYMBOLS.warn, color: chalk.yellowBright };
             case LogLevel.DEBUG:
-                return chalk.gray(`${SYMBOLS.debug} ${chalk.dim(time)}${afterSpace}`);
+                return { symbol: SYMBOLS.debug, color: chalk.gray };
             case LogLevel.INFO:
-                return chalk.blueBright(`${SYMBOLS.info} ${chalk.dim(time)}${afterSpace}`);
+                return { symbol: SYMBOLS.info, color: chalk.blueBright };
             case LogLevel.SUCCESS:
-                return chalk.greenBright(`${SYMBOLS.success} ${chalk.dim(time)}${afterSpace}`);
+                return { symbol: SYMBOLS.success, color: chalk.greenBright };
             default:
-                return '';
+                return { symbol: '', color: chalk.white };
         }
+    }
+
+    private getLogPrefix(logLevel: LogLevel): string {
+        const time = this.getFormattedTime();
+        const { symbol, color } = this.getLogLevelStyle(logLevel);
+        
+        const afterSpace = '  ';
+        return color(`${symbol} ${chalk.dim(time)}${afterSpace}`);
     }
 
     private logInternal(logLevel: LogLevel, message: string, ...args: any[]): void {
@@ -186,14 +200,21 @@ class Logger {
     /**
      * Draws "nice-looking" title to the console
      */
-    public drawTitle(message: string): void {
+    public drawTitle(label: string): void {
         const brandText = ` ${BRAND} CLI `;
         const versionText = ` v${VERSION} `;
 
-        console.log(`${chalk.bgBlue.bold.whiteBright(brandText)}${chalk.white.bgBlackBright(versionText)} ${chalk.gray(message)}`);
+        console.log(`${chalk.bgBlue.bold.whiteBright(brandText)}${chalk.white.bgBlackBright(versionText)} ${chalk.gray(label)}`);
         console.log('');
     }
 
+    /**
+     * Draws "nice-looking" subtitle to the console
+     */
+    public drawSubtitle(subtitle: string, label?: string): void {
+        console.log(chalk.white.bgBlackBright(` ${subtitle} `) + (label ? ` ${chalk.gray(label)}` : ''));
+    }
+    
     /**
      * Display a loading spinner with a message
      */
@@ -206,14 +227,17 @@ class Logger {
         this.spinnerIndex = 0;
 
         if (process.stdout.isTTY) {
+            const time = this.getFormattedTime();
+            const timePrefix = chalk.dim(time) + '  ';
+
             this.spinnerInterval = setInterval(() => {
                 const frame = this.spinnerFrames[this.spinnerIndex];
-                process.stdout.write(`\r${chalk.magenta(frame)} ${message}`);
+                process.stdout.write(`\r${chalk.blueBright(frame)} ${timePrefix}${message}`);
                 this.spinnerIndex = (this.spinnerIndex + 1) % this.spinnerFrames.length;
             }, 80);
         } else {
             // If not a TTY, just log the message once
-            console.log(`${chalk.magenta('⟳')} ${message}`);
+            console.log(`${chalk.blueBright('⟳')} ${message}`);
         }
     }
 
@@ -222,17 +246,18 @@ class Logger {
      */
     public stopSpinner(finalMessage?: string, logLevel: LogLevel = LogLevel.NONE): void {
         if (this.spinnerInterval) {
+            // First clear the interval to stop the spinner
             clearInterval(this.spinnerInterval);
             this.spinnerInterval = null;
 
-            // Clear the spinner line
+            // Clear the current spinner line
             if (process.stdout.isTTY) {
-                process.stdout.write('\r' + ' '.repeat(this.spinnerMessage?.length ?? 0 + 10) + '\r');
+                process.stdout.write('\r\x1b[K');
             }
 
-            // Print the final message if provided
+            // If we have a final message, log it with the appropriate level
             if (finalMessage) {
-                this.logInternal(logLevel, finalMessage);
+                console.log(`${this.getLogPrefix(logLevel)}${finalMessage}`);
             }
 
             this.spinnerMessage = null;

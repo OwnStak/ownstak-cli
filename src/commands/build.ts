@@ -12,7 +12,6 @@ import {
     DEBUG_DIR_PATH,
     APP_DIR_PATH,
     NAME,
-    SUPPORT_URL,
     ASSETS_DIR,
     PERSISTENT_ASSETS_DIR,
     APP_DIR,
@@ -71,6 +70,9 @@ export async function build(options: BuildCommandOptions) {
     // Load config from source file ownstak.config.ts if present.
     // If not, default config is returned.
     const config = await Config.loadFromSource();
+    // Validate the config for errors
+    await config.validate();
+
     config.framework = options.framework || config.framework || (await detectFramework());
     config.frameworkAdapter ??= getFrameworkAdapter(config.framework);
     config.skipFrameworkBuild = options.skipFrameworkBuild || config.skipFrameworkBuild;
@@ -308,7 +310,8 @@ export async function build(options: BuildCommandOptions) {
         [
             `Framework: ${chalk.cyan(config.framework)}`,
             `Runtime: ${chalk.cyan(config.runtime)}`,
-            `RAM: ${chalk.cyan(`${config.ram}MB`)}`,
+            `Memory: ${chalk.cyan(`${config.memory}MiB`)}`,
+            `Arch: ${chalk.cyan(config.arch)}`,
             `Timeout: ${chalk.cyan(`${config.timeout}s`)}`,
             `Routes: ${chalk.cyan(config.router.routes.length.toString())}`,
             `Build duration: ${chalk.cyan(`${duration.toFixed(2)}s`)}`,

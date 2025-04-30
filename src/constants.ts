@@ -74,6 +74,12 @@ export const RUNTIMES = {
     Nodejs18: 'nodejs18.x',
 };
 
+// Supported architectures
+export const ARCHS = {
+    X86_64: 'x86_64',
+    ARM64: 'arm64',
+} as const;
+
 // This is prefix for all our internal endpoints.
 // For example: /__ownstak__/health, /__ownstak__/image etc...
 // This needs to be in sync with ownstak-proxy

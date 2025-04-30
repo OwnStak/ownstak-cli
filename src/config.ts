@@ -1,11 +1,16 @@
 import { Router } from './compute/router/router.js';
 import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { BRAND, OUTPUT_CONFIG_FILE, VERSION, FRAMEWORKS, RUNTIMES, APP_PORT, INPUT_CONFIG_FILE, NAME, COMPUTE_DIR_PATH, NAME_SHORT } from './constants.js';
-import { relative, resolve } from 'path';
+import { BRAND, OUTPUT_CONFIG_FILE, VERSION, FRAMEWORKS, RUNTIMES, APP_PORT, INPUT_CONFIG_FILE, NAME, COMPUTE_DIR_PATH, NAME_SHORT, ARCHS } from './constants.js';
+import { dirname, relative, resolve } from 'path';
 import { logger } from './logger.js';
 import { normalizePath } from './utils/pathUtils.js';
 import chalk from 'chalk';
+import { fileURLToPath } from 'url';
+import { CliError } from './cliError.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export interface ConfigOptions {
     /**
@@ -26,7 +31,13 @@ export interface ConfigOptions {
      * The amount of RAM to use for the app.
      * @default 1024
      */
-    ram?: number;
+    memory?: number;
+
+    /**
+     * The architecture to use for the app.
+     * @default ARCHS.X86_64
+     */
+    arch?: Architecture;
 
     /**
      * The timeout for the app.
@@ -124,7 +135,8 @@ export interface ConfigOptions {
 export class Config {
     version: string;
     runtime: Runtime;
-    ram: number;
+    memory: number;
+    arch: Architecture;
     timeout: number;
     router: Router;
     framework?: Framework;
@@ -139,7 +151,8 @@ export class Config {
         Object.assign(this, options);
         this.version ??= VERSION;
         this.runtime ??= RUNTIMES.Nodejs20;
-        this.ram ??= 1024;
+        this.memory ??= 1024;
+        this.arch ??= ARCHS.X86_64;
         this.timeout ??= 20;
         this.router ??= new Router();
         this.assets ??= { include: {} };
@@ -153,8 +166,13 @@ export class Config {
         return this;
     }
 
-    setRam(ram: number) {
-        this.ram = ram;
+    setMemory(memory: number) {
+        this.memory = memory;
+        return this;
+    }
+
+    setArch(arch: Architecture) {
+        this.arch = arch;
         return this;
     }
 
@@ -255,12 +273,41 @@ export class Config {
     }
 
     /**
+     * Validates the config.
+     * @throws {CliError} if the config is invalid.
+     */
+    async validate() {
+        const supportedFrameworks: string[] = Object.values(FRAMEWORKS);
+        if (this.framework && !supportedFrameworks.includes(this.framework)) {
+            throw new CliError(`Invalid framework '${this.framework}' in ${BRAND} project config. Supported frameworks are: ${supportedFrameworks.join(', ')}`);
+        }
+        const supportedRuntimes: string[] = Object.values(RUNTIMES);
+        if (this.runtime && !supportedRuntimes.includes(this.runtime)) {
+            throw new CliError(`Invalid runtime '${this.runtime}' in ${BRAND} project config. Supported runtimes are: ${supportedRuntimes.join(', ')}`);
+        }
+        const supportedArchitectures: string[] = Object.values(ARCHS);
+        if (this.arch && !supportedArchitectures.includes(this.arch)) {
+            throw new CliError(`Invalid arch '${this.arch}' in ${BRAND} project config. Supported architectures are: ${supportedArchitectures.join(', ')}`);
+        }
+        if(this.memory <= 0 || this.memory > 10240) {
+            throw new CliError(`Invalid memory '${this.memory}' in ${BRAND} project config. Memory must be between 1 and 10240MiB`);
+        }
+        if(this.timeout <= 0 || this.timeout > 900) {
+            throw new CliError(`Invalid timeout '${this.timeout}' in ${BRAND} project config. Timeout must be between 1 and 900 seconds`);
+        } 
+    }
+
+    /**
      * Loads the built JSON config file from the .ownstak folder.
      * This should be called in lambda and when running build locally.
      * @returns
      */
     static async loadFromBuild() {
-        const configFile = [resolve(__dirname, OUTPUT_CONFIG_FILE), resolve(OUTPUT_CONFIG_FILE)].find(existsSync);
+        const configFile = [
+            resolve(__dirname, OUTPUT_CONFIG_FILE), 
+            resolve(OUTPUT_CONFIG_FILE),
+            resolve(COMPUTE_DIR_PATH, OUTPUT_CONFIG_FILE),
+        ].find(existsSync);
         logger.debug(`Loading ${BRAND} project config from: ${configFile}`);
 
         if (!configFile) {
@@ -346,6 +393,7 @@ export interface FrameworkAdapter {
 
 export type Framework = (typeof FRAMEWORKS)[keyof typeof FRAMEWORKS] | string;
 export type Runtime = (typeof RUNTIMES)[keyof typeof RUNTIMES] | string;
+export type Architecture = (typeof ARCHS)[keyof typeof ARCHS] | string;
 
 export interface FilesConfig {
     include: Record<string, boolean | string>;
