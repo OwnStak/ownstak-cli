@@ -148,8 +148,8 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
                         `See more at: ${chalk.cyan(`https://docs.astro.build/en/guides/integrations-guide/node/`)}`,
                     ],
                     {
-                        title: "Hint",
-                        borderColor: 'brand'
+                        title: 'Hint',
+                        borderColor: 'brand',
                     },
                 );
             }
