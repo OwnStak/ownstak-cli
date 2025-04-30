@@ -29,11 +29,11 @@ export async function deploy() {
 
     logger.info('');
     logger.drawSubtitle(`Step 2/3`, 'Uploading');
-    for (const zipFilePath of [ASSETS_DIR, PERSISTENT_ASSETS_DIR, COMPUTE_DIR].map(dirName => `${dirName}.zip`)) {
+    for (const zipFilePath of [ASSETS_DIR, PERSISTENT_ASSETS_DIR, COMPUTE_DIR].map((dirName) => `${dirName}.zip`)) {
         logger.startSpinner(`Uploading ${zipFilePath}...`);
 
         // Fake upload simulation
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 3000));
         logger.stopSpinner(`Uploaded ${zipFilePath}`, LogLevel.SUCCESS);
 
         // Clean up the zip file
@@ -43,11 +43,11 @@ export async function deploy() {
     logger.info('');
     logger.drawSubtitle(`Step 3/3`, 'Deployment');
     // Fake cloud backend propagation simulation
-    const cloudBackendNames = ["aws-primary", "aws-secondary"];
+    const cloudBackendNames = ['aws-primary', 'aws-secondary'];
     for (const cloudBackendName of cloudBackendNames) {
         const startTime = Date.now();
         logger.startSpinner(`Deploying to cloud backend '${cloudBackendName}'...`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
         const endTime = Date.now();
         const duration = endTime - startTime;
@@ -56,14 +56,14 @@ export async function deploy() {
     }
 
     // TODO: Get values from the Console API
-    const organizationSlug = "org";
-    const projectSlug = "project";
-    const environmentSlug = "prod";
-    const deploymentNumber = "1";
-    const environmentLinks = cloudBackendNames.map(cloudBackendName => {
+    const organizationSlug = 'org';
+    const projectSlug = 'project';
+    const environmentSlug = 'prod';
+    const deploymentNumber = '1';
+    const environmentLinks = cloudBackendNames.map((cloudBackendName) => {
         return `https://${projectSlug}-${environmentSlug}.${cloudBackendName}.${organizationSlug}.ownstak.link`;
     });
-    const deploymentLinks = cloudBackendNames.map(cloudBackendName => {
+    const deploymentLinks = cloudBackendNames.map((cloudBackendName) => {
         return `https://${projectSlug}-${environmentSlug}-${deploymentNumber}.${cloudBackendName}.${organizationSlug}.ownstak.link`;
     });
 
@@ -74,7 +74,7 @@ export async function deploy() {
         [
             `Deployment: ${chalk.cyan(deploymentNumber)}`,
             `Environment: ${chalk.cyan(environmentSlug)}`,
-            `Cloud backends: ${cloudBackendNames.map(name => chalk.cyan(name)).join(', ')}`,
+            `Cloud backends: ${cloudBackendNames.map((name) => chalk.cyan(name)).join(', ')}`,
             `Framework: ${chalk.cyan(config.framework)}`,
             `Runtime: ${chalk.cyan(config.runtime)}`,
             `Memory: ${chalk.cyan(`${config.memory}MiB`)}`,
@@ -95,10 +95,10 @@ export async function deploy() {
             `Deployment links:\r\n${chalk.cyan(deploymentLinks.join('\r\n'))}\r\n`,
             `Environment links:\r\n${chalk.cyan(environmentLinks.join('\r\n'))}\r\n`,
             chalk.gray(`See your deployment at:`),
-            chalk.cyan(`https://console.ownstak.com/${organizationSlug}/projects/${projectSlug}/deployments/${deploymentNumber}`)
+            chalk.cyan(`https://console.ownstak.com/${organizationSlug}/projects/${projectSlug}/deployments/${deploymentNumber}`),
         ],
         {
-            title: "Links",
+            title: 'Links',
             borderColor: 'brand',
             minWidth: tableMinWidth,
         },

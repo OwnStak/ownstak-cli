@@ -1,7 +1,19 @@
 import { Router } from './compute/router/router.js';
 import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { BRAND, OUTPUT_CONFIG_FILE, VERSION, FRAMEWORKS, RUNTIMES, APP_PORT, INPUT_CONFIG_FILE, NAME, COMPUTE_DIR_PATH, NAME_SHORT, ARCHS } from './constants.js';
+import {
+    BRAND,
+    OUTPUT_CONFIG_FILE,
+    VERSION,
+    FRAMEWORKS,
+    RUNTIMES,
+    APP_PORT,
+    INPUT_CONFIG_FILE,
+    NAME,
+    COMPUTE_DIR_PATH,
+    NAME_SHORT,
+    ARCHS,
+} from './constants.js';
 import { dirname, relative, resolve } from 'path';
 import { logger } from './logger.js';
 import { normalizePath } from './utils/pathUtils.js';
@@ -289,12 +301,12 @@ export class Config {
         if (this.arch && !supportedArchitectures.includes(this.arch)) {
             throw new CliError(`Invalid arch '${this.arch}' in ${BRAND} project config. Supported architectures are: ${supportedArchitectures.join(', ')}`);
         }
-        if(this.memory <= 0 || this.memory > 10240) {
+        if (this.memory <= 0 || this.memory > 10240) {
             throw new CliError(`Invalid memory '${this.memory}' in ${BRAND} project config. Memory must be between 1 and 10240MiB`);
         }
-        if(this.timeout <= 0 || this.timeout > 900) {
+        if (this.timeout <= 0 || this.timeout > 900) {
             throw new CliError(`Invalid timeout '${this.timeout}' in ${BRAND} project config. Timeout must be between 1 and 900 seconds`);
-        } 
+        }
     }
 
     /**
@@ -303,11 +315,9 @@ export class Config {
      * @returns
      */
     static async loadFromBuild() {
-        const configFile = [
-            resolve(__dirname, OUTPUT_CONFIG_FILE), 
-            resolve(OUTPUT_CONFIG_FILE),
-            resolve(COMPUTE_DIR_PATH, OUTPUT_CONFIG_FILE),
-        ].find(existsSync);
+        const configFile = [resolve(__dirname, OUTPUT_CONFIG_FILE), resolve(OUTPUT_CONFIG_FILE), resolve(COMPUTE_DIR_PATH, OUTPUT_CONFIG_FILE)].find(
+            existsSync,
+        );
         logger.debug(`Loading ${BRAND} project config from: ${configFile}`);
 
         if (!configFile) {

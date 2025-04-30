@@ -44,7 +44,7 @@ export async function zipFolder(dir: string, outputFile: string): Promise<void> 
     return new Promise((resolve, reject) => {
         const outputStream = createWriteStream(outputFile);
         const archive = archiver('zip', {
-            zlib: { level: 6 } // Sets the compression level
+            zlib: { level: 6 }, // Sets the compression level
         });
 
         archive.on('error', (err: Error) => {

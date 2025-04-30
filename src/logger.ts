@@ -82,7 +82,7 @@ class Logger {
     private getLogPrefix(logLevel: LogLevel): string {
         const time = this.getFormattedTime();
         const { symbol, color } = this.getLogLevelStyle(logLevel);
-        
+
         const afterSpace = '  ';
         return color(`${symbol} ${chalk.dim(time)}${afterSpace}`);
     }
@@ -214,7 +214,7 @@ class Logger {
     public drawSubtitle(subtitle: string, label?: string): void {
         console.log(chalk.white.bgBlackBright(` ${subtitle} `) + (label ? ` ${chalk.gray(label)}` : ''));
     }
-    
+
     /**
      * Display a loading spinner with a message
      */
