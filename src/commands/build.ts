@@ -185,12 +185,12 @@ export async function build(options: BuildCommandOptions) {
         },
         [
             {
+                type: 'serveAsset',
+            },
+            {
                 type: 'setDefaultResponseHeader',
                 key: HEADERS.CacheControl,
                 value: CACHE_CONTROL_CONFIG.assets,
-            },
-            {
-                type: 'serveAsset',
             },
         ],
         true,
@@ -205,12 +205,12 @@ export async function build(options: BuildCommandOptions) {
         },
         [
             {
+                type: 'serveAsset',
+            },
+            {
                 type: 'setDefaultResponseHeader',
                 key: HEADERS.CacheControl,
                 value: CACHE_CONTROL_CONFIG.prerenderedPages,
-            },
-            {
-                type: 'serveAsset',
             },
         ],
         true,
@@ -238,12 +238,12 @@ export async function build(options: BuildCommandOptions) {
         },
         [
             {
+                type: 'servePersistentAsset',
+            },
+            {
                 type: 'setDefaultResponseHeader',
                 key: HEADERS.CacheControl,
                 value: CACHE_CONTROL_CONFIG.permanentAssets,
-            },
-            {
-                type: 'servePersistentAsset',
             },
         ],
         true,

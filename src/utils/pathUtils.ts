@@ -84,6 +84,7 @@ export function pathToRegexp(pathToRegexPattern: string) {
  * @param path - The path to extract the params from.
  * @returns The params from the path.
  * @example extractPathToRegexpParams('/users/:id', '/users/123') -> { id: '123' }
+ * @example extractPathToRegexpParams('/users/:id*', '/users/123/456') -> { id: ['123', '456'] }
  */
 export function extractPathToRegexpParams(pathToRegexPattern: string, path: string) {
     const { pathParams, pathRegex } = pathToRegexp(pathToRegexPattern);
@@ -91,10 +92,18 @@ export function extractPathToRegexpParams(pathToRegexPattern: string, path: stri
     if (match) {
         return pathParams.reduce(
             (acc, param, index) => {
-                acc[param] = match[index + 1];
+                const matchedValue = match[index + 1];
+                const matchedValues = matchedValue?.split('/');
+                if (matchedValues?.length > 1) {
+                    // If the matched value is an array, we need to return an array of strings
+                    acc[param] = matchedValues;
+                } else {
+                    // If the matched value is a undefined/string, just return single value
+                    acc[param] = matchedValue;
+                }
                 return acc;
             },
-            {} as Record<string, string>,
+            {} as Record<string, string | string[]>,
         );
     }
     return {};
@@ -109,8 +118,14 @@ export function extractPathToRegexpParams(pathToRegexPattern: string, path: stri
  * @example substitutePathToRegexpParams('/products/:id', { id: '123' }) -> '/products/123'
  * @example substitutePathToRegexpParams('/products/:id*', { id: '123' }) -> '/products/123'
  */
-export function substitutePathToRegexpParams(pathToRegexPattern: string, params: Record<string, string>) {
-    return pathToRegexPattern.replace(/:(\w+)[?+*]?/g, (match, p1) => params[p1] || match);
+export function substitutePathToRegexpParams(pathToRegexPattern: string, params: Record<string, string | string[]>) {
+    return pathToRegexPattern.replace(/:(\w+)[?+*]?/g, (match, p1) => {
+        const value = params[p1];
+        if (Array.isArray(value)) {
+            return value.join('/');
+        }
+        return value || match;
+    });
 }
 
 /**
@@ -124,9 +139,10 @@ export function substitutePathToRegexpParams(pathToRegexPattern: string, params:
 export function filenameToPath(filename: string) {
     return (
         filename
-            // Filename cleanup
             // Remove extension from filename
             .replace(/\.(.+)$/, '')
+            // Replace /index with /
+            .replace(/\/index$/, '/')
             // Transform express style syntax to Wouter style
             // Error 404 catch all syntax
             .replace(/\/404$/, '/:404*')

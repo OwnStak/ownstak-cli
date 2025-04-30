@@ -1,8 +1,19 @@
 import { isProxyRequestEvent, Event } from './proxyRequestEvent.js';
-import http, { get } from 'http';
+import http from 'http';
 import tls from 'tls';
 import { HEADERS } from '../../constants.js';
-import { parse, stringify } from 'querystring';
+import { stringify } from 'querystring';
+
+export interface RequestOptions {
+    url?: string;
+    host?: string;
+    protocol?: string;
+    port?: number;
+    method?: string;
+    headers?: Record<string, string | string[]>;
+    body?: string | Buffer;
+    params?: Record<string, string | string[]>;
+}
 
 export class Request {
     url: URL = new URL('https://127.0.0.1');
@@ -12,50 +23,19 @@ export class Request {
     method: string = 'GET';
     headers: Record<string, string | string[]> = {};
     body?: string | Buffer;
-    params: Record<string, string> = {};
-    _cookies?: Record<string, string | string[]> = {};
+    params: Record<string, string | string[]> = {};
+    _cookies?: Record<string, string | string[]>;
     _pathExtension?: string;
 
     originalEvent?: Event;
     originalNodeRequest?: http.IncomingMessage;
 
-    get path() {
-        return decodeURIComponent(this.url.pathname);
-    }
-    set path(path: string) {
-        this.url.pathname = path;
-    }
-
-    get pathExtension() {
-        if (this._pathExtension) {
-            return this._pathExtension;
-        }
-        this._pathExtension = this.path.split('.').pop();
-        return this._pathExtension;
-    }
-    get cookies() {
-        // Parse cookies only once
-        if (this._cookies) {
-            return this._cookies;
-        }
-        // Nothing to parse if there's no cookie header
-        const cookieHeader = this.headers[HEADERS.Cookie]?.toString() || '';
-        if (!cookieHeader) {
-            this._cookies = {};
-            return this._cookies;
-        }
-        // Parse cookies from the cookie header
-        this._cookies = {};
-        const parsedCookies = parse(cookieHeader);
-        for (const [key, value] of Object.entries(parsedCookies)) {
-            if (value === undefined) continue;
-            this._cookies[key] = value;
-        }
-        return this._cookies;
-    }
-    set cookies(cookies: Record<string, string | string[]>) {
-        this._cookies = cookies;
-        this.headers[HEADERS.Cookie] = stringify(cookies);
+    constructor(url?: string, options: RequestOptions = {}) {
+        this.url = url ? new URL(url) : new URL('https://127.0.0.1');
+        this.host = options.host || this.url.host;
+        this.protocol = options.protocol || this.url.protocol.replace(':', '');
+        Object.assign(this, options);
+        this.setHeaders(options.headers || {});
     }
 
     static fromEvent(event: Event): Request {
@@ -80,10 +60,10 @@ export class Request {
 
     static async fromNodeRequest(nodeRequest: http.IncomingMessage): Promise<Request> {
         const request = new Request();
+        const isEncrypted = (nodeRequest.socket as any).encrypted;
         request.originalNodeRequest = nodeRequest;
         request.host = nodeRequest.headers[HEADERS.XForwardedHost]?.toString()?.split(',')[0] || nodeRequest.headers.host || 'localhost';
-        request.protocol =
-            nodeRequest.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (nodeRequest.socket instanceof tls.TLSSocket ? 'https' : 'http');
+        request.protocol = nodeRequest.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (isEncrypted ? 'https' : 'http');
         request.port = nodeRequest.socket.localPort || (request.protocol === 'https' ? 443 : 80);
         request.url = new URL(`${request.protocol}://${request.host}${nodeRequest.url}`);
         request.method = nodeRequest.method || 'GET';
@@ -97,6 +77,61 @@ export class Request {
         request.body = Buffer.concat(chunks);
 
         return request;
+    }
+
+    get path() {
+        return decodeURIComponent(this.url.pathname);
+    }
+    set path(path: string) {
+        this.url.pathname = path;
+    }
+
+    get pathExtension() {
+        if (this._pathExtension) {
+            return this._pathExtension;
+        }
+        this._pathExtension = this.path.split('.').pop();
+        return this._pathExtension;
+    }
+    get cookies() {
+        // Parse cookies only once
+        if (this._cookies) {
+            return this._cookies;
+        }
+        // Nothing to parse if there's no cookie header
+        const cookieHeader = this.getHeader(HEADERS.Cookie) || '';
+        if (!cookieHeader) {
+            this._cookies = {};
+            return this._cookies;
+        }
+        // Parse cookies from the cookie header
+        this._cookies = {};
+
+        // Split by semicolons and parse each cookie
+        const cookiePairs = cookieHeader.split(';');
+        for (const pair of cookiePairs) {
+            const [key, value] = pair.trim().split('=', 2);
+            if (!key || value === undefined) continue;
+
+            // Store the cookie, handling multiple cookies with the same name
+            if (this._cookies[key]) {
+                // If there's already a cookie with this name, convert to array or append
+                if (Array.isArray(this._cookies[key])) {
+                    (this._cookies[key] as string[]).push(value);
+                } else {
+                    this._cookies[key] = [this._cookies[key] as string, value];
+                }
+            } else {
+                this._cookies[key] = value;
+            }
+        }
+
+        return this._cookies;
+    }
+
+    set cookies(cookies: Record<string, string | string[]>) {
+        this._cookies = cookies;
+        this.headers[HEADERS.Cookie] = stringify(cookies);
     }
 
     setHeader(key: string, value: string | string[]): void {
@@ -124,7 +159,7 @@ export class Request {
     }
 
     getHeaderArray(key: string) {
-        return this.headers[key.toLowerCase()]?.toString()?.split(',');
+        return this.headers[key.toLowerCase()]?.toString()?.split(',') || [];
     }
 
     deleteHeader(key: string) {
@@ -132,25 +167,54 @@ export class Request {
     }
 
     getCookie(name: string) {
-        return this.cookies[name]?.toString();
+        const cookie = this.cookies[name];
+        if (!cookie) return undefined;
+        return Array.isArray(cookie) ? cookie[0] : cookie;
     }
 
     getCookieArray(name: string) {
-        return this.cookies[name]?.toString()?.split(',');
+        const cookie = this.cookies[name];
+        if (!cookie) return [];
+        return Array.isArray(cookie) ? cookie : [cookie];
     }
 
     setCookie(name: string, value: string) {
         this.cookies[name] = value;
-        this.headers[HEADERS.Cookie] = stringify(this.cookies);
+
+        // Reconstruct the cookie header by joining all cookies
+        const cookieStrings = [];
+        for (const [cookieName, cookieValue] of Object.entries(this.cookies)) {
+            if (Array.isArray(cookieValue)) {
+                for (const val of cookieValue) {
+                    cookieStrings.push(`${cookieName}=${val}`);
+                }
+            } else {
+                cookieStrings.push(`${cookieName}=${cookieValue}`);
+            }
+        }
+        this.headers[HEADERS.Cookie] = cookieStrings.join('; ');
     }
 
     deleteCookie(name: string) {
         delete this.cookies[name];
-        this.headers[HEADERS.Cookie] = stringify(this.cookies);
+
+        // Reconstruct the cookie header by joining all cookies
+        const cookieStrings = [];
+        for (const [cookieName, cookieValue] of Object.entries(this.cookies)) {
+            if (Array.isArray(cookieValue)) {
+                for (const val of cookieValue) {
+                    cookieStrings.push(`${cookieName}=${val}`);
+                }
+            } else {
+                cookieStrings.push(`${cookieName}=${cookieValue}`);
+            }
+        }
+        this.headers[HEADERS.Cookie] = cookieStrings.join('; ');
     }
 
     getQuery(name: string) {
-        return this.url.searchParams.get(name);
+        const value = this.url.searchParams.get(name);
+        return value === null ? undefined : value;
     }
 
     getQueryArray(name: string) {

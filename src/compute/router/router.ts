@@ -251,7 +251,8 @@ export class Router {
         // NOTE: This feature is useful for Next.js redirects that have destination only in path-to-regex format.
         const pathCondition = route.condition?.path;
         if (typeof pathCondition === 'string' && pathCondition.startsWith('path-to-regex:')) {
-            request.params = extractPathToRegexpParams(pathCondition, request.path);
+            const pathToRegexPattern = pathCondition.split('path-to-regex:').pop() || '';
+            request.params = extractPathToRegexpParams(pathToRegexPattern, request.path);
         }
 
         for (const action of route.actions || []) {
@@ -351,10 +352,18 @@ export class Router {
      * @private
      */
     matchRoute(route: Route, request: Request): boolean {
-        const condition = route.condition;
+        // Make shallow copy, to not affect the original condition
+        const condition = { ...route.condition };
+
         // Routes with empty condition match every request
         if (!condition) {
             return true;
+        }
+
+        // Convert path-to-regex pattern to regex
+        if (typeof condition.path === 'string' && condition.path.startsWith('path-to-regex:')) {
+            const pathToRegexPattern = condition.path.split('path-to-regex:').pop() || '';
+            condition.path = pathToRegexp(pathToRegexPattern).pathRegex;
         }
 
         // URL condition
@@ -491,7 +500,7 @@ export class Router {
                     return request.getCookieArray(key)?.includes(value);
                 } else if (value instanceof RegExp) {
                     // OR if we have multiple values for the same cookie name
-                    return request.getCookieArray(key)?.some(value.test);
+                    return request.getCookieArray(key)?.some((cookieValue) => value.test(cookieValue));
                 }
                 return false;
             });
@@ -515,7 +524,7 @@ export class Router {
                     return request.getHeaderArray(key)?.includes(value);
                 } else if (value instanceof RegExp) {
                     // OR if we have multiple values for the same header name
-                    return request.getHeaderArray(key)?.some(value.test);
+                    return request.getHeaderArray(key)?.some((headerValue) => value.test(headerValue));
                 }
                 return false;
             });
@@ -539,7 +548,7 @@ export class Router {
                     return request.getQueryArray(key)?.includes(value);
                 } else if (value instanceof RegExp) {
                     // OR if we have multiple values for the same query parameter
-                    return request.getQueryArray(key)?.some(value.test);
+                    return request.getQueryArray(key)?.some((queryValue) => value.test(queryValue));
                 }
                 return false;
             });
@@ -651,7 +660,7 @@ export class Router {
      */
     async executeProxy(action: Proxy, request: Request, response: Response): Promise<void> {
         const proxyReqUrl = new URL(action.url);
-        const proxyHostHeader = action.preserveHostHeader !== false ? request.headers.host.toString() : proxyReqUrl.hostname;
+        const proxyHostHeader = action.preserveHostHeader !== false ? request.host.toString() : proxyReqUrl.hostname;
         const proxyHeaders = action.preserveHeaders !== false ? { ...request.headers } : {};
         proxyHeaders.host = proxyHostHeader;
         logger.debug(`[Router][ProxyRequest]: ${action.url} => ${proxyReqUrl}`);
@@ -880,6 +889,7 @@ export class Router {
             response,
         );
 
+        response.setHeader(HEADERS.XOwnImageOptimizer, 'enabled=true');
         if (response.getHeader(HEADERS.Location)) {
             return;
         }

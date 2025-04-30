@@ -2,18 +2,17 @@ import { HEADERS } from '../../constants.js';
 import { ProxyResponseEvent } from './proxyResponseEvent.js';
 import http from 'http';
 
+export interface ResponseOptions {
+    statusCode?: number;
+    headers?: Record<string, string | string[]>;
+}
+
 export class Response {
     statusCode: number = 200;
     headers: Record<string, string | string[]> = {};
     body?: string | Buffer;
 
-    constructor(
-        body: string | Buffer | undefined = undefined,
-        options: {
-            statusCode?: number;
-            headers?: Record<string, string | string[]>;
-        } = {},
-    ) {
+    constructor(body: string | Buffer | undefined = undefined, options: ResponseOptions = {}) {
         this.statusCode = options.statusCode ?? 200;
         this.headers = options.headers ?? {};
         this.body = body;
@@ -69,7 +68,7 @@ export class Response {
     }
 
     getHeaderArray(key: string) {
-        return this.headers[key.toLowerCase()]?.toString()?.split(',');
+        return this.headers[key.toLowerCase()]?.toString()?.split(',') || [];
     }
 
     deleteHeader(key: string): void {

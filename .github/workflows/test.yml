@@ -1,4 +1,4 @@
-name: Format
+name: Commit CI
 
 on:
     push:
@@ -7,7 +7,7 @@ on:
 
 # Stop previous runs when new commit is pushed into the MR
 concurrency:
-    group: format-${{ github.ref }}
+    group: test-${{ github.ref }}
     cancel-in-progress: true
 
 env:
@@ -19,9 +19,9 @@ defaults:
 
 jobs:
     format-check:
-        name: Format check
+        name: Tests & format check
         runs-on: [self-hosted, linux, arm64]
-        timeout-minutes: 10
+        timeout-minutes: 15
         continue-on-error: true
         container:
             image: node:20
@@ -29,8 +29,21 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
 
+            - name: Setup cache
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      node_modules
+                      ~/.npm
+                  key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-node-${{ env.NODE_VERSION }}-
+
             - name: Install dependencies
               run: npm install --no-audit
+
+            - name: Run unit tests
+              run: npm run test
 
             - name: Run format check
               run: npm run format:check

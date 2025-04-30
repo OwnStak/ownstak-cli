@@ -257,7 +257,7 @@ export class Config {
     serialize() {
         const replacer = (key: string, value: any) => {
             if (value instanceof RegExp) {
-                return `regexp:${value.toString()}`;
+                return `regexp:${value.source}`;
             }
             return value;
         };

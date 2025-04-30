@@ -1,4 +1,4 @@
-name: Release Next
+name: MR CI
 on:
     pull_request:
 

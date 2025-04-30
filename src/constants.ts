@@ -1,10 +1,10 @@
-import * as packageJson from '../package.json' with { type: 'json' };
+import packageJson from '../package.json' with { type: 'json' };
 import { normalizePath } from './utils/pathUtils.js';
 import { resolve } from 'path';
 
-export const NAME = packageJson.default.name;
-export const VERSION = packageJson.default.version;
-export const DESCRIPTION = packageJson.default.description;
+export const NAME = packageJson.name;
+export const VERSION = packageJson.version;
+export const DESCRIPTION = packageJson.description;
 export const BRAND = 'OwnStak';
 export const SUPPORT_URL = `https://ownstak.com/support`;
 export const NAME_SHORT = 'ownstak';
@@ -107,6 +107,8 @@ export const HEADERS = {
     XOwnLambdaDuration: 'x-own-lambda-duration',
     XOwnMergeHeaders: 'x-own-merge-headers',
     XOwnActions: 'x-own-actions',
+    XOwnImageOptimizer: 'x-own-image-optimizer',
+    XOwnImageOptimizerError: 'x-own-image-optimizer-error',
 };
 
 export const CACHE_CONTROL_CONFIG = {
