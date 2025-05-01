@@ -268,18 +268,18 @@ export async function build(options: BuildCommandOptions) {
     await config.frameworkAdapter?.hooks['build:routes:finish']?.(config);
 
     // Copy compute entrypoint for server and serverless environments
-    await copyFile(resolve(__dirname, '../compute/server/server.js'), resolve(COMPUTE_DIR_PATH, 'server.cjs'));
-    await copyFile(resolve(__dirname, '../compute/server/server.js.map'), resolve(COMPUTE_DIR_PATH, 'server.cjs.map'));
-    await copyFile(resolve(__dirname, '../compute/serverless/serverless.js'), resolve(COMPUTE_DIR_PATH, 'serverless.cjs'));
-    await copyFile(resolve(__dirname, '../compute/serverless/serverless.js.map'), resolve(COMPUTE_DIR_PATH, 'serverless.cjs.map'));
+    await copyFile(resolve(__dirname, '../compute/server/server.js'), resolve(COMPUTE_DIR_PATH, 'server.mjs'));
+    await copyFile(resolve(__dirname, '../compute/server/server.js.map'), resolve(COMPUTE_DIR_PATH, 'server.mjs.map'));
+    await copyFile(resolve(__dirname, '../compute/serverless/serverless.js'), resolve(COMPUTE_DIR_PATH, 'serverless.mjs'));
+    await copyFile(resolve(__dirname, '../compute/serverless/serverless.js.map'), resolve(COMPUTE_DIR_PATH, 'serverless.mjs.map'));
 
     await writeFile(
         resolve(COMPUTE_DIR_PATH, 'package.json'),
         JSON.stringify(
             {
                 version: VERSION,
-                main: 'server.cjs',
-                type: 'commonjs',
+                main: 'server.mjs',
+                type: 'module',
             },
             null,
             2,

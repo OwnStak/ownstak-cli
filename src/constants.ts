@@ -34,9 +34,9 @@ export const PERMANENT_ASSETS_DIR_PATH = normalizePath(resolve(PERMANENT_ASSETS_
 export const DEBUG_DIR_PATH = normalizePath(resolve(DEBUG_DIR));
 
 export const ASSETS_MANIFEST_FILE = 'assets.manifest.json';
-export const ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(BUILD_DIR, ASSETS_MANIFEST_FILE));
+export const ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(COMPUTE_DIR, ASSETS_MANIFEST_FILE));
 export const PERMANENT_ASSETS_MANIFEST_FILE = 'permanent-assets.manifest.json';
-export const PERMANENT_ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(BUILD_DIR, PERMANENT_ASSETS_MANIFEST_FILE));
+export const PERMANENT_ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(COMPUTE_DIR, PERMANENT_ASSETS_MANIFEST_FILE));
 
 // Default ports
 // The CLI will try to find the nearest free port if the specified port is already in use.

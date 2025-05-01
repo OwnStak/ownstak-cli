@@ -796,4 +796,44 @@ describe('Router - Route Matching', () => {
         await router.execute(addRouteRequest, response);
         expect(response.getHeader('x-route-order')).toBe('1');
     });
+
+        it('should match path with and without trailing slash for string paths', async () => {
+        router.addRoute({ path: '/test' }, [
+            {
+                type: 'setResponseHeader',
+                key: 'x-matched',
+                value: 'test',
+            },
+        ]);
+
+        const request = new Request('http://example.com/test');
+        const response = new Response();
+        await router.execute(request, response);
+        expect(response.getHeader('x-matched')).toBe('test');
+
+        const request2 = new Request('http://example.com/test/');
+        const response2 = new Response();
+        await router.execute(request2, response2);
+        expect(response2.getHeader('x-matched')).toBe('test');
+    });
+
+    it('should match path exactly for regex paths', async () => {
+        router.addRoute({ path: /^\/test$/ }, [
+            {
+                type: 'setResponseHeader',
+                key: 'x-matched',
+                value: 'test',
+            },
+        ]);
+
+        const request = new Request('http://example.com/test');
+        const response = new Response();
+        await router.execute(request, response);
+        expect(response.getHeader('x-matched')).toBe('test');
+
+        const request2 = new Request('http://example.com/test/');
+        const response2 = new Response();
+        await router.execute(request2, response2);
+        expect(response2.getHeader('x-matched')).toBeUndefined();
+    });
 }); 

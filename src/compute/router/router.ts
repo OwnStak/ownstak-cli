@@ -376,20 +376,20 @@ export class Router {
         const urlCondition = isNot(condition.url) ? condition.url.not : condition.url;
         if (urlCondition !== undefined) {
             if (typeof urlCondition === 'string') {
-                urlMatch = request.url.toString() === urlCondition || request.url.toString() === `${urlCondition}/`;
+                urlMatch = request.url.toString() === urlCondition;
             } else if (Array.isArray(urlCondition)) {
                 // OR between all the values in the condition.url array
                 // For example: condition.url = ["https://example.com/blog", /https:\/\/example\.com\/blog\/.+/]
                 urlMatch = urlCondition.some((url) => {
                     if (typeof url === 'string') {
-                        return request.url.toString() === url || request.url.toString() === `${url}/`;
+                        return request.url.toString() === url;
                     } else if (url instanceof RegExp) {
-                        return url.test(request.url.toString()) || url.test(`${request.url.toString()}/`);
+                        return url.test(request.url.toString());
                     }
                     return false;
                 });
             } else if (urlCondition instanceof RegExp) {
-                urlMatch = urlCondition.test(request.url.toString()) || urlCondition.test(`${request.url.toString()}/`);
+                urlMatch = urlCondition.test(request.url.toString());
             }
         }
         urlMatch = isNot(condition.url) ? !urlMatch : urlMatch;
@@ -407,7 +407,7 @@ export class Router {
             if (typeof pathCondition === 'string' && pathCondition.startsWith('path-to-regex:')) {
                 // Convert path-to-regex pattern to regex
                 const pathConditionRegex = pathToRegexp(pathCondition).pathRegex;
-                pathMatch = pathConditionRegex.test(request.path) || pathConditionRegex.test(`${request.path}/`);
+                pathMatch = pathConditionRegex.test(request.path);
             } else if (typeof pathCondition === 'string') {
                 // Compare exact path or path with trailing slash
                 pathMatch = request.path === pathCondition || request.path === `${pathCondition}/`;
@@ -418,12 +418,12 @@ export class Router {
                     if (typeof path === 'string') {
                         return request.path === path || request.path === `${path}/`;
                     } else if (path instanceof RegExp) {
-                        return path.test(request.path) || path.test(`${request.path}/`);
+                        return path.test(request.path);
                     }
                     return false;
                 });
             } else if (pathCondition instanceof RegExp) {
-                pathMatch = pathCondition.test(request.path) || pathCondition.test(`${request.path}/`);
+                pathMatch = pathCondition.test(request.path);
             }
         }
         pathMatch = isNot(condition.path) ? !pathMatch : pathMatch;
