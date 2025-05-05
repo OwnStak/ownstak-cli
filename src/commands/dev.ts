@@ -3,9 +3,10 @@ import { dirname } from 'path';
 import { logger } from '../logger.js';
 import { detectFramework, getFrameworkAdapters } from '../frameworks/index.js';
 import { getFrameworkAdapter } from '../frameworks/index.js';
-import { VERSION, NAME } from '../constants.js';
+import { VERSION, NAME, PORT } from '../constants.js';
 import { Config } from '../config.js';
 import { CliError } from '../cliError.js';
+import { getNearestFreePort } from '../utils/portUtils.js';
 
 export interface DevCommandOptions {
     framework?: string;
@@ -13,6 +14,11 @@ export interface DevCommandOptions {
 
 export async function dev(options: DevCommandOptions) {
     const config = await Config.loadFromSource();
+
+    // By default, we listen on 3000 port.
+    // If there's a port conflict, we'll try to find the nearest unused port and move to that one (4000, 5000, etc...)
+    const freeMainPort = (await getNearestFreePort(PORT)) || PORT;
+    process.env.PORT = freeMainPort.toString();
 
     config.framework = options.framework || config.framework || (await detectFramework());
     config.frameworkAdapter ??= getFrameworkAdapter(config.framework);
@@ -26,5 +32,5 @@ export async function dev(options: DevCommandOptions) {
     }
 
     // Run dev:start hook
-    await config.frameworkAdapter?.hooks['dev:start']?.(config);
+    await config.frameworkAdapter?.hooks['dev:start']?.({ config });
 }

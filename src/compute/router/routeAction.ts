@@ -72,6 +72,8 @@ export interface Proxy extends BaseRouteAction {
     verifyTls?: boolean;
     preserveHostHeader?: boolean;
     preserveHeaders?: boolean;
+    preservePath?: boolean;
+    preserveQuery?: boolean;
 }
 
 export interface ServeAsset extends BaseRouteAction {

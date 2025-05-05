@@ -52,10 +52,9 @@ export const APP_PORT = Number(process.env.APP_PORT || PORT + 100);
 // OWNSTAK_ASSETS_FOLDER=deployment-123
 // OWNSTAK_PERMANENT_ASSETS_HOST=http://ownstak-nextjs-permanent-assets.s3.amazonaws.com
 export const ASSETS_FOLDER = process.env.OWNSTAK_ASSETS_FOLDER || '/'; // e.g. /deployment-123
+export const PERMANENT_ASSETS_FOLDER = process.env.OWNSTAK_PERMANENT_ASSETS_FOLDER || '/'; // e.g. /
 export const APP_URL = process.env.OWNSTAK_APP_HOST ? `http://${process.env.OWNSTAK_APP_HOST}` : `http://${HOST}:${APP_PORT}`;
-export const ASSETS_URL = process.env.OWNSTAK_ASSETS_HOST
-    ? `http://${process.env.OWNSTAK_ASSETS_HOST}${ASSETS_FOLDER}`
-    : `http://${HOST}:${ASSETS_PORT}${ASSETS_FOLDER}`.replace(/(?<!:)\/+/g, '/');
+export const ASSETS_URL = process.env.OWNSTAK_ASSETS_HOST ? `http://${process.env.OWNSTAK_ASSETS_HOST}` : `http://${HOST}:${ASSETS_PORT}`;
 export const PERMANENT_ASSETS_URL = process.env.OWNSTAK_PERMANENT_ASSETS_HOST
     ? `http://${process.env.OWNSTAK_PERMANENT_ASSETS_HOST}`
     : `http://${HOST}:${PERMANENT_ASSETS_PORT}`;
@@ -79,6 +78,12 @@ export const ARCHS = {
     X86_64: 'x86_64',
     ARM64: 'arm64',
 } as const;
+
+// Default request/lambda timeout
+export const DEFAULT_TIMEOUT = 20;
+
+// Default memory for lambda in MiB
+export const DEFAULT_MEMORY = 1024;
 
 // This is prefix for all our internal endpoints.
 // For example: /__ownstak__/health, /__ownstak__/image etc...

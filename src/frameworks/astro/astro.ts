@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
-import { Config, FrameworkAdapter } from '../../config.js';
+import { FrameworkAdapter, HookArgs } from '../../config.js';
 import { BRAND, FRAMEWORKS } from '../../constants.js';
 import { bundleRequire } from 'bundle-require';
 import { nodeFileTrace } from '@vercel/nft';
@@ -21,7 +21,7 @@ export type AstroConfig = {
 export const astroFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Astro,
     hooks: {
-        'build:start': async (config: Config): Promise<void> => {
+        'build:start': async ({ config }: HookArgs): Promise<void> => {
             const astroConfig = await loadAstroConfig();
             const adapterName = astroConfig.adapter?.name;
             const outputMode = adapterName === '@astrojs/node' ? 'server' : 'static';
@@ -90,20 +90,11 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
 
             // Astro in server mode with server-side rendered pages
             if (outputMode === 'server') {
-                logger.info(`Tracing dependencies...`);
-                const entrypoint = resolve(outputDir, 'server', 'entry.mjs');
-                const { fileList } = await nodeFileTrace([entrypoint]);
-                for (const file of fileList) {
-                    // Skip files that are already in the output directory
-                    if (file.startsWith(outputDir)) continue;
-                    // Skip files from src directory. They are in dynamic imports, but never imported by the astro server
-                    if (file.startsWith('src')) continue;
-                    config.app.include[file] = true;
-                }
-
                 // Configure app
                 config.app.include[serverOutputDir] = true;
+                config.app.include[clientOutputDir] = false;
                 config.app.entrypoint = join(serverOutputDir, 'entry.mjs');
+                config.app.copyDependencies = true;
 
                 // Proxy all other requests to the Astro server
                 config.router.any([
@@ -157,12 +148,13 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
 
         'dev:start': async () => {
             logger.info('Starting Astro development server...');
-            const devArgs = ['astro', 'dev'];
+            const devArgs = ['astro', 'dev', '--port', process.env.PORT || '3000'];
             logger.debug(`Running: npx ${devArgs.join(' ')}`);
 
             const devProcess = spawn('npx', devArgs, {
                 stdio: 'inherit',
                 shell: true,
+                env: process.env,
             });
 
             devProcess.on('close', (code) => {

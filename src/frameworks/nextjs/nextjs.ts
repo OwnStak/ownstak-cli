@@ -5,7 +5,7 @@ import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
 import { findMonorepoRoot } from '../../utils/pathUtils.js';
 import semver from 'semver';
-import { Config, FrameworkAdapter } from '../../config.js';
+import { BuildHookArgs, Config, FrameworkAdapter, HookArgs } from '../../config.js';
 import { getModuleFileUrl } from '../../utils/moduleUtils.js';
 import { BRAND, FRAMEWORKS, NAME } from '../../constants.js';
 import { fileURLToPath } from 'url';
@@ -42,7 +42,7 @@ let basePath: string;
 export const nextjsFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.NextJs,
     hooks: {
-        'build:start': async (config: Config): Promise<void> => {
+        'build:start': async ({ config }: HookArgs): Promise<void> => {
             const monorepoRoot = (await findMonorepoRoot()) || process.cwd();
             const packageJsonPath = resolve('package.json');
             const monorepoPackageJsonPath = resolve(monorepoRoot, 'package.json');
@@ -119,7 +119,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             config.app.include[`${distDir}/standalone/${distDir}/server/pages/**/{404,500}.html`] = `${distDir}/server/pages/**`;
             config.app.entrypoint = `./server.js`;
         },
-        'build:routes:start': async (config: Config): Promise<void> => {
+        'build:routes:start': async ({ config }: HookArgs): Promise<void> => {
             const { headers = [], rewrites = [], redirects = [] } = await getRoutesManifest(distDir);
 
             // Converts Next.js has config to our route condition
@@ -217,7 +217,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                 true,
             );
         },
-        async 'build:routes:finish'(config: Config): Promise<void> {
+        'build:routes:finish': async ({ config }: BuildHookArgs): Promise<void> => {
             // Proxy all requests to the Next.js server by default.
             config.router.any([
                 {
@@ -231,6 +231,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             const devProcess = spawn('npx', ['next', 'dev'], {
                 stdio: 'inherit',
                 shell: true,
+                env: process.env,
             });
             devProcess.on('close', (code) => {
                 logger.info(`Next.js development server closed with code ${code}`);

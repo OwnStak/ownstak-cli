@@ -1,6 +1,6 @@
 import http from 'http';
 import https from 'https';
-import { ASSETS_URL, PERMANENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX } from '../../constants.js';
+import { ASSETS_URL, PERMANENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX, ASSETS_FOLDER, PERMANENT_ASSETS_FOLDER } from '../../constants.js';
 import { Request } from './request.js';
 import { Response } from './response.js';
 import { logger } from '../../logger.js';
@@ -660,16 +660,26 @@ export class Router {
      */
     async executeProxy(action: Proxy, request: Request, response: Response): Promise<void> {
         const proxyReqUrl = new URL(action.url);
+
+        // Preserve host header from original request by default, otherwise use host from proxyUrl
         const proxyHostHeader = action.preserveHostHeader !== false ? request.host.toString() : proxyReqUrl.hostname;
+        // Preserve headers from from original request by default, otherwise keep them empty
         const proxyHeaders = action.preserveHeaders !== false ? { ...request.headers } : {};
-        proxyHeaders.host = proxyHostHeader;
+        // Preserve path from from original request by default, otherwise use path from proxyUrl
+        const proxyPath = action.preservePath !== false ? request.path : proxyReqUrl.pathname || '/';
+        // Preserve query params from original request by default, otherwise use params from proxyUrl
+        const proxyQuery = action.preserveQuery !== false ? request.url.search : proxyReqUrl.search || '';
+
         logger.debug(`[Router][ProxyRequest]: ${action.url} => ${proxyReqUrl}`);
 
         return new Promise((resolve, reject) => {
             const requestOptions: https.RequestOptions = {
-                path: `${request.path}${request.url.search}`,
+                path: `${proxyPath}${proxyQuery}`.replace(/\/+/g, '/'), // remove double slashes
                 method: request.method,
-                headers: proxyHeaders,
+                headers: {
+                    ...proxyHeaders,
+                    host: proxyHostHeader,
+                },
                 rejectUnauthorized: !action.verifyTls, // ignore TLS errors by default if verifyTls is false/undefined
             };
 
@@ -725,19 +735,25 @@ export class Router {
      * @param response The response to serve the asset on.
      * @private
      */
-    async executeServeAsset(action: ServeAsset | ServePersistentAsset, request: Request, response: Response, proxyUrl: string = ASSETS_URL): Promise<void> {
+    async executeServeAsset(action: ServeAsset | ServePersistentAsset, request: Request, response: Response, bucketUrl: string = ASSETS_URL): Promise<void> {
         let assetPath = action.path || request.path;
+
         // If path doesn't end with a file extension, add index.html to it
         // Example:
         // /assets/css/style.css => /assets/css/style.css
         // /images -> /images/index.html
         if (!assetPath.match(/\.[^\.]+$/)) {
-            assetPath = `${assetPath}/index.html`.replace(/(?<!:)\/+/g, '/');
+            assetPath = `${assetPath}/index.html`;
         }
-        request.url.pathname = assetPath;
+
+        // Constuct the final destination of asset
+        // e.g. http://ownstak-001e5052-fbb2-4811-b389-79f03e220f3d-assets.s3.amazonaws.com/1/index.html
+        const assetFolder = isServeAssetAction(action) ? ASSETS_FOLDER : PERMANENT_ASSETS_FOLDER;
+        const assetUrl = `${bucketUrl}/${assetFolder}/${assetPath}`.replace(/(?<!:)\/+/g, '/');
+
         // If the request is coming from the ownstak-proxy, we need to redirect to the S3 bucket
         if (request.getHeader(HEADERS.XOwnProxy)) {
-            response.setHeader(HEADERS.Location, `${proxyUrl}${assetPath}`.replace(/(?<!:)\/+/g, '/'));
+            response.setHeader(HEADERS.Location, assetUrl);
             // Tell the ownstak-proxy to follow the redirect to the S3 bucket
             response.setHeader(HEADERS.XOwnFollowRedirect, 'true');
             // Tell the ownstak-proxy to merge headers from this response with the headers from the S3 responses.
@@ -746,8 +762,20 @@ export class Router {
             response.statusCode = 301;
             return;
         }
+
         // Otherwise, we need to proxy the request to the S3 bucket
-        return this.executeProxy({ url: proxyUrl, type: 'proxy', preserveHostHeader: false, preserveHeaders: false }, request, response);
+        return this.executeProxy(
+            {
+                url: assetUrl,
+                type: 'proxy',
+                preserveHostHeader: false,
+                preserveHeaders: false,
+                preservePath: false,
+                preserveQuery: false,
+            },
+            request,
+            response,
+        );
     }
 
     /**
@@ -772,8 +800,6 @@ export class Router {
             {
                 url: APP_URL,
                 type: 'proxy',
-                preserveHostHeader: true,
-                preserveHeaders: true,
             },
             request,
             response,
@@ -799,9 +825,13 @@ export class Router {
      */
     async executeRewrite(action: Rewrite, request: Request): Promise<void> {
         const pathBefore = request.path;
-        const from = action.from;
-        const to = substitutePathToRegexpParams(action.to, request.params);
 
+        if (action.from && typeof action.from === 'string' && action.from.includes(':')) {
+            const fromRegex = pathToRegexp(action.from).pathRegex;
+            const fromParams = extractPathToRegexpParams(action.from, pathBefore);
+            const to = substitutePathToRegexpParams(action.to, fromParams);
+            request.path = request.path.replace(fromRegex, to);
+        }
         if (action.from && typeof action.from === 'string') {
             request.path = request.path.replace(action.from, action.to);
         }

@@ -11,11 +11,97 @@ import { start } from './start.js';
 import { deploy } from './deploy.js';
 import { login } from './login.js';
 import { logout } from './logout.js';
-import { upgrade } from './upgrade.js';
+import { upgrade, getLatestVersion } from './upgrade.js';
 import { configInit } from './config/init.js';
 import { configPrint } from './config/print.js';
 
-process.on('uncaughtException', (e: any) => {
+// Attach default error handler
+process.on('uncaughtException', handleException);
+
+// Use version and description from package.json
+const program = new Command()
+    .name(NAME)
+    .description(`Build and deploy your project to ${BRAND}`)
+    .version(VERSION, '-v, --version')
+    .addHelpText('beforeAll', () => `${logger.drawTitle('help') ?? ''}`)
+    .helpOption('-h, --help', 'Display help for command')
+    .option('-d, --debug', 'Enable debug mode')
+    .hook('preAction', preAction);
+
+program
+    .command('build [framework]')
+    .description('Build the app for production')
+    .option('-s, --skip-framework-build', 'Skip the build of the framework and use existing build output')
+    .option('--assets-dir <dir>', 'Optional directory with static assets to include in the build')
+    .action((framework, options) => build({ framework, ...options }));
+
+program.command('dev').description('Start the project in development mode').action(dev);
+
+program.command('start').alias('run').description('Start the project in production mode').action(start);
+
+program.command('deploy').description('Deploy the project to the platform').action(deploy);
+
+program.command('login').description('Log in to the platform').action(login);
+
+program.command('logout').description('Log out of the platform').action(logout);
+
+const configCommand = program.command('config').description(`Manage the ${BRAND} project config`);
+configCommand.command('init').description(`Initialize the ${BRAND} project config file`).action(configInit);
+configCommand.command('print').description(`Prints the current ${BRAND} project config`).action(configPrint);
+
+program
+    .command('upgrade [version]')
+    .description('Upgrade the CLI to latest or specified version')
+    .action((version) => upgrade({ version }));
+
+program.addHelpText(
+    'after',
+    `
+Examples:
+  npx ${NAME_SHORT} build nextjs
+  npx ${NAME_SHORT} build astro
+  npx ${NAME_SHORT} config init
+  npx ${NAME_SHORT} config print
+`,
+);
+
+/**
+ * Global hook that always runs before any command.
+ * @param thisCommand - The command that is being executed.
+ * @param actionCommand - The action command that is being executed.
+ */
+export async function preAction(thisCommand: Command, actionCommand: Command) {
+    const { debug } = thisCommand.opts();
+    if (debug) process.env.LOG_LEVEL = 'debug';
+
+    const commandName = actionCommand.name();
+    logger.drawTitle(commandName);
+
+    // Check new version and display upgrade notice
+    // for deploy and build commands
+    if (['deploy', 'build'].includes(commandName)) {
+        const currentVersion = VERSION;
+        const upgradeVersion = await getLatestVersion();
+        if (currentVersion !== upgradeVersion) {
+            logger.drawTable(
+                [
+                    `The new version ${upgradeVersion} of ${BRAND} CLI is available.`,
+                    `When you're ready to upgrade, run: ${chalk.cyan(`npx ${NAME_SHORT} upgrade ${upgradeVersion}`)}`,
+                ],
+                {
+                    title: 'Upgrade available',
+                    logLevel: LogLevel.SUCCESS,
+                },
+            );
+        }
+    }
+}
+
+/**
+ * Default error handler for all the errors inside the CLI.
+ * @param e - The error object.
+ */
+export async function handleException(e: any) {
     const errorMessage: string = e.message;
     const errorStack: string = e.stack
         .split('\n')
@@ -55,58 +141,6 @@ process.on('uncaughtException', (e: any) => {
         maxWidth: 70,
     });
     process.exit(1);
-});
-
-// Use version and description from package.json
-const program = new Command()
-    .name(NAME)
-    .description(`Build and deploy your project to ${BRAND}`)
-    .version(VERSION, '-v, --version')
-    .addHelpText('beforeAll', () => `${logger.drawTitle('help') ?? ''}`)
-    .helpOption('-h, --help', 'Display help for command')
-    .option('-d, --debug', 'Enable debug mode')
-    .hook('preAction', (thisCommand, actionCommand) => {
-        // Global hook that always runs before any command
-        const { debug } = thisCommand.opts();
-        if (debug) process.env.LOG_LEVEL = 'debug';
-        logger.drawTitle(actionCommand.name());
-    });
-
-program
-    .command('build [framework]')
-    .description('Build the app for production')
-    .option('-s, --skip-framework-build', 'Skip the build of the framework and use existing build output')
-    .option('--assets-dir <dir>', 'Optional directory with static assets to include in the build')
-    .action((framework, options) => build({ framework, ...options }));
-
-program.command('dev').description('Start the project in development mode').action(dev);
-
-program.command('start').alias('run').description('Start the project in production mode').action(start);
-
-program.command('deploy').description('Deploy the project to the platform').action(deploy);
-
-program.command('login').description('Log in to the platform').action(login);
-
-program.command('logout').description('Log out of the platform').action(logout);
-
-const configCommand = program.command('config').description(`Manage the ${BRAND} project config`);
-configCommand.command('init').description(`Initialize the ${BRAND} project config file`).action(configInit);
-configCommand.command('print').description(`Prints the current ${BRAND} project config`).action(configPrint);
-
-program
-    .command('upgrade [version]')
-    .description('Upgrade the CLI to latest or specified version')
-    .action((version) => upgrade({ version }));
-
-program.addHelpText(
-    'after',
-    `
-Examples:
-  npx ${NAME_SHORT} build nextjs
-  npx ${NAME_SHORT} build astro
-  npx ${NAME_SHORT} config init
-  npx ${NAME_SHORT} config print
-`,
-);
+}
 
 program.parse(process.argv);

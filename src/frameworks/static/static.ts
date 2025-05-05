@@ -9,7 +9,7 @@ import { CliError } from '../../cliError.js';
 export const staticFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Static,
     hooks: {
-        'build:start': async (config: Config): Promise<void> => {
+        'build:start': async ({ config }): Promise<void> => {
             logger.info('Building static project...');
             if (Object.keys(config.assets.include).length == 0) {
                 throw new CliError(
@@ -51,6 +51,7 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             const child = spawn(programName, programArgs, {
                 stdio: 'inherit',
                 cwd: process.cwd(),
+                env: process.env,
             });
             child.on('close', (code) => {
                 process.exit(code);

@@ -31,6 +31,7 @@ export async function start() {
     process.env.ASSETS_PORT = freeAssetsPort.toString();
     process.env.PERMANENT_ASSETS_PORT = freepermanentAssetsPort.toString();
     process.env.APP_PORT = freeAppPort.toString();
+    process.env.NODE_ENV = 'production';
 
     // Normalize the OS and architecture to match the proxy binary names
     const currentOs = process.platform.replace('win32', 'windows');

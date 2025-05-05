@@ -32,6 +32,7 @@ import { Config, FilesConfig, Framework } from '../config.js';
 import { detectFramework, getFrameworkAdapter, getFrameworkAdapters } from '../frameworks/index.js';
 import { CliError } from '../cliError.js';
 import chalk from 'chalk';
+import { nodeFileTrace } from '@vercel/nft';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -112,15 +113,34 @@ export async function build(options: BuildCommandOptions) {
     }
 
     // Run build:start hook
-    await config.frameworkAdapter?.hooks['build:start']?.(config);
+    await config.frameworkAdapter?.hooks['build:start']?.({ config });
 
     // Add project's package.json to debugAssets folder,
     // so we can see the project's dependencies version.
     config.debugAssets.include[`./package.json`] = true;
 
-    // Put the project's package.json in the app directory too,
+    // Always put the project's package.json in the app directory,
     // so app runs with correct module type either commonjs or module (ESM).
     config.app.include[`./package.json`] = true;
+
+    // If app entrypoint is absolute, convert it to relative path
+    // e.g: /Users/user/project/src/server.js -> src/server.js
+    if (config.app.entrypoint && resolve(config.app.entrypoint) === config.app.entrypoint) {
+        config.app.entrypoint = relative(process.cwd(), config.app.entrypoint);
+    }
+
+    // Trace and copy app entrypoint dependencies
+    // if copyDependencies is true
+    if (config.app.copyDependencies && config.app.entrypoint) {
+        const entrypointAbsolute = resolve(config.app.entrypoint);
+        console.log('entrypointAbsolute', entrypointAbsolute);
+        const { fileList } = await nodeFileTrace([entrypointAbsolute]);
+        for (const file of fileList) {
+            // Skip files that are already in the output directory
+            if (file.startsWith(BUILD_DIR_PATH)) continue;
+            config.app.include[file] = true;
+        }
+    }
 
     // Normalize all paths in the config first
     // For example:
@@ -155,7 +175,7 @@ export async function build(options: BuildCommandOptions) {
     }
 
     // Run build:routes:start hook before we start creating default routes
-    await config.frameworkAdapter?.hooks['build:routes:start']?.(config);
+    await config.frameworkAdapter?.hooks['build:routes:start']?.({ config });
 
     // Create routes for assets
     // For example:
@@ -265,7 +285,7 @@ export async function build(options: BuildCommandOptions) {
     );
 
     // Run build:routes:finish hook after we created default routes
-    await config.frameworkAdapter?.hooks['build:routes:finish']?.(config);
+    await config.frameworkAdapter?.hooks['build:routes:finish']?.({ config });
 
     // Copy compute entrypoint for server and serverless environments
     await copyFile(resolve(__dirname, '../compute/server/server.js'), resolve(COMPUTE_DIR_PATH, 'server.mjs'));
@@ -292,7 +312,7 @@ export async function build(options: BuildCommandOptions) {
     await config.build(BUILD_DIR_PATH);
 
     // Run build:finish hook right before we finish the build
-    await config.frameworkAdapter?.hooks['build:finish']?.(config);
+    await config.frameworkAdapter?.hooks['build:finish']?.({ config });
 
     // Create manifest files
     await writeFile(ASSETS_MANIFEST_FILE_PATH, JSON.stringify(assets, null, 2));
@@ -304,15 +324,20 @@ export async function build(options: BuildCommandOptions) {
     // Calculate the max content width needed for consistent tables
     const tableMinWidth = 63;
 
+    const isDefaultRuntime = config.defaultRuntime === config.runtime;
+    const isDefaultMemory = config.defaultMemory === config.memory;
+    const isDefaultArch = config.defaultArch === config.arch;
+    const isDefaultTimeout = config.defaultTimeout === config.timeout;
+
     // Print build summary
     logger.info('');
     logger.drawTable(
         [
             `Framework: ${chalk.cyan(config.framework)}`,
-            `Runtime: ${chalk.cyan(config.runtime)}`,
-            `Memory: ${chalk.cyan(`${config.memory}MiB`)}`,
-            `Arch: ${chalk.cyan(config.arch)}`,
-            `Timeout: ${chalk.cyan(`${config.timeout}s`)}`,
+            `Runtime: ${chalk.cyan(config.runtime)} ${chalk.gray(isDefaultRuntime ? '' : 'custom')}`,
+            `Memory: ${chalk.cyan(`${config.memory}MiB`)} ${chalk.gray(isDefaultMemory ? '' : 'custom')}`,
+            `Arch: ${chalk.cyan(config.arch)} ${chalk.gray(isDefaultArch ? '' : 'custom')}`,
+            `Timeout: ${chalk.cyan(`${config.timeout}s`)} ${chalk.gray(isDefaultTimeout ? '' : 'custom')}`,
             `Routes: ${chalk.cyan(config.router.routes.length.toString())}`,
             `Build duration: ${chalk.cyan(`${duration.toFixed(2)}s`)}`,
         ],
@@ -379,7 +404,7 @@ export function normalizeFilesConfig(filesConfig: FilesConfig) {
  * }
  */
 export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
-    const { include = [] } = filesConfig;
+    const { include = {} } = filesConfig;
 
     for (const [pattern, destination] of Object.entries(include)) {
         const isGlob = pattern.includes('*') || pattern.includes('{');

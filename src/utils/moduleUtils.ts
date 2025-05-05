@@ -41,28 +41,37 @@ export async function getModuleFileUrl(moduleName: string, filePath: string): Pr
     return `file://${fullPath}`;
 }
 
-export function installDependencies() {
-    if (existsSync('package-lock.json')) {
-        execSync('npm install --no-audit --no-fund --legacy-peer-deps', { stdio: 'inherit' });
+export function installDependencies(cwd: string = process.cwd()) {
+    if (existsSync(join(cwd, 'package-lock.json'))) {
+        execSync('npm install --no-audit --no-fund --legacy-peer-deps', {
+            stdio: 'inherit',
+            cwd,
+        });
         return true;
     }
-    if (existsSync('yarn.lock')) {
-        execSync('yarn install --no-audit', { stdio: 'inherit' });
+    if (existsSync(join(cwd, 'yarn.lock'))) {
+        execSync('yarn install --no-audit', {
+            stdio: 'inherit',
+            cwd,
+        });
         return true;
     }
-    if (existsSync('pnpm-lock.yaml')) {
-        execSync('pnpm install', { stdio: 'inherit' });
+    if (existsSync(join(cwd, 'pnpm-lock.yaml'))) {
+        execSync('pnpm install', {
+            stdio: 'inherit',
+            cwd,
+        });
         return true;
     }
     return false;
 }
 
-export function getProjectType(): 'commonjs' | 'module' | 'typescript' {
-    if (existsSync('tsconfig.json')) {
+export function getProjectType(cwd: string = process.cwd()): 'commonjs' | 'module' | 'typescript' {
+    if (existsSync(join(cwd, 'tsconfig.json'))) {
         return 'typescript';
     }
 
-    const packageJson = existsSync('package.json') ? JSON.parse(readFileSync('package.json', 'utf8')) : null;
+    const packageJson = existsSync(join(cwd, 'package.json')) ? JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')) : null;
     if (packageJson?.type) {
         return packageJson?.type;
     }

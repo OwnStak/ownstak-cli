@@ -13,6 +13,8 @@ import {
     COMPUTE_DIR_PATH,
     NAME_SHORT,
     ARCHS,
+    DEFAULT_MEMORY,
+    DEFAULT_TIMEOUT,
 } from './constants.js';
 import { dirname, relative, resolve } from 'path';
 import { logger } from './logger.js';
@@ -162,10 +164,11 @@ export class Config {
     constructor(options: ConfigOptions = {}) {
         Object.assign(this, options);
         this.version ??= VERSION;
-        this.runtime ??= RUNTIMES.Nodejs20;
-        this.memory ??= 1024;
-        this.arch ??= ARCHS.X86_64;
-        this.timeout ??= 20;
+        this.runtime ??= this.defaultRuntime;
+        this.arch ??= this.defaultArch;
+        this.memory ??= this.defaultMemory;
+        this.timeout ??= this.defaultTimeout;
+
         this.router ??= new Router();
         this.assets ??= { include: {} };
         this.permanentAssets ??= { include: {} };
@@ -379,6 +382,11 @@ export class Config {
         return configModule as Config;
     }
 
+    /**
+     * Builds the source config in JS/TS format
+     * to normalized JSON output format.
+     * @param destDir - The destination directory for the output config file.
+     */
     async build(destDir: string = COMPUTE_DIR_PATH) {
         logger.debug(`Building ${BRAND} project config...`);
         await writeFile(resolve(destDir, OUTPUT_CONFIG_FILE), this.serialize(), 'utf8');
@@ -387,17 +395,63 @@ export class Config {
     toString() {
         return this.constructor.name;
     }
+
+    /**
+     * Returns the default runtime for the project
+     * based on the currently used Node.js version.
+     */
+    get defaultRuntime(): Runtime {
+        const currentVersion = process.version.slice(1);
+        const [currentMajor, ..._] = currentVersion.split('.');
+        for (const runtime of Object.values(RUNTIMES)) {
+            const [runtimeMajor, ..._] = runtime.replace('nodejs', '').split('.');
+            if (runtimeMajor === currentMajor) return runtime;
+        }
+        return RUNTIMES.Nodejs22;
+    }
+
+    /**
+     * Returns the default architecture for the project
+     * based on the currently used CPU architecture.
+     * This ensures that the native node modules will work.
+     */
+    get defaultArch(): Architecture {
+        const currentArch = process.arch.replace('x64', ARCHS.X86_64);
+        return Object.values(ARCHS).find((arch) => arch === currentArch) ?? ARCHS.X86_64;
+    }
+
+    /**
+     * Returns the default memory for the project
+     * based on the currently used Node.js version.
+     */
+    get defaultMemory(): number {
+        return DEFAULT_MEMORY;
+    }
+
+    /**
+     * Returns the default timeout for the project
+     * based on the currently used Node.js version.
+     */
+    get defaultTimeout(): number {
+        return DEFAULT_TIMEOUT;
+    }
 }
+
+export interface HookArgs {
+    config: Config;
+}
+export interface DevHookArgs extends HookArgs {}
+export interface BuildHookArgs extends HookArgs {}
 
 export interface FrameworkAdapter {
     name: string;
     isPresent: () => Promise<boolean> | boolean;
     hooks: {
-        'build:start'?: (config: Config) => Promise<void> | void;
-        'build:routes:start'?: (config: Config) => Promise<void> | void;
-        'build:routes:finish'?: (config: Config) => Promise<void> | void;
-        'build:finish'?: (config: Config) => Promise<void> | void;
-        'dev:start'?: (config: Config) => Promise<void> | void;
+        'build:start'?: (args: HookArgs) => Promise<void> | void;
+        'build:routes:start'?: (args: BuildHookArgs) => Promise<void> | void;
+        'build:routes:finish'?: (args: BuildHookArgs) => Promise<void> | void;
+        'build:finish'?: (args: BuildHookArgs) => Promise<void> | void;
+        'dev:start'?: (args: DevHookArgs) => Promise<void> | void;
     };
 }
 
@@ -406,17 +460,47 @@ export type Runtime = (typeof RUNTIMES)[keyof typeof RUNTIMES] | string;
 export type Architecture = (typeof ARCHS)[keyof typeof ARCHS] | string;
 
 export interface FilesConfig {
+    /**
+     * The files to include in the build.
+     * The keys can contain files, directories or glob patterns. The values can be:
+     * - true - to include and serve all files under same path as in the source folder.
+     * - false - to exclude a specific file or all files from previously included paths.
+     * - string - destination path to serve files under a different path than in the source folder.
+     * See the below examples for more details.
+     * @default { include: {} }
+     * @example
+     * {
+     *     include: {
+     *         "./public": './', // Includes and serves all files under './public' path. E.g. ./public/image.png will be served as /image.png
+     *     },
+     * }
+     */
     include: Record<string, boolean | string>;
 }
 
 export interface AssetsConfig extends FilesConfig {
-    htmlToFolders?: boolean;
-}
-
-export interface DebugAssetsConfig extends FilesConfig {
+    /**
+     * Set to true to convert HTML files to folders with index.html file.
+     * For example:
+     * .ownstak/assets/products/3.html -> .ownstak/assets/products/3/index.html
+     * @default false
+     */
     htmlToFolders?: boolean;
 }
 
 export interface AppConfig extends FilesConfig {
+    /**
+     * The entrypoint of your app to start.
+     * It should be file that starts the HTTP server or exports default function that starts the HTTP server.
+     * @default undefined
+     */
     entrypoint?: string;
+
+    /**
+     * Set to true to trace and copy all dependencies of specified entrypoint.
+     * @default false
+     */
+    copyDependencies?: boolean;
 }
+
+export interface DebugAssetsConfig extends FilesConfig {}
