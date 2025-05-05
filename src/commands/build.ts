@@ -133,7 +133,6 @@ export async function build(options: BuildCommandOptions) {
     // if copyDependencies is true
     if (config.app.copyDependencies && config.app.entrypoint) {
         const entrypointAbsolute = resolve(config.app.entrypoint);
-        console.log('entrypointAbsolute', entrypointAbsolute);
         const { fileList } = await nodeFileTrace([entrypointAbsolute]);
         for (const file of fileList) {
             // Skip files that are already in the output directory
