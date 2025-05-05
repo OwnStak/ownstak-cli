@@ -6,13 +6,29 @@ import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
 import { Config } from '../config.js';
+import { CliConfig } from '../cliConfig.js';
+import ConsoleClient from '../api/ConsoleClient.js';
+import { uploadToPresignedUrl } from '../utils/s3Upload.js';
 
-export async function deploy() {
+export interface DeployCommandOptions {
+    framework?: string;
+}
+
+export async function deploy(options: DeployCommandOptions) {
     if (!existsSync(BUILD_DIR_PATH)) {
         throw new CliError(`The ${BRAND} build does not exist. Please run \`npx ${NAME_SHORT} build\` first.`);
     }
 
     const config = await Config.loadFromBuild();
+
+    const cliConfig = new CliConfig();
+    await cliConfig.load();
+
+    const api = new ConsoleClient(cliConfig);
+
+    // TODO: Get values from the Console API
+    const deployment = await api.createDeployment({ environmentId: '987f82b1-cc1c-4aab-bc96-3ddbe93c9f53' });
+
     logger.info(`Let's bring your project to life!`);
 
     logger.info('');
@@ -29,7 +45,14 @@ export async function deploy() {
 
     logger.info('');
     logger.drawSubtitle(`Step 2/3`, 'Uploading');
-    for (const zipFilePath of [ASSETS_DIR, PERMANENT_ASSETS_DIR, COMPUTE_DIR].map((dirName) => `${dirName}.zip`)) {
+    for (const uploadObject of [
+        [ASSETS_DIR, deployment.storage_urls.assets],
+        [PERMANENT_ASSETS_DIR, deployment.storage_urls.permanent_assets],
+        [COMPUTE_DIR, deployment.storage_urls.compute],
+    ].map(([dirName, presignedUrl]) => [`${dirName}.zip`, presignedUrl])) {
+        const [zipFilePath, presignedUrl] = uploadObject;
+        await uploadToPresignedUrl(presignedUrl, zipFilePath);
+
         logger.startSpinner(`Uploading ${zipFilePath}...`);
 
         // Fake upload simulation
