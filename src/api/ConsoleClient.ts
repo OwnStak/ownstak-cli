@@ -5,7 +5,7 @@ import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
 import { ListProjectsRequest, ListProjectsResponse } from './requests/ListProjects.js';
 import { ListEnvironmentsRequest, ListEnvironmentsResponse } from './requests/ListEnvironements.js';
 import { BaseConsoleError, ConsoleErrorResult, ConsoleResourceNotFoundError, ConsoleUnauthenticatedError, ConsoleUnauthorizedError } from './ConsoleError.js';
-import { Client, ClientResponse } from '../utils/Client.js';
+import { Client } from '../utils/Client.js';
 
 export default class ConsoleClient extends Client {
     constructor(cliConfig: CliConfig) {
@@ -45,7 +45,7 @@ export default class ConsoleClient extends Client {
             .then((data) => data as CreateDeploymentResponse);
     }
 
-    protected async handleError(response: ClientResponse) {
+    protected async handleError(response: Response) {
         const result = await response.json();
 
         switch (response.status) {

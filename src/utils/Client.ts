@@ -1,8 +1,3 @@
-import fetch, { FetchError } from 'node-fetch';
-import type { Response as ClientResponse } from 'node-fetch';
-
-export { ClientResponse };
-
 export interface HttpHeaders {
     [key: string]: string;
 }
@@ -31,7 +26,7 @@ export interface ClientRequestOptions {
 export class ClientHttpError extends Error {
     public response;
 
-    constructor(result: string, response: ClientResponse) {
+    constructor(result: string, response: Response) {
         super(`[${response.status}] Client error ${result}`);
         this.response = response;
     }
@@ -57,27 +52,27 @@ export class Client {
         return this;
     }
 
-    async get(opts: ClientRequestOptions): Promise<ClientResponse> {
+    async get(opts: ClientRequestOptions): Promise<Response> {
         return this.request({ ...opts, method: HttpMethod.GET });
     }
 
-    async post(opts: ClientRequestOptions): Promise<ClientResponse> {
+    async post(opts: ClientRequestOptions): Promise<Response> {
         return this.request({ ...opts, method: HttpMethod.POST });
     }
 
-    async put(opts: ClientRequestOptions): Promise<ClientResponse> {
+    async put(opts: ClientRequestOptions): Promise<Response> {
         return this.request({ ...opts, method: HttpMethod.PUT });
     }
 
-    async patch(opts: ClientRequestOptions): Promise<ClientResponse> {
+    async patch(opts: ClientRequestOptions): Promise<Response> {
         return this.request({ ...opts, method: HttpMethod.PATCH });
     }
 
-    async delete(opts: ClientRequestOptions): Promise<ClientResponse> {
+    async delete(opts: ClientRequestOptions): Promise<Response> {
         return this.request({ ...opts, method: HttpMethod.DELETE });
     }
 
-    async request(opts: ClientRequestOptions): Promise<ClientResponse> {
+    async request(opts: ClientRequestOptions): Promise<Response> {
         const url = new URL(opts.path, this.baseUrl);
         const headers = { ...this.headers, ...(opts.headers || {}) };
         let body = opts.body ? opts.body : undefined;
@@ -97,27 +92,22 @@ export class Client {
             if (!response.ok) {
                 await this.handleError(response);
             }
-
             return response;
         } catch (error: any) {
-            if (error instanceof FetchError) {
-                switch (error.code) {
-                    case 'ECONNREFUSED':
-                        throw new ClientError('Failed to connect to the API server', this);
-                    case 'ECONNRESET':
-                        throw new ClientError('Connection was reset by the API server', this);
-                    case 'ENOTFOUND':
-                        throw new ClientError('The API server was not found', this);
-                    default:
-                        throw new ClientError(error.message, this);
-                }
+            switch (error?.cause?.code) {
+                case 'ECONNREFUSED':
+                    throw new ClientError('Failed to connect to the API server', this);
+                case 'ECONNRESET':
+                    throw new ClientError('Connection was reset by the API server', this);
+                case 'ENOTFOUND':
+                    throw new ClientError('The API server was not found', this);
+                default:
+                    throw new ClientError(error.message, this);
             }
-
-            throw new ClientError(error.message, this);
         }
     }
 
-    protected async handleError(response: ClientResponse) {
+    protected async handleError(response: Response) {
         const result = await response.text();
         throw new ClientHttpError(result, response);
     }

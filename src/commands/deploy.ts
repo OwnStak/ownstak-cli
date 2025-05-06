@@ -51,12 +51,11 @@ export async function deploy(options: DeployCommandOptions) {
         [COMPUTE_DIR, deployment.storage_urls.compute],
     ].map(([dirName, presignedUrl]) => [`${dirName}.zip`, presignedUrl])) {
         const [zipFilePath, presignedUrl] = uploadObject;
-        await uploadToPresignedUrl(presignedUrl, zipFilePath);
 
         logger.startSpinner(`Uploading ${zipFilePath}...`);
 
-        // Fake upload simulation
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await uploadToPresignedUrl(presignedUrl, zipFilePath);
+
         logger.stopSpinner(`Uploaded ${zipFilePath}`, LogLevel.SUCCESS);
 
         // Clean up the zip file

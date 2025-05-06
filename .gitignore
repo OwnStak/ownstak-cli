@@ -7,6 +7,9 @@ build
 .ownstak
 .next
 
+# Temp
+tmp
+
 # Environment
 .env
 

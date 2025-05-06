@@ -1,5 +1,3 @@
-import { ClientResponse } from '../utils/Client.js';
-
 export interface ConsoleErrorResult {
     error: string;
     code: string;
@@ -8,7 +6,7 @@ export interface ConsoleErrorResult {
 export class BaseConsoleError extends Error {
     public response;
 
-    constructor(result: ConsoleErrorResult, response: ClientResponse) {
+    constructor(result: ConsoleErrorResult, response: Response) {
         super(`[${response.status}] ${result.error} (${result.code})`);
         this.response = response;
     }
