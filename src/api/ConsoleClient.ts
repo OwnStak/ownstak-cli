@@ -6,10 +6,11 @@ import { ListProjectsRequest, ListProjectsResponse } from './requests/ListProjec
 import { ListEnvironmentsRequest, ListEnvironmentsResponse } from './requests/ListEnvironements.js';
 import { BaseConsoleError, ConsoleErrorResult, ConsoleResourceNotFoundError, ConsoleUnauthenticatedError, ConsoleUnauthorizedError } from './ConsoleError.js';
 import { Client } from '../utils/Client.js';
+import { DeployDeploymentRequest } from './requests/DeployDeployment.js';
 
 export default class ConsoleClient extends Client {
     constructor(cliConfig: CliConfig) {
-        super(cliConfig.apiUrl!, {
+        super(cliConfig.apiUrl, {
             'User-Agent': `Ownstak CLI ${VERSION}`,
             'Content-Type': 'application/json',
         });
@@ -40,6 +41,14 @@ export default class ConsoleClient extends Client {
     async createDeployment(opts: CreateDeploymentRequest): Promise<CreateDeploymentResponse> {
         return this.post({
             path: `/api/environments/${opts.environmentId}/deployments`,
+        })
+            .then((res) => res.json())
+            .then((data) => data as CreateDeploymentResponse);
+    }
+
+    async deployDeployment(opts: DeployDeploymentRequest): Promise<CreateDeploymentResponse> {
+        return this.post({
+            path: `/deployments/${opts.deploymentId}/deploy`,
         })
             .then((res) => res.json())
             .then((data) => data as CreateDeploymentResponse);
