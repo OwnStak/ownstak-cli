@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { stat, unlink } from 'fs/promises';
 import { logger, LogLevel } from '../logger.js';
-import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, NAME_SHORT, PERMANENT_ASSETS_DIR, BUILD_DIR } from '../constants.js';
+import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, NAME_SHORT, PERMANENT_ASSETS_DIR, BUILD_DIR, VERSION } from '../constants.js';
 import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
@@ -27,8 +27,14 @@ export async function deploy(options: DeployCommandOptions) {
     const api = new ConsoleClient(cliConfig);
 
     // TODO: Get values from the Console API
-    const deployment = await api.createDeployment({ environmentId: '987f82b1-cc1c-4aab-bc96-3ddbe93c9f53' });
-
+    let deployment = await api.createDeployment('987f82b1-cc1c-4aab-bc96-3ddbe93c9f53', {
+        cli_version: VERSION,
+        framework: config.framework,
+        runtime: config.runtime,
+        memory: config.memory,
+        timeout: config.timeout,
+        arch: config.arch,
+    });
     logger.info(`Let's bring your project to life!`);
 
     logger.info('');
@@ -53,9 +59,7 @@ export async function deploy(options: DeployCommandOptions) {
         const [zipFilePath, presignedUrl] = uploadObject;
 
         logger.startSpinner(`Uploading ${zipFilePath}...`);
-
         await uploadToPresignedUrl(presignedUrl, zipFilePath);
-
         logger.stopSpinner(`Uploaded ${zipFilePath}`, LogLevel.SUCCESS);
 
         // Clean up the zip file
@@ -64,6 +68,8 @@ export async function deploy(options: DeployCommandOptions) {
 
     logger.info('');
     logger.drawSubtitle(`Step 3/3`, 'Deployment');
+    deployment = await api.deployDeployment(deployment.id);
+
     // Fake cloud backend propagation simulation
     const cloudBackendNames = ['aws-primary', 'aws-secondary'];
     for (const cloudBackendName of cloudBackendNames) {
@@ -77,16 +83,16 @@ export async function deploy(options: DeployCommandOptions) {
         logger.stopSpinner(`Deployed to cloud backend '${cloudBackendName}' (${durationFormatted})`, LogLevel.SUCCESS);
     }
 
-    // TODO: Get values from the Console API
-    const organizationSlug = 'org';
-    const projectSlug = 'project';
-    const environmentSlug = 'prod';
-    const deploymentNumber = '1';
+    const environment = await api.getEnvironment(deployment.environment_id);
+    const project = await api.getProject(environment.project_id);
+    const organization = await api.getOrganization(project.organization_id);
+
+    // TODO: Those links must come from the API.
     const environmentLinks = cloudBackendNames.map((cloudBackendName) => {
-        return `https://${projectSlug}-${environmentSlug}.${cloudBackendName}.${organizationSlug}.ownstak.link`;
+        return `https://${project.slug}-${environment.slug}.${cloudBackendName}.${organization.slug}.ownstak.link`;
     });
     const deploymentLinks = cloudBackendNames.map((cloudBackendName) => {
-        return `https://${projectSlug}-${environmentSlug}-${deploymentNumber}.${cloudBackendName}.${organizationSlug}.ownstak.link`;
+        return `https://${project.slug}-${environment.slug}-${deployment.build_number}.${cloudBackendName}.${organization.slug}.ownstak.link`;
     });
 
     // Print deployment summary
@@ -94,8 +100,8 @@ export async function deploy(options: DeployCommandOptions) {
     logger.info('');
     logger.drawTable(
         [
-            `Deployment: ${chalk.cyan(deploymentNumber)}`,
-            `Environment: ${chalk.cyan(environmentSlug)}`,
+            `Deployment: ${chalk.cyan(deployment.build_number)}`,
+            `Environment: ${chalk.cyan(environment.slug)}`,
             `Cloud backends: ${cloudBackendNames.map((name) => chalk.cyan(name)).join(', ')}`,
             `Framework: ${chalk.cyan(config.framework)}`,
             `Runtime: ${chalk.cyan(config.runtime)}`,
@@ -117,7 +123,7 @@ export async function deploy(options: DeployCommandOptions) {
             `Deployment links:\r\n${chalk.cyan(deploymentLinks.join('\r\n'))}\r\n`,
             `Environment links:\r\n${chalk.cyan(environmentLinks.join('\r\n'))}\r\n`,
             chalk.gray(`See your deployment at:`),
-            chalk.cyan(`https://console.ownstak.com/${organizationSlug}/projects/${projectSlug}/deployments/${deploymentNumber}`),
+            chalk.cyan(`https://console.ownstak.com/${organization.slug}/projects/${project.slug}/deployments/${deployment.build_number}`),
         ],
         {
             title: 'Links',

@@ -1,7 +1,3 @@
-export interface ListProjectsRequest {
-    organizationId: string;
-}
-
 export interface ListProjectsResponse {
     id: string;
     name: string;

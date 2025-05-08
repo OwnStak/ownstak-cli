@@ -1,5 +1,10 @@
 export interface CreateDeploymentRequest {
-    environmentId: string;
+    cli_version: string;
+    framework?: string;
+    runtime: string;
+    memory: number;
+    timeout: number;
+    arch: string;
 }
 
 export interface CreateDeploymentResponse {

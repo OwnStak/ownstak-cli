@@ -1,7 +1,3 @@
-export interface ListEnvironmentsRequest {
-    projectId: string;
-}
-
 export interface ListEnvironmentsResponse {
     id: string;
     project_id: string;
