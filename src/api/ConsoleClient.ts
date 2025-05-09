@@ -2,11 +2,10 @@ import { CliConfig } from '../cliConfig.js';
 import { VERSION } from '../constants.js';
 import { CreateDeploymentRequest, CreateDeploymentResponse } from './requests/CreateDeployment.js';
 import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
-import { ListProjectsRequest, ListProjectsResponse } from './requests/ListProjects.js';
-import { ListEnvironmentsRequest, ListEnvironmentsResponse } from './requests/ListEnvironements.js';
+import { ListProjectsResponse } from './requests/ListProjects.js';
+import { ListEnvironmentsResponse } from './requests/ListEnvironements.js';
 import { BaseConsoleError, ConsoleErrorResult, ConsoleResourceNotFoundError, ConsoleUnauthenticatedError, ConsoleUnauthorizedError } from './ConsoleError.js';
 import { Client } from '../utils/Client.js';
-import { DeployDeploymentRequest } from './requests/DeployDeployment.js';
 
 export default class ConsoleClient extends Client {
     constructor(cliConfig: CliConfig) {
@@ -26,29 +25,48 @@ export default class ConsoleClient extends Client {
             .then((data) => data as ListOrganizationsResponse[]);
     }
 
-    async getProjects(opts: ListProjectsRequest): Promise<ListProjectsResponse[]> {
-        return this.get({ path: `/api/organizations/${opts.organizationId}/projects` })
+    async getOrganization(organizationId: string): Promise<ListOrganizationsResponse> {
+        return this.get({ path: `/api/organizations/${organizationId}` })
+            .then((res) => res.json())
+            .then((data) => data as ListOrganizationsResponse);
+    }
+
+    async getProjects(organizationId: string): Promise<ListProjectsResponse[]> {
+        return this.get({ path: `/api/organizations/${organizationId}/projects` })
             .then((res) => res.json())
             .then((data) => data as ListProjectsResponse[]);
     }
 
-    async getEnvironments(opts: ListEnvironmentsRequest): Promise<ListEnvironmentsResponse[]> {
-        return this.get({ path: `/api/projects/${opts.projectId}/environments` })
+    async getProject(projectId: string): Promise<ListProjectsResponse> {
+        return this.get({ path: `/api/projects/${projectId}` })
+            .then((res) => res.json())
+            .then((data) => data as ListProjectsResponse);
+    }
+
+    async getEnvironments(projectId: string): Promise<ListEnvironmentsResponse[]> {
+        return this.get({ path: `/api/projects/${projectId}/environments` })
             .then((res) => res.json())
             .then((data) => data as ListEnvironmentsResponse[]);
     }
 
-    async createDeployment(opts: CreateDeploymentRequest): Promise<CreateDeploymentResponse> {
+    async getEnvironment(environmentId: string): Promise<ListEnvironmentsResponse> {
+        return this.get({ path: `/api/environments/${environmentId}` })
+            .then((res) => res.json())
+            .then((data) => data as ListEnvironmentsResponse);
+    }
+
+    async createDeployment(environmentId: string, opts: CreateDeploymentRequest): Promise<CreateDeploymentResponse> {
         return this.post({
-            path: `/api/environments/${opts.environmentId}/deployments`,
+            path: `/api/environments/${environmentId}/deployments`,
+            body: opts,
         })
             .then((res) => res.json())
             .then((data) => data as CreateDeploymentResponse);
     }
 
-    async deployDeployment(opts: DeployDeploymentRequest): Promise<CreateDeploymentResponse> {
+    async deployDeployment(deploymentId: string): Promise<CreateDeploymentResponse> {
         return this.post({
-            path: `/deployments/${opts.deploymentId}/deploy`,
+            path: `/api/deployments/${deploymentId}/deploy`,
         })
             .then((res) => res.json())
             .then((data) => data as CreateDeploymentResponse);
@@ -56,7 +74,6 @@ export default class ConsoleClient extends Client {
 
     protected async handleError(response: Response) {
         const result = await response.json();
-
         switch (response.status) {
             case 401:
                 throw new ConsoleUnauthenticatedError(result as ConsoleErrorResult, response);
