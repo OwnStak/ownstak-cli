@@ -9,6 +9,8 @@ export const BRAND = 'OwnStak';
 export const SUPPORT_URL = `https://ownstak.com/support`;
 export const NAME_SHORT = 'ownstak';
 
+export const CONSOLE_API_URL = 'https://api.ownstak.com';
+
 export const INPUT_CONFIG_FILE = 'ownstak.config.js';
 export const OUTPUT_CONFIG_FILE = 'ownstak.config.json';
 
