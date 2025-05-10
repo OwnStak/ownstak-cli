@@ -90,15 +90,18 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match any value in array of paths', async () => {
-        router.get({
-            path: ['/test/123', '/test/456'],
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-test',
-                value: 'array-of-paths',
+                path: ['/test/123', '/test/456'],
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-test',
+                    value: 'array-of-paths',
+                },
+            ],
+        );
 
         const patternRequest = new Request('http://example.com/test/123');
         const patternResponse = new Response();
@@ -160,17 +163,20 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with specific header', async () => {
-        router.get({
-            header: {
-                'x-custom-header': 'custom-value',
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'header-matched',
+                header: {
+                    'x-custom-header': 'custom-value',
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'header-matched',
+                },
+            ],
+        );
 
         const headerRequest = new Request('http://example.com/test');
         headerRequest.method = 'GET';
@@ -183,22 +189,25 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with specific cookie', async () => {
-        router.get({
-            cookie: {
-                'session': 'abc123',
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'cookie-matched',
+                cookie: {
+                    session: 'abc123',
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'cookie-matched',
+                },
+            ],
+        );
 
         const cookieRequest = new Request('http://example.com/test');
         cookieRequest.method = 'GET';
         cookieRequest.headers = {
-            'cookie': 'session=abc123',
+            cookie: 'session=abc123',
         };
 
         await router.execute(cookieRequest, response);
@@ -206,17 +215,20 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with specific query parameter', async () => {
-        router.get({
-            query: {
-                'id': '123',
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'query-matched',
+                query: {
+                    id: '123',
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'query-matched',
+                },
+            ],
+        );
 
         const queryRequest = new Request('http://example.com/test?id=123');
         queryRequest.method = 'GET';
@@ -226,15 +238,18 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with specific path extension', async () => {
-        router.get({
-            pathExtension: 'html',
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'path-extension-matched',
+                pathExtension: 'html',
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'path-extension-matched',
+                },
+            ],
+        );
 
         const pathExtensionRequest = new Request('http://example.com/test.html');
         pathExtensionRequest.method = 'GET';
@@ -244,31 +259,34 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with multiple conditions', async () => {
-        router.get({
-            path: '/test',
-            method: 'GET',
-            header: {
-                'x-custom-header': 'custom-value',
-            },
-            query: {
-                'id': '123',
-            },
-            cookie: {
-                'session': 'abc123',
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'multi-condition-matched',
+                path: '/test',
+                method: 'GET',
+                header: {
+                    'x-custom-header': 'custom-value',
+                },
+                query: {
+                    id: '123',
+                },
+                cookie: {
+                    session: 'abc123',
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'multi-condition-matched',
+                },
+            ],
+        );
 
         const multiConditionRequest = new Request('http://example.com/test?id=123');
         multiConditionRequest.method = 'GET';
         multiConditionRequest.headers = {
             'x-custom-header': 'custom-value',
-            'cookie': 'session=abc123',
+            cookie: 'session=abc123',
         };
 
         await router.execute(multiConditionRequest, response);
@@ -276,90 +294,108 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with specific URL', async () => {
-        router.get({
-            url: 'http://example.com/test',
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'url-matched',
+                url: 'http://example.com/test',
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'url-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBe('url-matched');
     });
 
     it('should match a request with URL regex', async () => {
-        router.get({
-            url: /http:\/\/example\.com\/test/,
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'url-regex-matched',
+                url: /http:\/\/example\.com\/test/,
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'url-regex-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBe('url-regex-matched');
     });
 
     it('should not match a request with negated URL', async () => {
-        router.get({
-            url: { not: 'http://example.com/test' },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'negated-url-matched',
+                url: { not: 'http://example.com/test' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'negated-url-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
     it('should match a request with path regex', async () => {
-        router.get({
-            path: /^\/test/,
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'path-regex-matched',
+                path: /^\/test/,
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'path-regex-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBe('path-regex-matched');
     });
 
     it('should not match a request with negated path', async () => {
-        router.get({
-            path: { not: '/test' },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'path-not-matched',
+                path: { not: '/test' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'path-not-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
     it('should match a request with path extension regex', async () => {
-        router.get({
-            pathExtension: /html|htm/,
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'path-extension-regex-matched',
+                pathExtension: /html|htm/,
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'path-extension-regex-matched',
+                },
+            ],
+        );
 
         const pathExtensionRequest = new Request('http://example.com/test.html');
         pathExtensionRequest.method = 'GET';
@@ -369,15 +405,18 @@ describe('Router - Route Matching', () => {
     });
 
     it('should not match a request with negated path extension', async () => {
-        router.get({
-            pathExtension: { not: 'html' },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'path-extension-not-matched',
+                pathExtension: { not: 'html' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'path-extension-not-matched',
+                },
+            ],
+        );
 
         const pathExtensionRequest = new Request('http://example.com/test.html');
         pathExtensionRequest.method = 'GET';
@@ -387,52 +426,61 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with method regex', async () => {
-        router.match({
-            method: /GET|POST/,
-        }, [
+        router.match(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'method-regex-matched',
+                method: /GET|POST/,
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'method-regex-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBe('method-regex-matched');
     });
 
     it('should not match a request with negated method', async () => {
-        router.match({
-            method: { not: 'GET' },
-        }, [
+        router.match(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'method-not-matched',
+                method: { not: 'GET' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'method-not-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
     it('should match a request with cookie regex', async () => {
-        router.get({
-            cookie: {
-                'session': /abc\d+/,  // Matches abc followed by digits
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'cookie-regex-matched',
+                cookie: {
+                    session: /abc\d+/, // Matches abc followed by digits
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'cookie-regex-matched',
+                },
+            ],
+        );
 
         const cookieRequest = new Request('http://example.com/test');
         cookieRequest.method = 'GET';
         cookieRequest.headers = {
-            'cookie': 'session=abc123',
+            cookie: 'session=abc123',
         };
 
         await router.execute(cookieRequest, response);
@@ -440,17 +488,20 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with header regex', async () => {
-        router.get({
-            header: {
-                'x-custom-header': /custom-.+/,  // Matches custom- followed by any characters
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'header-regex-matched',
+                header: {
+                    'x-custom-header': /custom-.+/, // Matches custom- followed by any characters
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'header-regex-matched',
+                },
+            ],
+        );
 
         const headerRequest = new Request('http://example.com/test');
         headerRequest.method = 'GET';
@@ -463,17 +514,20 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with query regex', async () => {
-        router.get({
-            query: {
-                'id': /\d+/,  // Matches digits
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'query-regex-matched',
+                query: {
+                    id: /\d+/, // Matches digits
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'query-regex-matched',
+                },
+            ],
+        );
 
         const queryRequest = new Request('http://example.com/test?id=123');
         queryRequest.method = 'GET';
@@ -483,32 +537,35 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with complex condition (AND logic)', async () => {
-        router.match({
-            url: /http:\/\/example\.com\/test/,
-            path: '/test',
-            method: 'GET',
-            header: {
-                'x-custom-header': 'custom-value',
-            },
-            query: {
-                'id': '123',
-            },
-            cookie: {
-                'session': 'abc123',
-            },
-        }, [
+        router.match(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'complex-condition-matched',
+                url: /http:\/\/example\.com\/test/,
+                path: '/test',
+                method: 'GET',
+                header: {
+                    'x-custom-header': 'custom-value',
+                },
+                query: {
+                    id: '123',
+                },
+                cookie: {
+                    session: 'abc123',
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'complex-condition-matched',
+                },
+            ],
+        );
 
         const complexRequest = new Request('http://example.com/test?id=123');
         complexRequest.method = 'GET';
         complexRequest.headers = {
             'x-custom-header': 'custom-value',
-            'cookie': 'session=abc123',
+            cookie: 'session=abc123',
         };
 
         await router.execute(complexRequest, response);
@@ -516,15 +573,18 @@ describe('Router - Route Matching', () => {
     });
 
     it('should match a request with array condition (OR logic)', async () => {
-        router.match({
-            method: ['GET', 'POST'],
-        }, [
+        router.match(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'array-condition-matched',
+                method: ['GET', 'POST'],
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'array-condition-matched',
+                },
+            ],
+        );
 
         const getRequest = new Request('http://example.com/test', {
             method: 'GET',
@@ -538,60 +598,73 @@ describe('Router - Route Matching', () => {
         await router.execute(postRequest, response);
         expect(response.getHeader('x-match-result')).toBe('array-condition-matched');
     });
-    
+
     it('should not match a request with negated URL condition', async () => {
-        router.match({
-            url: { not: 'http://example.com/test' },
-        }, [
+        router.match(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'negated-url-matched',
+                url: { not: 'http://example.com/test' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'negated-url-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
     it('should not match a request with negated path condition', async () => {
-        router.match({
-            path: { not: '/test' },
-        }, [
+        router.match(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'negated-path-matched',
+                path: { not: '/test' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'negated-path-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
     it('should not match a request with negated method condition', async () => {
-        router.match({
-            method: { not: 'GET' },
-        }, [
+        router.match(
             {
-                type: 'setResponseHeader',
-                key: 'x-match-result',
-                value: 'negated-method-matched',
+                method: { not: 'GET' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-match-result',
+                    value: 'negated-method-matched',
+                },
+            ],
+        );
 
         await router.execute(request, response);
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
     it('should stop execution when a route with done: true is matched', async () => {
-        router.get('/test', [
-            {
-                type: 'setResponseHeader',
-                key: 'x-first',
-                value: 'first-header',
-            },
-        ], true); // This route has done: true
+        router.get(
+            '/test',
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-first',
+                    value: 'first-header',
+                },
+            ],
+            true,
+        ); // This route has done: true
 
         router.get('/test', [
             {
@@ -607,13 +680,17 @@ describe('Router - Route Matching', () => {
     });
 
     it('should continue execution when a route with done: false is matched', async () => {
-        router.get('/test', [
-            {
-                type: 'setResponseHeader',
-                key: 'x-first',
-                value: 'first-header',
-            },
-        ], false); // This route has done: false
+        router.get(
+            '/test',
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-first',
+                    value: 'first-header',
+                },
+            ],
+            false,
+        ); // This route has done: false
 
         router.get('/test', [
             {
@@ -669,31 +746,34 @@ describe('Router - Route Matching', () => {
     });
 
     it('should handle complex conditions with multiple criteria', async () => {
-        router.get({
-            path: '/test',
-            method: 'GET',
-            header: {
-                'x-custom-header': 'custom-value',
-            },
-            query: {
-                'id': '123',
-            },
-            cookie: {
-                'session': 'abc123',
-            },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-complex',
-                value: 'complex-condition',
+                path: '/test',
+                method: 'GET',
+                header: {
+                    'x-custom-header': 'custom-value',
+                },
+                query: {
+                    id: '123',
+                },
+                cookie: {
+                    session: 'abc123',
+                },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-complex',
+                    value: 'complex-condition',
+                },
+            ],
+        );
 
         const complexRequest = new Request('http://example.com/test?id=123');
         complexRequest.method = 'GET';
         complexRequest.headers = {
             'x-custom-header': 'custom-value',
-            'cookie': 'session=abc123',
+            cookie: 'session=abc123',
         };
 
         await router.execute(complexRequest, response);
@@ -701,15 +781,18 @@ describe('Router - Route Matching', () => {
     });
 
     it('should handle negated conditions correctly', async () => {
-        router.get({
-            path: { not: '/test' },
-        }, [
+        router.get(
             {
-                type: 'setResponseHeader',
-                key: 'x-negated',
-                value: 'negated-condition',
+                path: { not: '/test' },
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-negated',
+                    value: 'negated-condition',
+                },
+            ],
+        );
 
         const negatedRequest = new Request('http://example.com/other');
         negatedRequest.method = 'GET';
@@ -756,14 +839,14 @@ describe('Router - Route Matching', () => {
                 type: 'setResponseHeader',
                 key: 'x-route-order',
                 value: '1',
-            }
+            },
         ]);
         router.addRoute({ path: '/' }, [
             {
                 type: 'setResponseHeader',
                 key: 'x-route-order',
                 value: '2',
-            }
+            },
         ]);
 
         const addRouteRequest = new Request('http://example.com');
@@ -772,7 +855,6 @@ describe('Router - Route Matching', () => {
         await router.execute(addRouteRequest, response);
         expect(response.getHeader('x-route-order')).toBe('2');
     });
-
 
     it('should add a route to the front of router using addRoute', async () => {
         router.addRoute({ path: '/' }, [
@@ -797,7 +879,7 @@ describe('Router - Route Matching', () => {
         expect(response.getHeader('x-route-order')).toBe('1');
     });
 
-        it('should match path with and without trailing slash for string paths', async () => {
+    it('should match path with and without trailing slash for string paths', async () => {
         router.addRoute({ path: '/test' }, [
             {
                 type: 'setResponseHeader',
@@ -836,4 +918,4 @@ describe('Router - Route Matching', () => {
         await router.execute(request2, response2);
         expect(response2.getHeader('x-matched')).toBeUndefined();
     });
-}); 
+});

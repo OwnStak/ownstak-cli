@@ -38,13 +38,13 @@ describe('Router - Route Actions', () => {
             } else if (req.url === '/app') {
                 res.writeHead(200, { 'Content-Type': 'text/html', 'x-app': 'served' });
                 res.end('<html><body>App content</body></html>');
-            } else if (req.url?.startsWith("/echo")) {
-                const parsedUrl = new URL(req.url, "http://localhost")
+            } else if (req.url?.startsWith('/echo')) {
+                const parsedUrl = new URL(req.url, 'http://localhost');
                 const output = {
                     url: req.url,
                     path: parsedUrl.pathname,
-                    headers: req.headers
-                }
+                    headers: req.headers,
+                };
                 const outputJson = JSON.stringify(output, null, 2);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(outputJson);
@@ -55,12 +55,12 @@ describe('Router - Route Actions', () => {
                 res.writeHead(404);
                 res.end();
             }
-        }
+        };
 
         await Promise.all([
-            new Promise((resolve) => mockAssetsServer = http.createServer(handler).listen(ASSETS_PORT, () => resolve(true))),
-            new Promise((resolve) => mockPermanentAssetsServer = http.createServer(handler).listen(PERMANENT_ASSETS_PORT, () => resolve(true))),
-            new Promise((resolve) => mockAppServer = http.createServer(handler).listen(APP_PORT, () => resolve(true))),
+            new Promise((resolve) => (mockAssetsServer = http.createServer(handler).listen(ASSETS_PORT, () => resolve(true)))),
+            new Promise((resolve) => (mockPermanentAssetsServer = http.createServer(handler).listen(PERMANENT_ASSETS_PORT, () => resolve(true)))),
+            new Promise((resolve) => (mockAppServer = http.createServer(handler).listen(APP_PORT, () => resolve(true)))),
         ]);
 
         // Set mockServerUrl for proxy tests
@@ -115,7 +115,7 @@ describe('Router - Route Actions', () => {
 
     it('should execute addResponseHeader action', async () => {
         response.setHeader('x-existing', 'value1');
-        
+
         router.get('/test', [
             {
                 type: 'addResponseHeader',
@@ -130,7 +130,7 @@ describe('Router - Route Actions', () => {
 
     it('should execute deleteResponseHeader action', async () => {
         response.setHeader('x-to-delete', 'some-value');
-        
+
         router.get('/test', [
             {
                 type: 'deleteResponseHeader',
@@ -144,7 +144,7 @@ describe('Router - Route Actions', () => {
 
     it('should only set header if not already set with setDefaultResponseHeader', async () => {
         response.setHeader('x-existing', 'original-value');
-        
+
         router.get('/test', [
             {
                 type: 'setDefaultResponseHeader',
@@ -165,7 +165,7 @@ describe('Router - Route Actions', () => {
 
     it('should not set header if already set with setDefaultResponseHeader', async () => {
         response.setHeader('x-existing', 'original-value');
-        
+
         router.get('/test', [
             {
                 type: 'setDefaultResponseHeader',
@@ -180,7 +180,7 @@ describe('Router - Route Actions', () => {
 
     it('should only set request header if not already set with setDefaultRequestHeader', async () => {
         request.setHeader('x-existing', 'original-value');
-        
+
         router.get('/test', [
             {
                 type: 'setDefaultRequestHeader',
@@ -201,7 +201,7 @@ describe('Router - Route Actions', () => {
 
     it('should not set request header if already set with setDefaultRequestHeader', async () => {
         request.setHeader('x-existing', 'original-value');
-        
+
         router.get('/test', [
             {
                 type: 'setDefaultRequestHeader',
@@ -213,7 +213,7 @@ describe('Router - Route Actions', () => {
         await router.execute(request, response);
         expect(request.getHeader('x-existing')).toBe('original-value');
     });
-    
+
     it('should execute rewrite action with just destination', async () => {
         router.get('/test', [
             {
@@ -272,10 +272,9 @@ describe('Router - Route Actions', () => {
         router.get('/proxy-test', [
             {
                 type: 'proxy',
-                url: mockServerUrl
+                url: mockServerUrl,
             },
         ]);
-
 
         const request = new Request(`http://example.com/proxy-test`);
         await router.execute(request, response);
@@ -287,21 +286,21 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath`,
-                preserveHostHeader: true
+                preserveHostHeader: true,
             },
         ]);
 
         const request = new Request(`http://example.com/echo/requestPath`, {
             headers: {
-                "host": "example.com"
-            }
+                host: 'example.com',
+            },
         });
         const response = new Response();
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
-        expect(echoOutput.headers["host"]).toBe("example.com")
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
+        expect(echoOutput.headers['host']).toBe('example.com');
     });
 
     it('should execute proxy action without preserveHostHeader', async () => {
@@ -309,21 +308,21 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath`,
-                preserveHostHeader: false
+                preserveHostHeader: false,
             },
         ]);
 
         const request = new Request(`http://example.com/echo/requestPath`, {
             headers: {
-                "host": "example.com"
-            }
+                host: 'example.com',
+            },
         });
         const response = new Response();
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
-        expect(echoOutput.headers["host"]).toBe("127.0.0.1")
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
+        expect(echoOutput.headers['host']).toBe('127.0.0.1');
     });
 
     it('should execute proxy action with preserveHeaders', async () => {
@@ -331,21 +330,21 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath`,
-                preserveHeaders: true
+                preserveHeaders: true,
             },
         ]);
 
         const request = new Request(`http://example.com/echo/requestPath`, {
             headers: {
-                "x-req-header": "true"
-            }
+                'x-req-header': 'true',
+            },
         });
         const response = new Response();
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
-        expect(echoOutput.headers["x-req-header"]).toBe('true');
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
+        expect(echoOutput.headers['x-req-header']).toBe('true');
     });
 
     it('should execute proxy action without preserveHeaders', async () => {
@@ -353,30 +352,29 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath`,
-                preserveHeaders: false
+                preserveHeaders: false,
             },
         ]);
 
         const request = new Request(`http://example.com/echo/requestPath`, {
             headers: {
-                "x-req-header": "true"
-            }
+                'x-req-header': 'true',
+            },
         });
         const response = new Response();
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
-        expect(echoOutput.headers["x-req-header"]).toBeUndefined()
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
+        expect(echoOutput.headers['x-req-header']).toBeUndefined();
     });
-
 
     it('should execute proxy action with preservePath', async () => {
         router.any([
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath`,
-                preservePath: true
+                preservePath: true,
             },
         ]);
 
@@ -385,7 +383,7 @@ describe('Router - Route Actions', () => {
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.path).toBe('/echo/requestPath');
     });
 
@@ -394,7 +392,7 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath`,
-                preservePath: false
+                preservePath: false,
             },
         ]);
 
@@ -403,7 +401,7 @@ describe('Router - Route Actions', () => {
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.path).toBe('/echo/proxyPath');
     });
 
@@ -412,7 +410,7 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath?proxyQuery=value`,
-                preserveQuery: true
+                preserveQuery: true,
             },
         ]);
 
@@ -421,7 +419,7 @@ describe('Router - Route Actions', () => {
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath?requestQuery=value');
     });
 
@@ -430,7 +428,7 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath?proxyQuery=value`,
-                preserveQuery: false
+                preserveQuery: false,
             },
         ]);
 
@@ -439,7 +437,7 @@ describe('Router - Route Actions', () => {
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath?proxyQuery=value');
     });
 
@@ -448,7 +446,7 @@ describe('Router - Route Actions', () => {
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath?`,
-                preserveQuery: false
+                preserveQuery: false,
             },
         ]);
 
@@ -457,17 +455,16 @@ describe('Router - Route Actions', () => {
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath');
     });
-
 
     it('should execute proxy action and remove double slashes', async () => {
         router.any([
             {
                 type: 'proxy',
                 url: `${mockServerUrl}/echo/proxyPath?`,
-                preserveQuery: false
+                preserveQuery: false,
             },
         ]);
 
@@ -476,7 +473,7 @@ describe('Router - Route Actions', () => {
 
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('application/json');
-        const echoOutput = JSON.parse(response.body?.toString() || '{}')
+        const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath/another');
     });
 
@@ -499,7 +496,7 @@ describe('Router - Route Actions', () => {
         router.get('/test', [
             {
                 type: 'servePersistentAsset',
-                path: '/persistent/image.png'
+                path: '/persistent/image.png',
             },
         ]);
 
@@ -519,15 +516,15 @@ describe('Router - Route Actions', () => {
         ]);
         const request = new Request(`http://example.com/test`, {
             headers: {
-                [HEADERS.XOwnProxy]: "true",
-                [HEADERS.XOwnProxyVersion]: "0.1.1",
-            }
+                [HEADERS.XOwnProxy]: 'true',
+                [HEADERS.XOwnProxyVersion]: '0.1.1',
+            },
         });
         const response = new Response();
         await router.execute(request, response);
         expect(response.statusCode).toBe(301);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/persistent/image.png`);
-        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe("true");
+        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
     });
 
     it('should execute serveAsset action with follow-redirect behind proxy', async () => {
@@ -539,15 +536,15 @@ describe('Router - Route Actions', () => {
         ]);
         const request = new Request(`http://example.com/test`, {
             headers: {
-                [HEADERS.XOwnProxy]: "true",
-                [HEADERS.XOwnProxyVersion]: "0.1.1",
-            }
+                [HEADERS.XOwnProxy]: 'true',
+                [HEADERS.XOwnProxyVersion]: '0.1.1',
+            },
         });
         const response = new Response();
         await router.execute(request, response);
         expect(response.statusCode).toBe(301);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3001/assets/image.png`);
-        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe("true");
+        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
     });
 
     it('should execute serveAsset action and remove double slashes locally', async () => {
@@ -574,21 +571,21 @@ describe('Router - Route Actions', () => {
         ]);
         const request = new Request(`http://example.com/test`, {
             headers: {
-                [HEADERS.XOwnProxy]: "true",
-                [HEADERS.XOwnProxyVersion]: "0.1.1",
-            }
+                [HEADERS.XOwnProxy]: 'true',
+                [HEADERS.XOwnProxyVersion]: '0.1.1',
+            },
         });
         const response = new Response();
         await router.execute(request, response);
         expect(response.statusCode).toBe(301);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3001/asset/image.png`);
-        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe("true");
+        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
     });
 
     it('should execute serveAsset action and add index.html for paths without file extension', async () => {
         router.get('/products/123', [
             {
-                type: 'serveAsset'
+                type: 'serveAsset',
             },
         ]);
 
@@ -602,7 +599,7 @@ describe('Router - Route Actions', () => {
     it('should execute serveApp action', async () => {
         router.get('/app', [
             {
-                type: 'serveApp'
+                type: 'serveApp',
             },
         ]);
 
@@ -646,7 +643,7 @@ describe('Router - Route Actions', () => {
     });
 
     it('should execute imageOptimizer action', async () => {
-        router.match("/__ownstak__/image", [
+        router.match('/__ownstak__/image', [
             {
                 type: 'imageOptimizer',
             },
@@ -655,4 +652,4 @@ describe('Router - Route Actions', () => {
         await router.execute(request, response);
         expect(response.getHeader(HEADERS.XOwnImageOptimizer)).toBeDefined();
     });
-}); 
+});

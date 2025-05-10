@@ -82,7 +82,7 @@ describe('substitutePathToRegexpParams', () => {
         expect(path).toBe('/products/123/456');
     });
 
-    it('shouldn\'t substitute params in path pattern if no params are found', () => {
+    it("shouldn't substitute params in path pattern if no params are found", () => {
         const path = substitutePathToRegexpParams('/products', {});
         expect(path).toBe('/products');
     });
@@ -94,4 +94,4 @@ describe('filenameToPath', () => {
         expect(filenameToPath('/about.tsx')).toBe('/about');
         expect(filenameToPath('/products/[id].tsx')).toBe('/products/:id');
     });
-}); 
+});
