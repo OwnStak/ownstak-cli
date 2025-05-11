@@ -17,4 +17,4 @@ describe('idUtils', () => {
             expect(id1).not.toBe(id2);
         });
     });
-}); 
+});

@@ -73,15 +73,18 @@ describe('Config', () => {
         const srcRouter = config.router;
 
         const srcPathToRegex = '/test/:id*';
-        srcRouter.addRoute({ 
-            path: srcPathToRegex 
-        }, [
+        srcRouter.addRoute(
             {
-                type: 'setResponseHeader',
-                key: 'x-route-order',
-                value: '1',
+                path: srcPathToRegex,
             },
-        ]);
+            [
+                {
+                    type: 'setResponseHeader',
+                    key: 'x-route-order',
+                    value: '1',
+                },
+            ],
+        );
 
         const deserializedConfig = Config.deserialize(config.serialize());
         const deserializedRouter = deserializedConfig.router;
@@ -93,6 +96,5 @@ describe('Config', () => {
         const config = new Config();
         config.includeAsset('./public', './');
         expect(config.assets.include['./public']).toBe('./');
-    });    
-    
-}); 
+    });
+});
