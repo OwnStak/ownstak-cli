@@ -1,75 +1,88 @@
-import { CliConfig } from '../cliConfig.js';
 import { VERSION } from '../constants.js';
-import { CreateDeploymentRequest, CreateDeploymentResponse } from './requests/CreateDeployment.js';
+import { ApiDeployment, ApiDeploymentOnCreate } from './types/entities.js';
+import { CreateDeploymentRequest } from './requests/CreateDeployment.js';
 import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
 import { ListProjectsResponse } from './requests/ListProjects.js';
+import { ResolveEnvironmentSlugsResponse } from './requests/ResolveSlugs.js';
 import { ListEnvironmentsResponse } from './requests/ListEnvironements.js';
 import { BaseConsoleError, ConsoleErrorResult, ConsoleResourceNotFoundError, ConsoleUnauthenticatedError, ConsoleUnauthorizedError } from './ConsoleError.js';
 import { Client } from '../utils/Client.js';
 
 export default class ConsoleClient extends Client {
-    constructor(cliConfig: CliConfig) {
-        super(cliConfig.apiUrl, {
+    constructor({ url, token }: { url: string; token: string }) {
+        super(url, {
             'User-Agent': `Ownstak CLI ${VERSION}`,
             'Content-Type': 'application/json',
         });
 
-        if (cliConfig.apiToken) {
-            this.addHeader('Authorization', `Bearer ${cliConfig.apiToken}`);
+        if (token) {
+            this.addHeader('Authorization', `Bearer ${token}`);
         }
     }
 
-    async getOrganizations(): Promise<ListOrganizationsResponse[]> {
+    async resolveEnvironmentSlugs(organizationSlug: string, projectSlug: string, environmentSlug: string) {
+        return this.get({ path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}/environments/${environmentSlug}` })
+            .then((res) => res.json())
+            .then((data) => data as ResolveEnvironmentSlugsResponse);
+    }
+
+    async getOrganizations() {
         return this.get({ path: '/api/organizations' })
             .then((res) => res.json())
             .then((data) => data as ListOrganizationsResponse[]);
     }
 
-    async getOrganization(organizationId: string): Promise<ListOrganizationsResponse> {
+    async getOrganization(organizationId: string) {
         return this.get({ path: `/api/organizations/${organizationId}` })
             .then((res) => res.json())
             .then((data) => data as ListOrganizationsResponse);
     }
 
-    async getProjects(organizationId: string): Promise<ListProjectsResponse[]> {
+    async getProjects(organizationId: string) {
         return this.get({ path: `/api/organizations/${organizationId}/projects` })
             .then((res) => res.json())
             .then((data) => data as ListProjectsResponse[]);
     }
 
-    async getProject(projectId: string): Promise<ListProjectsResponse> {
+    async getProject(projectId: string) {
         return this.get({ path: `/api/projects/${projectId}` })
             .then((res) => res.json())
             .then((data) => data as ListProjectsResponse);
     }
 
-    async getEnvironments(projectId: string): Promise<ListEnvironmentsResponse[]> {
+    async getEnvironments(projectId: string) {
         return this.get({ path: `/api/projects/${projectId}/environments` })
             .then((res) => res.json())
             .then((data) => data as ListEnvironmentsResponse[]);
     }
 
-    async getEnvironment(environmentId: string): Promise<ListEnvironmentsResponse> {
+    async getEnvironment(environmentId: string) {
         return this.get({ path: `/api/environments/${environmentId}` })
             .then((res) => res.json())
             .then((data) => data as ListEnvironmentsResponse);
     }
 
-    async createDeployment(environmentId: string, opts: CreateDeploymentRequest): Promise<CreateDeploymentResponse> {
+    async createDeployment(environmentId: string, opts: CreateDeploymentRequest) {
         return this.post({
             path: `/api/environments/${environmentId}/deployments`,
-            body: opts,
+            body: { deployment: opts },
         })
             .then((res) => res.json())
-            .then((data) => data as CreateDeploymentResponse);
+            .then((data) => data as ApiDeploymentOnCreate);
     }
 
-    async deployDeployment(deploymentId: string): Promise<CreateDeploymentResponse> {
+    async deployDeployment(deploymentId: string) {
         return this.post({
             path: `/api/deployments/${deploymentId}/deploy`,
         })
             .then((res) => res.json())
-            .then((data) => data as CreateDeploymentResponse);
+            .then((data) => data as ApiDeployment);
+    }
+
+    async getDeployment(deploymentId: string) {
+        return this.get({ path: `/api/deployments/${deploymentId}` })
+            .then((res) => res.json())
+            .then((data) => data as ApiDeployment);
     }
 
     protected async handleError(response: Response) {

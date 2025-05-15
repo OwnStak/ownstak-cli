@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import chalk from 'chalk';
 import { CliError } from '../cliError.js';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { logger, LogLevel } from '../logger.js';
-import { BRAND, NAME, NAME_SHORT, SUPPORT_URL, VERSION } from '../constants.js';
+import { BRAND, CONSOLE_API_URL, NAME, NAME_SHORT, SUPPORT_URL, VERSION } from '../constants.js';
 
 import { build } from './build.js';
 import { dev } from './dev.js';
@@ -26,6 +26,7 @@ const program = new Command()
     .addHelpText('beforeAll', () => `${logger.drawTitle('help') ?? ''}`)
     .helpOption('-h, --help', 'Display help for command')
     .option('-d, --debug', 'Enable debug mode')
+
     .hook('preAction', preAction);
 
 program
@@ -39,11 +40,20 @@ program.command('dev').description('Start the project in development mode').acti
 
 program.command('start').alias('run').description('Start the project in production mode').action(start);
 
-program.command('deploy').description('Deploy the project to the platform').action(deploy);
+const withApiUrl = (command: Command) => command.addOption(new Option('--api-url <url>', 'The API URL to use').default(CONSOLE_API_URL).hideHelp());
+const withApiToken = (command: Command) => command.option('--api-token <token>', 'The API token to use');
+const withApiOptions = (command: Command) => withApiUrl(withApiToken(command));
+const withEnvironmentSlugsOptions = (command: Command) =>
+    command
+        .requiredOption('--organization <slug>', 'The organization slug to use')
+        .requiredOption('--project <slug>', 'The project slug to use')
+        .requiredOption('--environment <slug>', 'The environment slug to use');
 
-program.command('login').description('Log in to the platform').action(login);
-
-program.command('logout').description('Log out of the platform').action(logout);
+withEnvironmentSlugsOptions(withApiOptions(program.command('deploy')))
+    .description('Deploy the project to the platform')
+    .action(deploy);
+withApiUrl(program.command('login <token>')).description('Log in to the platform').action(login);
+withApiUrl(program.command('logout')).description('Log out of the platform').action(logout);
 
 const configCommand = program.command('config').description(`Manage the ${BRAND} project config`);
 configCommand.command('init').description(`Initialize the ${BRAND} project config file`).action(configInit);

@@ -1,17 +1,26 @@
-import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
-import { CLI_CONFIG_FILE_PATH, CONSOLE_API_URL } from './constants.js';
+import { readFileSync, existsSync } from 'fs';
+import { writeFile } from 'fs/promises';
+import { CLI_CONFIG_FILE_PATH } from './constants.js';
 
 export class CliConfig {
-    apiUrl: string = CONSOLE_API_URL;
-    apiToken?: string;
+    tokens: Record<string, string> = {};
 
-    async load() {
+    constructor(configObject: Record<string, any>) {
+        Object.assign(this, configObject);
+    }
+
+    static load() {
         if (!existsSync(CLI_CONFIG_FILE_PATH)) {
-            return;
+            return new CliConfig({});
         }
-        const configFile = await readFile(CLI_CONFIG_FILE_PATH, 'utf8');
-        Object.assign(this, JSON.parse(configFile));
+        const configFile = readFileSync(CLI_CONFIG_FILE_PATH, 'utf8');
+        return new CliConfig(JSON.parse(configFile));
+    }
+
+    tokenForUrl(url: string) {
+        if (this.tokens) {
+            return this.tokens[url];
+        }
     }
 
     async save() {

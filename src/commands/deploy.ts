@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { stat, unlink } from 'fs/promises';
 import { logger, LogLevel } from '../logger.js';
-import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, NAME_SHORT, PERMANENT_ASSETS_DIR, BUILD_DIR, VERSION } from '../constants.js';
+import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_URL, NAME_SHORT, PERMANENT_ASSETS_DIR, BUILD_DIR, VERSION } from '../constants.js';
 import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
@@ -11,7 +11,11 @@ import ConsoleClient from '../api/ConsoleClient.js';
 import { uploadToPresignedUrl } from '../utils/s3Upload.js';
 
 export interface DeployCommandOptions {
-    framework?: string;
+    apiUrl: string;
+    apiToken?: string;
+    organization: string;
+    project: string;
+    environment: string;
 }
 
 export async function deploy(options: DeployCommandOptions) {
@@ -21,13 +25,18 @@ export async function deploy(options: DeployCommandOptions) {
 
     const config = await Config.loadFromBuild();
 
-    const cliConfig = new CliConfig();
-    await cliConfig.load();
+    const cliConfig = CliConfig.load();
 
-    const api = new ConsoleClient(cliConfig);
+    const apiToken = options.apiToken || cliConfig.tokenForUrl(options.apiUrl);
+    if (!apiToken) {
+        throw new CliError(`Cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings`);
+    }
 
-    // TODO: Get values from the Console API
-    let deployment = await api.createDeployment('987f82b1-cc1c-4aab-bc96-3ddbe93c9f53', {
+    const api = new ConsoleClient({ url: options.apiUrl, token: apiToken });
+
+    const { environment } = await api.resolveEnvironmentSlugs(options.organization, options.project, options.environment);
+
+    const draftDeployment = await api.createDeployment(environment.id, {
         cli_version: VERSION,
         framework: config.framework,
         runtime: config.runtime,
@@ -52,9 +61,9 @@ export async function deploy(options: DeployCommandOptions) {
     logger.info('');
     logger.drawSubtitle(`Step 2/3`, 'Uploading');
     for (const uploadObject of [
-        [ASSETS_DIR, deployment.storage_urls.assets],
-        [PERMANENT_ASSETS_DIR, deployment.storage_urls.permanent_assets],
-        [COMPUTE_DIR, deployment.storage_urls.compute],
+        [ASSETS_DIR, draftDeployment.storage_urls.assets],
+        [PERMANENT_ASSETS_DIR, draftDeployment.storage_urls.permanent_assets],
+        [COMPUTE_DIR, draftDeployment.storage_urls.compute],
     ].map(([dirName, presignedUrl]) => [`${dirName}.zip`, presignedUrl])) {
         const [zipFilePath, presignedUrl] = uploadObject;
 
@@ -68,32 +77,30 @@ export async function deploy(options: DeployCommandOptions) {
 
     logger.info('');
     logger.drawSubtitle(`Step 3/3`, 'Deployment');
-    deployment = await api.deployDeployment(deployment.id);
+    let deployment = await api.deployDeployment(draftDeployment.id);
 
-    // Fake cloud backend propagation simulation
-    const cloudBackendNames = ['aws-primary', 'aws-secondary'];
-    for (const cloudBackendName of cloudBackendNames) {
-        const startTime = Date.now();
-        logger.startSpinner(`Deploying to cloud backend '${cloudBackendName}'...`);
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        const durationFormatted = `${(duration / 1000).toFixed(2)}s`;
-        logger.stopSpinner(`Deployed to cloud backend '${cloudBackendName}' (${durationFormatted})`, LogLevel.SUCCESS);
+    // TODO: may need refinement when we have better status.
+    //       could also be useful to have a finished boolean flag.
+    while (deployment.status === 'pending' || deployment.status === 'in_progress') {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        deployment = await api.getDeployment(deployment.id);
     }
 
-    const environment = await api.getEnvironment(deployment.environment_id);
-    const project = await api.getProject(environment.project_id);
-    const organization = await api.getOrganization(project.organization_id);
+    if (['partially_completed', 'failed', 'canceled'].includes(deployment.status)) {
+        let message = 'Deployment failed';
+        if (deployment.status === 'partially_completed') {
+            message = 'Deployment failed on some backends';
+        }
+        if (deployment.status === 'canceled') {
+            message = 'Deployment canceled';
+        }
 
-    // TODO: Those links must come from the API.
-    const environmentLinks = cloudBackendNames.map((cloudBackendName) => {
-        return `https://${project.slug}-${environment.slug}.${cloudBackendName}.${organization.slug}.ownstak.link`;
-    });
-    const deploymentLinks = cloudBackendNames.map((cloudBackendName) => {
-        return `https://${project.slug}-${environment.slug}-${deployment.build_number}.${cloudBackendName}.${organization.slug}.ownstak.link`;
-    });
+        throw new CliError(`${message}. Please check the deployment logs on ${chalk.cyan(deployment.console_url)} for more information.`);
+    }
+
+    const deploymentLinks = deployment.links.filter((link) => link.type === 'deployment').map((link) => link.url);
+    const environmentLinks = deployment.links.filter((link) => link.type === 'environment').map((link) => link.url);
+    const cloudBackendNames = deployment.cloud_backend_deployments.map((backend) => backend.cloud_backend.name);
 
     // Print deployment summary
     const tableMinWidth = 70;
@@ -123,7 +130,7 @@ export async function deploy(options: DeployCommandOptions) {
             `Deployment links:\r\n${chalk.cyan(deploymentLinks.join('\r\n'))}\r\n`,
             `Environment links:\r\n${chalk.cyan(environmentLinks.join('\r\n'))}\r\n`,
             chalk.gray(`See your deployment at:`),
-            chalk.cyan(`https://console.ownstak.com/${organization.slug}/projects/${project.slug}/deployments/${deployment.build_number}`),
+            chalk.cyan(deployment.console_url),
         ],
         {
             title: 'Links',
