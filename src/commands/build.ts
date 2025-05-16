@@ -7,7 +7,6 @@ import {
     COMPUTE_DIR_PATH,
     ASSETS_DIR_PATH,
     PERMANENT_ASSETS_DIR_PATH,
-    VERSION,
     PROXY_DIR_PATH,
     DEBUG_DIR_PATH,
     APP_DIR_PATH,
@@ -31,6 +30,7 @@ import { glob } from 'glob';
 import { Config, FilesConfig, Framework } from '../config.js';
 import { detectFramework, getFrameworkAdapter, getFrameworkAdapters } from '../frameworks/index.js';
 import { CliError } from '../cliError.js';
+import { CliConfig } from '../cliConfig.js';
 import chalk from 'chalk';
 import { nodeFileTrace } from '@vercel/nft';
 
@@ -46,24 +46,19 @@ export interface BuildCommandOptions {
 export async function build(options: BuildCommandOptions) {
     const startTime = Date.now();
 
-    // Prepare build directories
-    logger.debug(`Cleaning build directory  '${BUILD_DIR_PATH}'...`);
     // Clear everything under the build directory except the proxy,
     // so we can copy binaries there and test everything locally.
-    await rm(COMPUTE_DIR_PATH, { recursive: true, force: true });
-    await rm(APP_DIR_PATH, { recursive: true, force: true });
-    await rm(ASSETS_DIR_PATH, { recursive: true, force: true });
-    await rm(PERMANENT_ASSETS_DIR_PATH, { recursive: true, force: true });
-    await rm(DEBUG_DIR_PATH, { recursive: true, force: true });
+    logger.debug(`Cleaning build directory  '${BUILD_DIR_PATH}'...`);
+    await Promise.all(
+        [COMPUTE_DIR_PATH, APP_DIR_PATH, ASSETS_DIR_PATH, PERMANENT_ASSETS_DIR_PATH, DEBUG_DIR_PATH].map((path) => rm(path, { recursive: true, force: true })),
+    );
 
     logger.debug(`Creating build directories...`);
-    await mkdir(BUILD_DIR_PATH, { recursive: true });
-    await mkdir(COMPUTE_DIR_PATH, { recursive: true });
-    await mkdir(ASSETS_DIR_PATH, { recursive: true });
-    await mkdir(PERMANENT_ASSETS_DIR_PATH, { recursive: true });
-    await mkdir(PROXY_DIR_PATH, { recursive: true });
-    await mkdir(APP_DIR_PATH, { recursive: true });
-    await mkdir(DEBUG_DIR_PATH, { recursive: true });
+    await Promise.all(
+        [BUILD_DIR_PATH, COMPUTE_DIR_PATH, APP_DIR_PATH, ASSETS_DIR_PATH, PERMANENT_ASSETS_DIR_PATH, DEBUG_DIR_PATH, PROXY_DIR_PATH].map((path) =>
+            mkdir(path, { recursive: true }),
+        ),
+    );
 
     // Add build directory to .gitignore file if not already present
     await addToGitignore(BUILD_DIR);
@@ -71,9 +66,11 @@ export async function build(options: BuildCommandOptions) {
     // Load config from source file ownstak.config.ts if present.
     // If not, default config is returned.
     const config = await Config.loadFromSource();
-    // Validate the config for errors
     await config.validate();
 
+    // Save the current CLI version that created build into config,
+    // so we can later check it and use for debugging
+    config.cliVersion = CliConfig.getCurrentVersion();
     config.framework = options.framework || config.framework || (await detectFramework());
     config.frameworkAdapter ??= getFrameworkAdapter(config.framework);
     config.skipFrameworkBuild = options.skipFrameworkBuild || config.skipFrameworkBuild;
@@ -87,7 +84,7 @@ export async function build(options: BuildCommandOptions) {
     if (config.framework && !config.frameworkAdapter) {
         throw new CliError(
             `The specified framework '${config.framework}' is not supported. \r\n` +
-                `The ${NAME} ${VERSION} supports the following frameworks: \r\n` +
+                `The ${NAME} supports the following frameworks: \r\n` +
                 getFrameworkAdapters()
                     .map((adapter) => `- ${adapter.name}`)
                     .join('\r\n') +
@@ -103,7 +100,7 @@ export async function build(options: BuildCommandOptions) {
     if (!config.frameworkAdapter) {
         throw new CliError(
             `No supported framework was detected. \r\n` +
-                `The ${NAME} ${VERSION} supports the following frameworks: \r\n` +
+                `The ${NAME} supports the following frameworks: \r\n` +
                 getFrameworkAdapters()
                     .map((adapter) => `- ${adapter.name}`)
                     .join('\r\n') +
@@ -296,7 +293,7 @@ export async function build(options: BuildCommandOptions) {
         resolve(COMPUTE_DIR_PATH, 'package.json'),
         JSON.stringify(
             {
-                version: VERSION,
+                version: config.cliVersion,
                 main: 'server.mjs',
                 type: 'module',
             },
@@ -323,10 +320,10 @@ export async function build(options: BuildCommandOptions) {
     // Calculate the max content width needed for consistent tables
     const tableMinWidth = 63;
 
-    const isDefaultRuntime = config.defaultRuntime === config.runtime;
-    const isDefaultMemory = config.defaultMemory === config.memory;
-    const isDefaultArch = config.defaultArch === config.arch;
-    const isDefaultTimeout = config.defaultTimeout === config.timeout;
+    const isDefaultRuntime = Config.getDefaultRuntime() === config.runtime;
+    const isDefaultMemory = Config.getDefaultMemory() === config.memory;
+    const isDefaultArch = Config.getDefaultArch() === config.arch;
+    const isDefaultTimeout = Config.getDefaultTimeout() === config.timeout;
 
     // Print build summary
     logger.info('');
@@ -509,6 +506,10 @@ async function convertHtmlToFolders(dir: string) {
  * @param pattern
  */
 async function addToGitignore(pattern: string) {
+    // Nothing to do, if we're not running in project
+    if (!existsSync('package.json')) {
+        return;
+    }
     const gitignorePath = join(process.cwd(), '.gitignore');
     const gitignoreContent = existsSync(gitignorePath) ? await readFile(gitignorePath, 'utf-8') : '';
     if (gitignoreContent.includes(pattern)) {

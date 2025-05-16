@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { stat, unlink } from 'fs/promises';
 import { logger, LogLevel } from '../logger.js';
-import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_URL, NAME_SHORT, PERMANENT_ASSETS_DIR, BUILD_DIR, VERSION } from '../constants.js';
+import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_URL, NAME_SHORT, PERMANENT_ASSETS_DIR } from '../constants.js';
 import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
@@ -19,32 +19,80 @@ export interface DeployCommandOptions {
 }
 
 export async function deploy(options: DeployCommandOptions) {
+    logger.info(`Let's bring your project to life!`);
+
     if (!existsSync(BUILD_DIR_PATH)) {
-        throw new CliError(`The ${BRAND} build does not exist. Please run \`npx ${NAME_SHORT} build\` first.`);
+        throw new CliError(`The project build does not exist. Please run \`npx ${NAME_SHORT} build\` first.`);
     }
 
     const config = await Config.loadFromBuild();
+    const currentCliVersion = CliConfig.getCurrentVersion();
+    if (config.cliVersion !== currentCliVersion) {
+        throw new CliError(
+            `The project was built with different version of ${BRAND} CLI (${config.cliVersion}). Please run \`npx ${NAME_SHORT} build\` and re-build your project with the current CLI version ${currentCliVersion} before deploying. `,
+        );
+    }
 
     const cliConfig = CliConfig.load();
-
     const apiToken = options.apiToken || cliConfig.tokenForUrl(options.apiUrl);
     if (!apiToken) {
-        throw new CliError(`Cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings`);
+        throw new CliError(
+            `Something is missing here... The CLI cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings and pass it to deploy command. ` +
+                `Example: npx ${NAME_SHORT} deploy --api-token <token>`,
+        );
     }
 
     const api = new ConsoleClient({ url: options.apiUrl, token: apiToken });
+    const organizations = await api.getOrganizations();
+    if (organizations.length === 0) {
+        throw new CliError(`You're not a member of any organization. Please create new organization at ${CONSOLE_URL}/organizations and come back.`);
+    }
 
-    const { environment } = await api.resolveEnvironmentSlugs(options.organization, options.project, options.environment);
+    const environmentSlug = (options.environment || config.environment || Config.getDefaultEnvironment())?.toLowerCase();
+    const projectSlug = (options.project || config.project || Config.getDefaultProject())?.toLowerCase();
+    const organizationSlug = (options.organization || config.organization || organizations[0]?.slug)?.toLowerCase();
+    if (!organizationSlug) {
+        throw new CliError(
+            `Something is missing here... The CLI cannot deploy without an --organization option. Please pass it to deploy command or set the organization property in the ownstak.config.js file. ` +
+                `Example: npx ${NAME_SHORT} deploy --organization <organization> --project <project> --environment <environment> --api-token <token>`,
+        );
+    }
+
+    const organization = organizations.find((org) => org.slug === organizationSlug);
+    if (!organization) {
+        throw new CliError(
+            `Oops! The organization ${organizationSlug} does not exist. Please create it at ${CONSOLE_URL}/organizations and come back or pass different organization name to deploy command. ` +
+                `You are a member of the following organizations: ${organizations.map((org) => org.slug).join(', ')}`,
+        );
+    }
+
+    let project;
+    try {
+        project = (await api.resolveProjectSlugs(organizationSlug, projectSlug)).project;
+    } catch (error) {
+        project = await api.createProject(organization.id, projectSlug);
+    }
+
+    let environment;
+    try {
+        environment = (await api.resolveEnvironmentSlugs(organizationSlug, projectSlug, environmentSlug)).environment;
+    } catch (error) {
+        environment = await api.createEnvironment(project.id, environmentSlug);
+    }
 
     const draftDeployment = await api.createDeployment(environment.id, {
-        cli_version: VERSION,
+        cli_version: config.cliVersion,
         framework: config.framework,
         runtime: config.runtime,
         memory: config.memory,
         timeout: config.timeout,
         arch: config.arch,
     });
-    logger.info(`Let's bring your project to life!`);
+
+    // Display where the project will be deployed
+    logger.info(`${chalk.blueBright('Organization:')} ${chalk.cyan(organization.slug)}`);
+    logger.info(`${chalk.blueBright('Project:')} ${chalk.cyan(project.slug)}`);
+    logger.info(`${chalk.blueBright('Environment:')} ${chalk.cyan(environment.slug)}`);
 
     logger.info('');
     logger.drawSubtitle(`Step 1/3`, 'Zipping');
@@ -72,7 +120,7 @@ export async function deploy(options: DeployCommandOptions) {
         logger.stopSpinner(`Uploaded ${zipFilePath}`, LogLevel.SUCCESS);
 
         // Clean up the zip file
-        //await unlink(zipFilePath);
+        await unlink(zipFilePath);
     }
 
     logger.info('');
@@ -81,11 +129,11 @@ export async function deploy(options: DeployCommandOptions) {
 
     // TODO: may need refinement when we have better status.
     //       could also be useful to have a finished boolean flag.
+    logger.startSpinner(`Deploying to cloud backends...`);
     while (deployment.status === 'pending' || deployment.status === 'in_progress') {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         deployment = await api.getDeployment(deployment.id);
     }
-
     if (['partially_completed', 'failed', 'canceled'].includes(deployment.status)) {
         let message = 'Deployment failed';
         if (deployment.status === 'partially_completed') {
@@ -95,12 +143,14 @@ export async function deploy(options: DeployCommandOptions) {
             message = 'Deployment canceled';
         }
 
+        logger.stopSpinner(message, LogLevel.ERROR);
         throw new CliError(`${message}. Please check the deployment logs on ${chalk.cyan(deployment.console_url)} for more information.`);
     }
 
+    logger.stopSpinner(`Deployed to cloud backends`, LogLevel.SUCCESS);
+    const cloudBackendNames = deployment.cloud_backend_deployments.map((backend) => backend.cloud_backend.name);
     const deploymentLinks = deployment.links.filter((link) => link.type === 'deployment').map((link) => link.url);
     const environmentLinks = deployment.links.filter((link) => link.type === 'environment').map((link) => link.url);
-    const cloudBackendNames = deployment.cloud_backend_deployments.map((backend) => backend.cloud_backend.name);
 
     // Print deployment summary
     const tableMinWidth = 70;

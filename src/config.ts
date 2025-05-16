@@ -1,20 +1,20 @@
 import { Router } from './compute/router/router.js';
 import { readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import {
     BRAND,
     OUTPUT_CONFIG_FILE,
-    VERSION,
     FRAMEWORKS,
     RUNTIMES,
     APP_PORT,
     INPUT_CONFIG_FILE,
-    NAME,
     COMPUTE_DIR_PATH,
     NAME_SHORT,
     ARCHS,
     DEFAULT_MEMORY,
     DEFAULT_TIMEOUT,
+    HOST,
+    DEFAULT_ENVIRONMENT,
 } from './constants.js';
 import { dirname, relative, resolve } from 'path';
 import { logger } from './logger.js';
@@ -22,18 +22,36 @@ import { normalizePath } from './utils/pathUtils.js';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { CliError } from './cliError.js';
+import { waitForSocket } from './utils/portUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export interface ConfigOptions {
     /**
-     * The current version of Ownstak CLI
-     * that created the config.
-     * @default packageJson.default.version
+     * The version of Ownstak CLI that built the project.
+     * @default Current version of Ownstak CLI
      * @private
      */
-    version?: string;
+    cliVersion?: string;
+
+    /**
+     * The project name
+     * @default undefined
+     */
+    project?: string;
+
+    /**
+     * The organization name
+     * @default undefined
+     */
+    organization?: string;
+
+    /**
+     * The environment name
+     * @default default
+     */
+    environment?: string;
 
     /**
      * The runtime to use for the app.
@@ -147,7 +165,10 @@ export interface ConfigOptions {
 }
 
 export class Config {
-    version: string;
+    cliVersion: string;
+    organization?: string;
+    project?: string;
+    environment?: string;
     runtime: Runtime;
     memory: number;
     arch: Architecture;
@@ -163,17 +184,35 @@ export class Config {
 
     constructor(options: ConfigOptions = {}) {
         Object.assign(this, options);
-        this.version ??= VERSION;
-        this.runtime ??= this.defaultRuntime;
-        this.arch ??= this.defaultArch;
-        this.memory ??= this.defaultMemory;
-        this.timeout ??= this.defaultTimeout;
+        this.cliVersion ??= '0.0.0';
+        this.project ??= Config.getDefaultProject();
+        this.environment ??= Config.getDefaultEnvironment();
+
+        this.runtime ??= Config.getDefaultRuntime();
+        this.arch ??= Config.getDefaultArch();
+        this.memory ??= Config.getDefaultMemory();
+        this.timeout ??= Config.getDefaultTimeout();
 
         this.router ??= new Router();
         this.assets ??= { include: {} };
         this.permanentAssets ??= { include: {} };
         this.debugAssets ??= { include: {} };
         this.app ??= { include: {}, entrypoint: undefined };
+    }
+
+    setOrganization(organization: string) {
+        this.organization = organization;
+        return this;
+    }
+
+    setProject(project: string) {
+        this.project = project;
+        return this;
+    }
+
+    setEnvironment(environment: string) {
+        this.environment = environment;
+        return this;
     }
 
     setRuntime(runtime: Runtime) {
@@ -252,9 +291,14 @@ export class Config {
         const entrypointPath = resolve(process.cwd(), this.app.entrypoint);
         const mod = await import(`file://${entrypointPath}`);
         const start = mod?.default?.default || mod?.default || (() => {});
+        // The entrypoint should be a function that starts the HTTP server
+        // and returns a promise that resolves when the server is ready to accept connections.
         if (typeof start === 'function') {
             await start();
         }
+        // If entrypoint is just file that starts the HTTP server,
+        // we need to wait for TCP socket to be open and accept connections.
+        await waitForSocket(HOST, APP_PORT);
     }
 
     serialize() {
@@ -275,9 +319,8 @@ export class Config {
             return value;
         };
         try {
-            const config = new Config();
             const parsedJson = JSON.parse(json, reviver);
-            Object.assign(config, parsedJson);
+            const config = new Config(parsedJson);
             const router = new Router();
             Object.assign(router, parsedJson.router);
             config.router = router;
@@ -400,7 +443,7 @@ export class Config {
      * Returns the default runtime for the project
      * based on the currently used Node.js version.
      */
-    get defaultRuntime(): Runtime {
+    static getDefaultRuntime(): Runtime {
         const currentVersion = process.version.slice(1);
         const [currentMajor, ..._] = currentVersion.split('.');
         for (const runtime of Object.values(RUNTIMES)) {
@@ -415,7 +458,7 @@ export class Config {
      * based on the currently used CPU architecture.
      * This ensures that the native node modules will work.
      */
-    get defaultArch(): Architecture {
+    static getDefaultArch(): Architecture {
         const currentArch = process.arch.replace('x64', ARCHS.X86_64);
         return Object.values(ARCHS).find((arch) => arch === currentArch) ?? ARCHS.X86_64;
     }
@@ -424,7 +467,7 @@ export class Config {
      * Returns the default memory for the project
      * based on the currently used Node.js version.
      */
-    get defaultMemory(): number {
+    static getDefaultMemory(): number {
         return DEFAULT_MEMORY;
     }
 
@@ -432,8 +475,27 @@ export class Config {
      * Returns the default timeout for the project
      * based on the currently used Node.js version.
      */
-    get defaultTimeout(): number {
+    static getDefaultTimeout(): number {
         return DEFAULT_TIMEOUT;
+    }
+
+    /**
+     * Returns the default environment name
+     * @default default
+     */
+    static getDefaultEnvironment(): string {
+        return DEFAULT_ENVIRONMENT;
+    }
+
+    /**
+     * Returns the default project name
+     * @default Name from package.json
+     */
+    static getDefaultProject(): string {
+        const packageJsonPath = resolve('package.json');
+        if (!existsSync(packageJsonPath)) return 'default';
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+        return packageJson.name || 'default';
     }
 }
 

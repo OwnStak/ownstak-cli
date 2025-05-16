@@ -1,6 +1,5 @@
-// @ts-nocheck
 // Load original next.config file. This path is injected by ownstak-cli during the build.
-import originalNextConfigModule from '{{ nextConfigOriginalPath }}';
+const originalNextConfigModule = require('{{ nextConfigOriginalPath }}');
 const ownstakNextConfig = {
     output: 'standalone',
     images: {
@@ -10,17 +9,17 @@ const ownstakNextConfig = {
 };
 
 /**
- * This is TS Next config wrapper added by the @ownstak/cli.
+ * This is CJS Next config wrapper added by the @ownstak/cli.
  * It injects additional config into the user's next.config.ts file.
  *
  * DON'T DELETE THIS FILE UNTIL THE BUILD FINISHES.
  * If you see this file, your build is broken. Try to run 'npx ownstak build' again
  * or delete this file manually and rename the original next.config.ts/js/mjs file back.
  */
-export default async function nextConfig() {
+module.exports = async function nextConfig() {
     const originalNextConfigFunc = originalNextConfigModule?.default ?? originalNextConfigModule;
     const originalNextConfig = typeof originalNextConfigFunc === 'function' ? await originalNextConfigFunc({}) : originalNextConfigFunc;
-
+    
     const nextConfig = {
         ...originalNextConfig,
         ...ownstakNextConfig,
@@ -32,7 +31,7 @@ export default async function nextConfig() {
             ...originalNextConfig.experimental,
             ...ownstakNextConfig.experimental,
         },
-    };
-
+    }
+    
     return nextConfig;
 }

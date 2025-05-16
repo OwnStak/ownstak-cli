@@ -5,7 +5,9 @@ import { CliError } from '../src/cliError';
 describe('Config', () => {
     it('should initialize with default values', () => {
         const config = new Config();
-        expect(config.version).toBeDefined();
+        expect(config.cliVersion).toBeDefined();
+        expect(config.project).toBeDefined();
+        expect(config.environment).toBeDefined();
         expect(config.runtime).toBeDefined();
         expect(config.memory).toBe(1024);
         expect(config.arch).toBeDefined();

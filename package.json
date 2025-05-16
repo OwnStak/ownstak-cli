@@ -14,7 +14,7 @@
         "linkDirectory": true
     },
     "scripts": {
-        "dev": "chokidar --silent 'src/**/*.ts' --initial 'npm build && npm run link' -c 'clear && npm run build'",
+        "dev": "chokidar --silent 'src/**/*.ts' --initial 'npm build && npm run link' -c 'clear && npm run build && npm run link'",
         "build": "tsc && cp -r README_NPM.md dist/README.md && npm run build:server && npm run build:serverless && npm run build:copy-templates && npm run build:copy-packagejson",
         "build:server": "esbuild src/compute/server/server.ts --sourcemap --minify --bundle --platform=node --format=esm --outfile=dist/src/compute/server/server.js --log-level=error",
         "build:serverless": "esbuild src/compute/serverless/serverless.ts --sourcemap --minify --bundle --platform=node --format=esm --outfile=dist/src/compute/serverless/serverless.js --log-level=error",
@@ -26,7 +26,7 @@
         "format": "prettier --write 'src/**/*.ts'",
         "format:check": "prettier --check 'src/**/*.ts'",
         "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-        "prepare": "husky install"
+        "prepare": "husky || true"
     },
     "dependencies": {
         "@vercel/nft": "0.29.3",
@@ -36,7 +36,8 @@
         "commander": "13.1.0",
         "glob": "11.0.2",
         "mime-types": "3.0.1",
-        "semver": "7.7.2"
+        "semver": "7.7.2",
+        "esbuild": "0.25.4"
     },
     "devDependencies": {
         "@types/archiver": "6.0.3",
@@ -44,9 +45,8 @@
         "@types/mime-types": "2.1.4",
         "@types/node": "22.15.18",
         "@types/semver": "7.7.0",
-        "chokidar-cli": "^3.0.0",
-        "esbuild": "0.25.4",
-        "husky": "^9.1.7",
+        "chokidar-cli": "3.0.0",
+        "husky": "9.1.7",
         "jest": "29.7.0",
         "lint-staged": "16.0.0",
         "prettier": "3.5.3",

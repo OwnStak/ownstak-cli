@@ -1,19 +1,21 @@
 import { getProjectType } from '../../utils/moduleUtils.js';
 import { logger } from '../../logger.js';
 import { dirname, resolve } from 'path';
-import { copyFile, readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, copyFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { BRAND, NAME, VERSION } from '../../constants.js';
+import { BRAND, NAME } from '../../constants.js';
 import { fileURLToPath } from 'url';
 import { installDependencies } from '../../utils/moduleUtils.js';
 import { CliError } from '../../cliError.js';
 import chalk from 'chalk';
+import { CliConfig } from '../../cliConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export async function configInit() {
     const projectType = getProjectType();
+    const cliVersion = CliConfig.getCurrentVersion();
 
     const configTemplateExtension = projectType === 'typescript' ? 'ts' : 'js';
     const configTemplatePath = resolve(__dirname, `../../templates/config/ownstak.config.${configTemplateExtension}`);
@@ -33,8 +35,8 @@ export async function configInit() {
 
     if (!packageJson.devDependencies?.[NAME]) {
         delete packageJson.dependencies[NAME];
-        logger.info(`Installing ${NAME} ${VERSION} into the project...`);
-        packageJson.devDependencies[NAME] = VERSION;
+        logger.info(`Installing ${NAME} ${cliVersion} into the project...`);
+        packageJson.devDependencies[NAME] = cliVersion;
         await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
         installDependencies();
     }

@@ -1,5 +1,6 @@
 import chalk from 'chalk';
-import { BRAND, VERSION, NAME_SHORT } from './constants.js';
+import { BRAND, NAME_SHORT } from './constants.js';
+import { CliConfig } from './cliConfig.js';
 
 /**
  * Log levels in increasing order of severity
@@ -200,11 +201,10 @@ class Logger {
     /**
      * Draws "nice-looking" title to the console
      */
-    public drawTitle(label: string): void {
-        const brandText = ` ${BRAND} CLI `;
-        const versionText = ` v${VERSION} `;
-
-        console.log(`${chalk.bgBlue.bold.whiteBright(brandText)}${chalk.white.bgBlackBright(versionText)} ${chalk.gray(label)}`);
+    public drawTitle(label: string = ''): void {
+        const title = ` ${BRAND} CLI `;
+        const subtitle = ` v${CliConfig.getCurrentVersion()} `;
+        console.log(`${chalk.bgBlueBright(' ')}${chalk.bgWhite.bold.blackBright(title)}${chalk.white.bgBlackBright(subtitle)} ${chalk.gray(label)}`);
         console.log('');
     }
 

@@ -25,3 +25,16 @@ export type ApiDeploymentOnCreate = ApiDeployment & {
         permanent_assets: string;
     };
 };
+
+export type ApiLogs = {
+    id: string;
+    finished: boolean;
+    logs: ApiLogEntry[];
+};
+
+export type ApiLogEntry = {
+    message: string;
+    level: string;
+    timestamp: string;
+    visibility?: string;
+};

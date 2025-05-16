@@ -1,16 +1,15 @@
-import packageJson from '../package.json' with { type: 'json' };
 import { normalizePath } from './utils/pathUtils.js';
 import { resolve } from 'path';
 
-export const NAME = packageJson.name;
-export const VERSION = packageJson.version;
-export const DESCRIPTION = packageJson.description;
+export const NAME = '@ownstak/cli';
+export const NAME_SHORT = 'ownstak';
+export const DESCRIPTION = 'OwnStak CLI';
+
 export const BRAND = 'OwnStak';
 export const SUPPORT_URL = `https://ownstak.com/support`;
-export const NAME_SHORT = 'ownstak';
 
 export const CONSOLE_URL = 'https://console.ownstak.com';
-export const CONSOLE_API_URL = 'https://api.ownstak.com';
+export const CONSOLE_API_URL = 'https://dev.ownstak.com';
 
 export const INPUT_CONFIG_FILE = 'ownstak.config.js';
 export const OUTPUT_CONFIG_FILE = 'ownstak.config.json';
@@ -88,6 +87,9 @@ export const DEFAULT_TIMEOUT = 20;
 // Default memory for lambda in MiB
 export const DEFAULT_MEMORY = 1024;
 
+// Default environment name
+export const DEFAULT_ENVIRONMENT = 'default';
+
 // This is prefix for all our internal endpoints.
 // For example: /__ownstak__/health, /__ownstak__/image etc...
 // This needs to be in sync with ownstak-proxy
@@ -96,6 +98,7 @@ export const HEADERS = {
     Host: 'host',
     Cookie: 'cookie',
     SetCookie: 'set-cookie',
+    UserAgent: 'user-agent',
     Location: 'location',
     ContentType: 'content-type',
     ContentLength: 'content-length',
@@ -105,6 +108,8 @@ export const HEADERS = {
     XForwardedPort: 'x-forwarded-port',
     XForwardedFor: 'x-forwarded-for',
     CacheControl: 'cache-control',
+    Authorization: 'authorization',
+
     // Custom headers
     // Below headers needs to be in sync with ownstak-proxy
     XOwnProxy: 'x-own-proxy',

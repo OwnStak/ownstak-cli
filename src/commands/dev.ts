@@ -3,7 +3,7 @@ import { dirname } from 'path';
 import { logger } from '../logger.js';
 import { detectFramework, getFrameworkAdapters } from '../frameworks/index.js';
 import { getFrameworkAdapter } from '../frameworks/index.js';
-import { VERSION, NAME, PORT } from '../constants.js';
+import { NAME, PORT } from '../constants.js';
 import { Config } from '../config.js';
 import { CliError } from '../cliError.js';
 import { getNearestFreePort } from '../utils/portUtils.js';
@@ -25,7 +25,7 @@ export async function dev(options: DevCommandOptions) {
 
     if (!config.frameworkAdapter) {
         throw new CliError(
-            `No supported framework was detected. The ${NAME} ${VERSION} supports the following frameworks: ${getFrameworkAdapters()
+            `No supported framework was detected. The ${NAME} supports the following frameworks: ${getFrameworkAdapters()
                 .map((adapter) => adapter.name)
                 .join(', ')}`,
         );

@@ -5,7 +5,7 @@
         "moduleResolution": "nodenext",
         "isolatedModules": true,
         "declaration": true,
-        "outDir": "./dist",
+        "outDir": "./dist/src",
         "strict": true,
         "esModuleInterop": true,
         "downlevelIteration": true,

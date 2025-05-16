@@ -78,3 +78,25 @@ export function getProjectType(cwd: string = process.cwd()): 'commonjs' | 'modul
 
     return 'commonjs';
 }
+
+export function getFileModuleType(filePath: string): 'commonjs' | 'module' | 'typescript' {
+    if (filePath.endsWith('mjs')) {
+        return 'module';
+    }
+    if (filePath.endsWith('cjs')) {
+        return 'commonjs';
+    }
+    if (filePath.endsWith('ts')) {
+        return 'typescript';
+    }
+    const fileContent = readFileSync(filePath, 'utf8')
+        // Remove multi-line comments
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        // Remove single-line comments
+        .replace(/\/\/.*$/gm, '');
+
+    if (fileContent.match(/export\s+default/)) {
+        return 'module';
+    }
+    return 'commonjs';
+}

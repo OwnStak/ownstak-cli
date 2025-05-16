@@ -1,11 +1,12 @@
 import { resolve } from 'path';
-import { logger } from '../logger.js';
-import { VERSION, NAME } from '../constants.js';
+import { logger, LogLevel } from '../logger.js';
+import { BRAND, NAME, NAME_SHORT } from '../constants.js';
 import { readFile, writeFile } from 'fs/promises';
 import { installDependencies } from '../utils/moduleUtils.js';
 import { CliError } from '../cliError.js';
 import chalk from 'chalk';
 import semver from 'semver';
+import { CliConfig } from '../cliConfig.js';
 
 export interface UpgradeCommandOptions {
     version?: string;
@@ -14,7 +15,7 @@ export interface UpgradeCommandOptions {
 export async function upgrade(options: UpgradeCommandOptions) {
     logger.info(`Checking for latest version of ${NAME}...`);
 
-    const currentVersion = VERSION;
+    const currentVersion = CliConfig.getCurrentVersion();
     const latestMinorVersion = await getLatestVersion(currentVersion);
     const latestVersion = await getLatestVersion(currentVersion, 'latest');
     const upgradeVersion = options.version ?? latestMinorVersion;
@@ -63,7 +64,7 @@ export async function upgrade(options: UpgradeCommandOptions) {
  * @param tag - The tag to use for the latest version.
  * @returns The latest version of Ownstak CLI.
  */
-export async function getLatestVersion(currentVersion = VERSION, tag?: string) {
+export async function getLatestVersion(currentVersion = CliConfig.getCurrentVersion(), tag?: string) {
     const [currentMajor, _currentMinor, _currentPatch] = currentVersion.split('.');
     const res = await fetch(`https://registry.npmjs.org/-/package/${NAME}/dist-tags`);
     if (!res.ok) {
@@ -86,4 +87,25 @@ export async function getLatestVersion(currentVersion = VERSION, tag?: string) {
     }
 
     return upgradeVersion;
+}
+
+export async function displayUpgradeNotice(currentVersion = CliConfig.getCurrentVersion(), ignoreErrors = true) {
+    try {
+        const upgradeVersion = await getLatestVersion(currentVersion);
+        if (currentVersion !== upgradeVersion) {
+            logger.drawTable(
+                [
+                    `The new version ${upgradeVersion} of ${BRAND} CLI is available.`,
+                    `When you're ready to upgrade, run: ${chalk.cyan(`npx ${NAME_SHORT} upgrade ${upgradeVersion}`)}`,
+                ],
+                {
+                    title: 'Upgrade available',
+                    logLevel: LogLevel.SUCCESS,
+                },
+            );
+        }
+    } catch (e) {
+        if (!ignoreErrors) throw e;
+        logger.debug(`Upgrade check failed: ${e}`);
+    }
 }

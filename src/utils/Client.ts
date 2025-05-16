@@ -1,3 +1,4 @@
+import { HEADERS } from '../constants.js';
 import { logger } from '../logger.js';
 export interface HttpHeaders {
     [key: string]: string;
@@ -84,14 +85,16 @@ export class Client {
             });
         }
 
-        if (headers['Content-Type'] == 'application/json') {
+        if (headers[HEADERS.ContentType] == 'application/json') {
             body = JSON.stringify(body);
         }
 
         try {
             logger.debug(`HTTP ${opts.method || HttpMethod.GET} ${url}`);
+
             const response = await fetch(url, { method: opts.method || HttpMethod.GET, body, headers });
             logger.debug(`Response ${response.status}`);
+
             if (!response.ok) {
                 await this.handleError(response);
             }
@@ -105,7 +108,7 @@ export class Client {
                 case 'ENOTFOUND':
                     throw new ClientError('The API server was not found', this);
                 default:
-                    throw new ClientError(error.message, this);
+                    throw new ClientError(error.cause?.message || error.message, this);
             }
         }
     }

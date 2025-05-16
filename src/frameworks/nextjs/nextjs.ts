@@ -1,15 +1,15 @@
 import { existsSync, readFileSync } from 'fs';
 import { readFile, copyFile, rename, rm, writeFile } from 'fs/promises';
-import { resolve, dirname } from 'path';
+import path, { resolve, dirname } from 'path';
 import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
 import { findMonorepoRoot } from '../../utils/pathUtils.js';
 import semver from 'semver';
 import { BuildHookArgs, Config, FrameworkAdapter, HookArgs } from '../../config.js';
-import { getModuleFileUrl } from '../../utils/moduleUtils.js';
+import { getFileModuleType, getModuleFileUrl, getProjectType } from '../../utils/moduleUtils.js';
 import { BRAND, FRAMEWORKS, NAME } from '../../constants.js';
 import { fileURLToPath } from 'url';
-import { getRoutesManifest, Has } from './manifests.js';
+import { getPrerenderManifest, getRoutesManifest, Has } from './manifests.js';
 import { RouteCondition } from '../../compute/router/route.js';
 import { CliError } from '../../cliError.js';
 
@@ -65,7 +65,8 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                 await buildNextApp();
             }
 
-            // Load built Next.js config with defaults from the Next.js server.
+            // Load built Next.js config with defaults from the Next.js server
+            // and our ownstakNextConfig.
             nextConfig = await loadNextConfig();
             nextConfig.images ??= {};
             nextConfig.images.loader = 'default';
@@ -216,6 +217,30 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                 ],
                 true,
             );
+
+            // Skip pre-rendered pages with revalidation
+            const { routes = {} } = await getPrerenderManifest(distDir);
+            const revalidationPaths = Object.entries(routes).flatMap(([routePath, route]) => {
+                if (!route.initialRevalidateSeconds) return [];
+
+                const paths: (string | RegExp)[] = [routePath];
+                if (route.dataRoute) paths.push(route.dataRoute);
+                return paths.map((path) => `${basePath}${path}`.replace(/\/+/g, '/'));
+            });
+            if (revalidationPaths.length > 0) {
+                config.router.match(
+                    {
+                        path: revalidationPaths,
+                    },
+                    [
+                        {
+                            type: 'serveApp',
+                            description: 'Skip prerendered pages and serve Next.js server for revalidation pages',
+                        },
+                    ],
+                    true,
+                );
+            }
         },
         'build:routes:finish': async ({ config }: BuildHookArgs): Promise<void> => {
             // Proxy all requests to the Next.js server by default.
@@ -267,13 +292,23 @@ export async function buildNextApp() {
     const nextConfigExtension = nextConfigPath?.split('.').pop();
     const nextConfigOriginalPath = nextConfigPath.replace(`.${nextConfigExtension}`, `.original.${nextConfigExtension}`);
 
-    logger.info(`Adding ${BRAND} Next.js config...`);
     if (!existsSync(nextConfigOriginalPath)) {
         // Backup original next.config.js file
         await rename(nextConfigPath, nextConfigOriginalPath);
-        // Load proper template based on extension
-        const nextConfigTemplateExtension = nextConfigExtension === 'ts' ? 'ts' : 'js';
+
+        // Load proper template based on extension and project type
+        // next.config.ts => ownstak.next.config.ts
+        // next.config.mjs => ownstak.next.config.mjs
+        const nextConfigModuleType = getFileModuleType(nextConfigOriginalPath);
+        const nextConfigTemplateExtension = {
+            module: 'mjs',
+            commonjs: 'cjs',
+            typescript: 'ts',
+        }[nextConfigModuleType];
         const nextConfigTemplatePath = resolve(__dirname, '..', '..', 'templates', 'nextjs', `ownstak.next.config.${nextConfigTemplateExtension}`);
+
+        logger.info(`Adding ${BRAND} Next.js config (${nextConfigModuleType})...`);
+        // We need to use static import, so next.js can correctly transpile TS
         const nextConfigTemplate = (await readFile(nextConfigTemplatePath, 'utf-8')).replace('{{ nextConfigOriginalPath }}', nextConfigOriginalPath);
         await writeFile(nextConfigPath, nextConfigTemplate);
     }
@@ -297,16 +332,15 @@ export async function buildNextApp() {
         });
 
         buildProcess.on('close', async (code) => {
-            logger.debug(`Cleaning up after Next.js build...`);
-            await rm(imageLoaderPath);
-            await rm(nextConfigPath);
-            await rename(nextConfigOriginalPath, nextConfigPath);
-
             if (code === 0) {
                 logger.info('Next.js build completed successfully!');
                 promiseResolve();
             } else {
-                promiseReject(new CliError(`Next.js build failed with exit code ${code}`));
+                promiseReject(
+                    new CliError(
+                        `Next.js build failed with exit code ${code}. Please check the build logs for error details. You might also try to first build the Next.js without ${BRAND} CLI using \`npx next build\`.`,
+                    ),
+                );
             }
         });
 
@@ -314,6 +348,11 @@ export async function buildNextApp() {
             promiseReject(new CliError(`Failed to start Next.js build: ${err.message}`));
         });
     });
+
+    logger.debug(`Cleaning up after Next.js build...`);
+    await rm(imageLoaderPath);
+    await rm(nextConfigPath);
+    await rename(nextConfigOriginalPath, nextConfigPath);
 }
 
 /**

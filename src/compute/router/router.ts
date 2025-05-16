@@ -6,7 +6,6 @@ import { Response } from './response.js';
 import { logger } from '../../logger.js';
 import { extractPathToRegexpParams, pathToRegexp, substitutePathToRegexpParams } from '../../utils/pathUtils.js';
 import { isNot, Route, RouteCondition } from './route.js';
-import { RouteActionsCreator } from './routeActionsCreator.js';
 import {
     RouteAction,
     SetResponseHeader,
@@ -51,7 +50,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    get(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    get(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('GET', condition, actions, done);
     }
 
@@ -61,7 +60,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    post(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    post(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('POST', condition, actions, done);
     }
 
@@ -71,7 +70,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    put(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    put(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('PUT', condition, actions, done);
     }
 
@@ -81,7 +80,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    delete(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    delete(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('DELETE', condition, actions, done);
     }
 
@@ -91,7 +90,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    patch(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    patch(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('PATCH', condition, actions, done);
     }
 
@@ -101,7 +100,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    options(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    options(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('OPTIONS', condition, actions, done);
     }
 
@@ -111,7 +110,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    head(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    head(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('HEAD', condition, actions, done);
     }
 
@@ -121,7 +120,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    match(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    match(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, condition, actions, done);
     }
 
@@ -130,7 +129,7 @@ export class Router {
      * @param actions The actions that will be executed if the route matches.
      * @param done Whether the route is the last route to be executed.
      */
-    any(actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    any(actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, {}, actions, done);
     }
 
@@ -154,7 +153,7 @@ export class Router {
      *     method: "GET",
      * }, r => r.setResponseHeader("x-custom-header", "custom-value").setResponseHeader("x-custom-header-2", "custom-value-2"));
      */
-    addRoute(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    addRoute(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, condition, actions, done);
     }
 
@@ -172,7 +171,7 @@ export class Router {
      *     { type: "serveApp" },
      * ]);
      */
-    addRouteFront(condition: RouteCondition | string, actions: RouteAction[] | ((r: RouteActionsCreator) => any), done: boolean = false) {
+    addRouteFront(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, condition, actions, done, true);
     }
 
@@ -185,13 +184,7 @@ export class Router {
      * @param method The method that the route will match.
      * @private
      */
-    addRouteInternal(
-        method: string | undefined,
-        condition: RouteCondition | string,
-        actions: RouteAction[] | ((r: RouteActionsCreator) => any),
-        done: boolean = false,
-        front: boolean = false,
-    ) {
+    addRouteInternal(method: string | undefined, condition: RouteCondition | string, actions: RouteAction[], done: boolean = false, front: boolean = false) {
         // If condition is a string, we convert it to a valid condition object.
         // "/products/123" -> { path: "/products/123" }
         if (typeof condition === 'string') {
@@ -207,13 +200,6 @@ export class Router {
         // Add method to condition if present
         if (method) {
             condition.method = method;
-        }
-        // Actions can be either an array of actions or a callback function that stores the actions in the RouteActionsCreator instance.
-        // () => {} -> [{ type: "serveApp" }]
-        if (typeof actions === 'function') {
-            const actionCreator = new RouteActionsCreator();
-            actions(actionCreator);
-            actions = actionCreator.actions;
         }
         // Add route to the front or back of the router.
         if (front) {

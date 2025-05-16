@@ -1,22 +1,23 @@
-import { VERSION } from '../constants.js';
-import { ApiDeployment, ApiDeploymentOnCreate } from './types/entities.js';
+import { ApiDeployment, ApiDeploymentOnCreate, ApiLogs } from './types/entities.js';
 import { CreateDeploymentRequest } from './requests/CreateDeployment.js';
 import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
 import { ListProjectsResponse } from './requests/ListProjects.js';
-import { ResolveEnvironmentSlugsResponse } from './requests/ResolveSlugs.js';
+import { ResolveEnvironmentSlugsResponse, ResolveProjectSlugResponse } from './requests/ResolveSlugs.js';
 import { ListEnvironmentsResponse } from './requests/ListEnvironements.js';
 import { BaseConsoleError, ConsoleErrorResult, ConsoleResourceNotFoundError, ConsoleUnauthenticatedError, ConsoleUnauthorizedError } from './ConsoleError.js';
 import { Client } from '../utils/Client.js';
+import { BRAND, HEADERS } from '../constants.js';
+import { CliConfig } from '../cliConfig.js';
 
 export default class ConsoleClient extends Client {
     constructor({ url, token }: { url: string; token: string }) {
         super(url, {
-            'User-Agent': `Ownstak CLI ${VERSION}`,
-            'Content-Type': 'application/json',
+            [HEADERS.UserAgent]: `${BRAND} CLI ${CliConfig.getCurrentVersion()}`,
+            [HEADERS.ContentType]: 'application/json',
         });
 
         if (token) {
-            this.addHeader('Authorization', `Bearer ${token}`);
+            this.addHeader(HEADERS.Authorization, `Bearer ${token}`);
         }
     }
 
@@ -24,6 +25,12 @@ export default class ConsoleClient extends Client {
         return this.get({ path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}/environments/${environmentSlug}` })
             .then((res) => res.json())
             .then((data) => data as ResolveEnvironmentSlugsResponse);
+    }
+
+    async resolveProjectSlugs(organizationSlug: string, projectSlug: string) {
+        return this.get({ path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}` })
+            .then((res) => res.json())
+            .then((data) => data as ResolveProjectSlugResponse);
     }
 
     async getOrganizations() {
@@ -50,6 +57,12 @@ export default class ConsoleClient extends Client {
             .then((data) => data as ListProjectsResponse);
     }
 
+    async createProject(organizationId: string, projectName: string) {
+        return this.post({ path: `/api/organizations/${organizationId}/projects`, body: { project: { name: projectName } } })
+            .then((res) => res.json())
+            .then((data) => data as ListProjectsResponse);
+    }
+
     async getEnvironments(projectId: string) {
         return this.get({ path: `/api/projects/${projectId}/environments` })
             .then((res) => res.json())
@@ -58,6 +71,12 @@ export default class ConsoleClient extends Client {
 
     async getEnvironment(environmentId: string) {
         return this.get({ path: `/api/environments/${environmentId}` })
+            .then((res) => res.json())
+            .then((data) => data as ListEnvironmentsResponse);
+    }
+
+    async createEnvironment(projectId: string, environmentName: string) {
+        return this.post({ path: `/api/projects/${projectId}/environments`, body: { environment: { name: environmentName } } })
             .then((res) => res.json())
             .then((data) => data as ListEnvironmentsResponse);
     }
@@ -83,6 +102,12 @@ export default class ConsoleClient extends Client {
         return this.get({ path: `/api/deployments/${deploymentId}` })
             .then((res) => res.json())
             .then((data) => data as ApiDeployment);
+    }
+
+    async getCloudBackendDeploymentLogs(cloudBackendDeploymentId: string) {
+        return this.get({ path: `/api/cloud_backend_deployments/${cloudBackendDeploymentId}/logs` })
+            .then((res) => res.json())
+            .then((data) => data as ApiLogs);
     }
 
     protected async handleError(response: Response) {

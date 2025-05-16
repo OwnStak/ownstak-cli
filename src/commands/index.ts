@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { CliError } from '../cliError.js';
 import { Command, Option } from 'commander';
 import { logger, LogLevel } from '../logger.js';
-import { BRAND, CONSOLE_API_URL, NAME, NAME_SHORT, SUPPORT_URL, VERSION } from '../constants.js';
+import { BRAND, CONSOLE_API_URL, NAME, NAME_SHORT, SUPPORT_URL } from '../constants.js';
 
 import { build } from './build.js';
 import { dev } from './dev.js';
@@ -11,9 +11,10 @@ import { start } from './start.js';
 import { deploy } from './deploy.js';
 import { login } from './login.js';
 import { logout } from './logout.js';
-import { upgrade, getLatestVersion } from './upgrade.js';
+import { upgrade, displayUpgradeNotice } from './upgrade.js';
 import { configInit } from './config/init.js';
 import { configPrint } from './config/print.js';
+import { CliConfig } from '../cliConfig.js';
 
 // Attach default error handler
 process.on('uncaughtException', handleException);
@@ -22,12 +23,12 @@ process.on('uncaughtException', handleException);
 const program = new Command()
     .name(NAME)
     .description(`Build and deploy your project to ${BRAND}`)
-    .version(VERSION, '-v, --version')
+    .version(CliConfig.getCurrentVersion(), '-v, --version')
     .addHelpText('beforeAll', () => `${logger.drawTitle('help') ?? ''}`)
     .helpOption('-h, --help', 'Display help for command')
     .option('-d, --debug', 'Enable debug mode')
-
-    .hook('preAction', preAction);
+    .hook('preAction', preAction)
+    .hook('postAction', postAction);
 
 program
     .command('build [framework]')
@@ -45,9 +46,9 @@ const withApiToken = (command: Command) => command.option('--api-token <token>',
 const withApiOptions = (command: Command) => withApiUrl(withApiToken(command));
 const withEnvironmentSlugsOptions = (command: Command) =>
     command
-        .requiredOption('--organization <slug>', 'The organization slug to use')
-        .requiredOption('--project <slug>', 'The project slug to use')
-        .requiredOption('--environment <slug>', 'The environment slug to use');
+        .option('--organization <slug>', 'The organization slug to use')
+        .option('--project <slug>', 'The project slug to use')
+        .option('--environment <slug>', 'The environment slug to use');
 
 withEnvironmentSlugsOptions(withApiOptions(program.command('deploy')))
     .description('Deploy the project to the platform')
@@ -86,24 +87,17 @@ export async function preAction(thisCommand: Command, actionCommand: Command) {
 
     const commandName = actionCommand.name();
     logger.drawTitle(commandName);
+}
 
-    // Check new version and display upgrade notice
-    // for deploy and build commands
+export async function postAction(_thisCommand: Command, actionCommand: Command) {
+    // Check if there's a new version and display upgrade notice for deploy and build commands after all work is done.
+    // NOTE: We cannot just display it anytime event loop is free. It would mess up the terminal output format.
+    const commandName = actionCommand.name();
     if (['deploy', 'build'].includes(commandName)) {
-        const currentVersion = VERSION;
-        const upgradeVersion = await getLatestVersion();
-        if (currentVersion !== upgradeVersion) {
-            logger.drawTable(
-                [
-                    `The new version ${upgradeVersion} of ${BRAND} CLI is available.`,
-                    `When you're ready to upgrade, run: ${chalk.cyan(`npx ${NAME_SHORT} upgrade ${upgradeVersion}`)}`,
-                ],
-                {
-                    title: 'Upgrade available',
-                    logLevel: LogLevel.SUCCESS,
-                },
-            );
-        }
+        // The NPM is sometimes slow. The upgrade notice is nice to have feature but it should not block the process from exiting for too long.
+        // If it takes longer than 0.5s, we'll exit process anyway.
+        setTimeout(() => process.exit(0), 500);
+        await displayUpgradeNotice();
     }
 }
 
