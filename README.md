@@ -71,7 +71,7 @@ Steps to release a new version:
 
 The CI will also automatically bump the version to the next patch version and commit and push it back to the repository for a new release.
 
-# Preview/Next release
+## Preview/Next release
 
 Every commit to the opened PR will trigger a preview/next release build that is published under `next` tag.
 The released version has format `{version}-next-{pr_number}-{timestamp}`. For example, `1.0.0-next-39-1744196863`.
