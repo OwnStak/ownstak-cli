@@ -55,7 +55,11 @@ jobs:
               run: npm install --no-audit
 
             - name: Set next version
-              run: npm version prerelease --preid="next-$(date +%s)-${GITHUB_SHA:0:6}" --no-git-tag-version # e.g. 1.0.1-next-1712868600-66b6a8
+              run: |
+                  VERSION=$(npm pkg get version | tr -d '"')
+                  PR_NUMBER=${{ github.event.pull_request.number }}
+                  TIMESTAMP=$(date +%s)
+                  npm version "${VERSION}-next-${PR_NUMBER}-${TIMESTAMP}" --no-git-tag-version
 
             - name: Build
               run: npm run build
