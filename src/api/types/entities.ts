@@ -38,3 +38,18 @@ export type ApiLogEntry = {
     timestamp: string;
     visibility?: string;
 };
+
+export type ApiKeyRequest = {
+    id: string;
+    status: 'pending' | 'approved';
+    url: string;
+    secret: string;
+    created_at: string;
+    expires_at: string;
+    client_name?: string;
+    name?: string;
+};
+
+export type ApiApiKey = {
+    token: string;
+};

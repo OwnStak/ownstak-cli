@@ -1,3 +1,4 @@
+import os from 'os';
 import { normalizePath } from './utils/pathUtils.js';
 import { resolve } from 'path';
 
@@ -9,12 +10,15 @@ export const BRAND = 'OwnStak';
 export const SUPPORT_URL = `https://ownstak.com/support`;
 
 export const CONSOLE_URL = 'https://console.ownstak.com';
-export const CONSOLE_API_URL = 'https://dev.ownstak.com';
+export const CONSOLE_API_URL = 'https://api.ownstak.com';
+export const CONSOLE_API_URL_DEV = 'https://dev.ownstak.com';
+export const CONSOLE_API_URL_STAGE = 'https://stage.ownstak.com';
+export const CONSOLE_API_URL_LOCAL = 'http://127.0.0.1:5173';
 
 export const INPUT_CONFIG_FILE = 'ownstak.config.js';
 export const OUTPUT_CONFIG_FILE = 'ownstak.config.json';
 
-export const HOME_DIR = process.env.HOME || process.env.HOMEPATH || process.cwd();
+export const HOME_DIR = os.homedir();
 export const CLI_CONFIG_DIR = '.ownstak';
 export const CLI_CONFIG_FILE = 'ownstak.cli.json';
 export const CLI_CONFIG_FILE_PATH = normalizePath(resolve(HOME_DIR, CLI_CONFIG_DIR, CLI_CONFIG_FILE));

@@ -94,7 +94,6 @@ export class Client {
 
             const response = await fetch(url, { method: opts.method || HttpMethod.GET, body, headers });
             logger.debug(`Response ${response.status}`);
-
             if (!response.ok) {
                 await this.handleError(response);
             }

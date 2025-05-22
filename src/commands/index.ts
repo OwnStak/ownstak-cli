@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { CliError } from '../cliError.js';
 import { Command, Option } from 'commander';
 import { logger, LogLevel } from '../logger.js';
-import { BRAND, CONSOLE_API_URL, NAME, NAME_SHORT, SUPPORT_URL } from '../constants.js';
+import { BRAND, CONSOLE_API_URL, CONSOLE_API_URL_DEV, CONSOLE_API_URL_STAGE, CONSOLE_API_URL_LOCAL, NAME, NAME_SHORT, SUPPORT_URL } from '../constants.js';
 
 import { build } from './build.js';
 import { dev } from './dev.js';
@@ -38,10 +38,34 @@ program
     .action((framework, options) => build({ framework, ...options }));
 
 program.command('dev').description('Start the project in development mode').action(dev);
-
 program.command('start').alias('run').description('Start the project in production mode').action(start);
 
-const withApiUrl = (command: Command) => command.addOption(new Option('--api-url <url>', 'The API URL to use').default(CONSOLE_API_URL).hideHelp());
+const withApiUrl = (command: Command) => {
+    command
+        .option('--dev', 'Set the API URL to the development instance')
+        .option('--stage', 'Set the API URL to the staging instance')
+        .option('--local', 'Set the API URL to the local instance');
+
+    return command.addOption(
+        new Option('--api-url <url>', 'The API URL to use')
+            .default(CONSOLE_API_URL, 'production API URL')
+            .argParser((value) => {
+                // If api-url is explicitly set by the user, use that value
+                if (value !== CONSOLE_API_URL) return value;
+
+                // Check if any environment flags are set
+                const opts = command.opts();
+                if (opts.dev) return CONSOLE_API_URL_DEV;
+                if (opts.stage) return CONSOLE_API_URL_STAGE;
+                if (opts.local) return CONSOLE_API_URL_LOCAL;
+
+                // Fall back to default
+                return CONSOLE_API_URL;
+            })
+            .hideHelp(),
+    );
+};
+
 const withApiToken = (command: Command) => command.option('--api-token <token>', 'The API token to use');
 const withApiOptions = (command: Command) => withApiUrl(withApiToken(command));
 const withEnvironmentSlugsOptions = (command: Command) =>
@@ -53,7 +77,7 @@ const withEnvironmentSlugsOptions = (command: Command) =>
 withEnvironmentSlugsOptions(withApiOptions(program.command('deploy')))
     .description('Deploy the project to the platform')
     .action(deploy);
-withApiUrl(program.command('login <token>')).description('Log in to the platform').action(login);
+withApiUrl(program.command('login')).description('Log in to the platform').action(login);
 withApiUrl(program.command('logout')).description('Log out of the platform').action(logout);
 
 const configCommand = program.command('config').description(`Manage the ${BRAND} project config`);

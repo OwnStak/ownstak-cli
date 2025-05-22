@@ -1,4 +1,4 @@
-import { ApiDeployment, ApiDeploymentOnCreate, ApiLogs } from './types/entities.js';
+import { ApiDeployment, ApiDeploymentOnCreate, ApiKeyRequest, ApiLogs, ApiApiKey } from './types/entities.js';
 import { CreateDeploymentRequest } from './requests/CreateDeployment.js';
 import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
 import { ListProjectsResponse } from './requests/ListProjects.js';
@@ -10,7 +10,7 @@ import { BRAND, HEADERS } from '../constants.js';
 import { CliConfig } from '../cliConfig.js';
 
 export default class ConsoleClient extends Client {
-    constructor({ url, token }: { url: string; token: string }) {
+    constructor({ url, token }: { url: string; token?: string }) {
         super(url, {
             [HEADERS.UserAgent]: `${BRAND} CLI ${CliConfig.getCurrentVersion()}`,
             [HEADERS.ContentType]: 'application/json',
@@ -58,7 +58,7 @@ export default class ConsoleClient extends Client {
     }
 
     async createProject(organizationId: string, projectName: string) {
-        return this.post({ path: `/api/organizations/${organizationId}/projects`, body: { project: { name: projectName } } })
+        return this.post({ path: `/api/organizations/${organizationId}/projects`, body: { name: projectName } })
             .then((res) => res.json())
             .then((data) => data as ListProjectsResponse);
     }
@@ -76,7 +76,7 @@ export default class ConsoleClient extends Client {
     }
 
     async createEnvironment(projectId: string, environmentName: string) {
-        return this.post({ path: `/api/projects/${projectId}/environments`, body: { environment: { name: environmentName } } })
+        return this.post({ path: `/api/projects/${projectId}/environments`, body: { name: environmentName } })
             .then((res) => res.json())
             .then((data) => data as ListEnvironmentsResponse);
     }
@@ -84,7 +84,7 @@ export default class ConsoleClient extends Client {
     async createDeployment(environmentId: string, opts: CreateDeploymentRequest) {
         return this.post({
             path: `/api/environments/${environmentId}/deployments`,
-            body: { deployment: opts },
+            body: opts,
         })
             .then((res) => res.json())
             .then((data) => data as ApiDeploymentOnCreate);
@@ -108,6 +108,24 @@ export default class ConsoleClient extends Client {
         return this.get({ path: `/api/cloud_backend_deployments/${cloudBackendDeploymentId}/logs` })
             .then((res) => res.json())
             .then((data) => data as ApiLogs);
+    }
+
+    async createApiKeyRequest(apiKeyRequest: Pick<ApiKeyRequest, 'client_name' | 'name'> = {}) {
+        return this.post({ path: '/api/api_key_requests', body: apiKeyRequest })
+            .then((res) => res.json())
+            .then((data) => data as ApiKeyRequest);
+    }
+
+    async getApiKeyRequest(apiKeyRequestId: string) {
+        return this.get({ path: `/api/api_key_requests/${apiKeyRequestId}` })
+            .then((res) => res.json())
+            .then((data) => data as ApiKeyRequest);
+    }
+
+    async retrieveApiKeyFromRequest(apiKeyRequestId: string, apiKeyRequestSecret: string) {
+        return this.post({ path: `/api/api_key_requests/${apiKeyRequestId}/retrieve_api_key`, body: { secret: apiKeyRequestSecret } })
+            .then((res) => res.json())
+            .then((data) => data as ApiApiKey);
     }
 
     protected async handleError(response: Response) {

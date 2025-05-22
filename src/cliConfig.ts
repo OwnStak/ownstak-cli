@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
-import { writeFile } from 'fs/promises';
-import { CLI_CONFIG_FILE_PATH, NAME } from './constants.js';
+import { writeFile, mkdir } from 'fs/promises';
+import { CLI_CONFIG_FILE_PATH, CONSOLE_API_URL, NAME } from './constants.js';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -38,16 +38,39 @@ export class CliConfig {
     /**
      * Returns the token for a given Console API URL
      */
-    tokenForUrl(url: string) {
+    getToken(url = CONSOLE_API_URL) {
         if (this.tokens) {
             return this.tokens[url];
         }
+        return undefined;
+    }
+
+    /**
+     * Sets the token for a given Console API URL
+     */
+    setToken(token: string, url = CONSOLE_API_URL) {
+        this.tokens[url] = token;
+    }
+
+    /**
+     * Deletes the token for a given Console API URL
+     */
+    deleteToken(url = CONSOLE_API_URL) {
+        delete this.tokens[url];
+    }
+
+    /**
+     * Deletes all the tokens
+     */
+    deleteTokens() {
+        this.tokens = {};
     }
 
     /**
      * Saves the current config to the CLI config file
      */
     async save() {
+        await mkdir(dirname(CLI_CONFIG_FILE_PATH), { recursive: true });
         await writeFile(CLI_CONFIG_FILE_PATH, JSON.stringify(this, null, 2));
     }
 

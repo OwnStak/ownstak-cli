@@ -34,10 +34,10 @@ export async function deploy(options: DeployCommandOptions) {
     }
 
     const cliConfig = CliConfig.load();
-    const apiToken = options.apiToken || cliConfig.tokenForUrl(options.apiUrl);
+    const apiToken = options.apiToken || cliConfig.getToken(options.apiUrl);
     if (!apiToken) {
         throw new CliError(
-            `Something is missing here... The CLI cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings and pass it to deploy command. ` +
+            `Something is missing here... The CLI cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings and pass it to deploy command or login on this machine using \`npx ${NAME_SHORT} login. ` +
                 `Example: npx ${NAME_SHORT} deploy --api-token <token>`,
         );
     }
@@ -93,6 +93,8 @@ export async function deploy(options: DeployCommandOptions) {
     logger.info(`${chalk.blueBright('Organization:')} ${chalk.cyan(organization.slug)}`);
     logger.info(`${chalk.blueBright('Project:')} ${chalk.cyan(project.slug)}`);
     logger.info(`${chalk.blueBright('Environment:')} ${chalk.cyan(environment.slug)}`);
+    const maskedApiToken = `${apiToken.slice(0, 3)}******${apiToken.slice(-4)}`;
+    logger.info(`${chalk.blueBright('API token:')} ${chalk.cyan(maskedApiToken)}`);
 
     logger.info('');
     logger.drawSubtitle(`Step 1/3`, 'Zipping');
