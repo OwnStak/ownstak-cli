@@ -58,7 +58,13 @@ export default class ConsoleClient extends Client {
     }
 
     async createProject(organizationId: string, projectName: string) {
-        return this.post({ path: `/api/organizations/${organizationId}/projects`, body: { name: projectName } })
+        return this.post({
+            path: `/api/projects`,
+            body: {
+                name: projectName,
+                organization_id: organizationId,
+            },
+        })
             .then((res) => res.json())
             .then((data) => data as ListProjectsResponse);
     }
@@ -76,15 +82,24 @@ export default class ConsoleClient extends Client {
     }
 
     async createEnvironment(projectId: string, environmentName: string) {
-        return this.post({ path: `/api/projects/${projectId}/environments`, body: { name: environmentName } })
+        return this.post({
+            path: `/api/environments`,
+            body: {
+                name: environmentName,
+                project_id: projectId,
+            },
+        })
             .then((res) => res.json())
             .then((data) => data as ListEnvironmentsResponse);
     }
 
     async createDeployment(environmentId: string, opts: CreateDeploymentRequest) {
         return this.post({
-            path: `/api/environments/${environmentId}/deployments`,
-            body: opts,
+            path: `/api/deployments`,
+            body: {
+                ...opts,
+                environment_id: environmentId,
+            },
         })
             .then((res) => res.json())
             .then((data) => data as ApiDeploymentOnCreate);

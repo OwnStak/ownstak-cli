@@ -10,9 +10,13 @@ export const BRAND = 'OwnStak';
 export const SUPPORT_URL = `https://ownstak.com/support`;
 
 export const CONSOLE_URL = 'https://console.ownstak.com';
-export const CONSOLE_API_URL = 'https://api.ownstak.com';
-export const CONSOLE_API_URL_DEV = 'https://dev.ownstak.com';
-export const CONSOLE_API_URL_STAGE = 'https://stage.ownstak.com';
+// TODO: eventually we will have a dedicated API hostname but the
+//       endpoints will also be different (no need for /api)
+//       In the meantime we keep using the console hostname,
+//       even when it starts proxy-ing to api it should be efficient.
+export const CONSOLE_API_URL = 'https://console.ownstak.com';
+export const CONSOLE_API_URL_DEV = 'https://console.dev.ownstak.com';
+export const CONSOLE_API_URL_STAGE = 'https://console.stage.ownstak.com';
 export const CONSOLE_API_URL_LOCAL = 'http://127.0.0.1:5173';
 
 export const INPUT_CONFIG_FILE = 'ownstak.config.js';
