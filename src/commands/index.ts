@@ -35,35 +35,19 @@ program
     .description('Build the app for production')
     .option('-s, --skip-framework-build', 'Skip the build of the framework and use existing build output')
     .option('--assets-dir <dir>', 'Optional directory with static assets to include in the build')
+    .option('--default-file <file>', 'The file to serve as default for not found routes. Defaults to 404.html')
+    .option('--default-status <status>', 'The status to serve as default for not found routes. Defaults to 404')
     .action((framework, options) => build({ framework, ...options }));
 
 program.command('dev').description('Start the project in development mode').action(dev);
 program.command('start').alias('run').description('Start the project in production mode').action(start);
 
 const withApiUrl = (command: Command) => {
-    command
-        .option('--dev', 'Set the API URL to the development instance')
-        .option('--stage', 'Set the API URL to the staging instance')
-        .option('--local', 'Set the API URL to the local instance');
-
-    return command.addOption(
-        new Option('--api-url <url>', 'The API URL to use')
-            .default(CONSOLE_API_URL, 'production API URL')
-            .argParser((value) => {
-                // If api-url is explicitly set by the user, use that value
-                if (value !== CONSOLE_API_URL) return value;
-
-                // Check if any environment flags are set
-                const opts = command.opts();
-                if (opts.dev) return CONSOLE_API_URL_DEV;
-                if (opts.stage) return CONSOLE_API_URL_STAGE;
-                if (opts.local) return CONSOLE_API_URL_LOCAL;
-
-                // Fall back to default
-                return CONSOLE_API_URL;
-            })
-            .hideHelp(),
-    );
+    return command
+        .addOption(new Option('--dev', 'Set the API URL to the development instance').hideHelp())
+        .addOption(new Option('--stage', 'Set the API URL to the staging instance').hideHelp())
+        .addOption(new Option('--local', 'Set the API URL to the local instance').hideHelp())
+        .addOption(new Option('--api-url <url>', 'The API URL to use').default(CONSOLE_API_URL, 'production API URL').hideHelp());
 };
 
 const withApiToken = (command: Command) => command.option('--api-token <token>', 'The API token to use');
@@ -111,6 +95,13 @@ export async function preAction(thisCommand: Command, actionCommand: Command) {
 
     const commandName = actionCommand.name();
     logger.drawTitle(commandName);
+
+    // Update the default api-url to the correct value based on the flags
+    const { dev, stage, local } = actionCommand.opts();
+    actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL);
+    if (dev) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_DEV);
+    if (stage) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_STAGE);
+    if (local) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_LOCAL);
 }
 
 export async function postAction(_thisCommand: Command, actionCommand: Command) {

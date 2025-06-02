@@ -1,10 +1,12 @@
 import { logger } from '../../logger.js';
-import { Config, FrameworkAdapter } from '../../config.js';
-import { BRAND, FRAMEWORKS, NAME, NAME_SHORT } from '../../constants.js';
+import { FrameworkAdapter } from '../../config.js';
+import { ASSETS_DIR_PATH, BRAND, FRAMEWORKS, NAME_SHORT, PERMANENT_ASSETS_DIR_PATH } from '../../constants.js';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import { spawn } from 'child_process';
 import { CliError } from '../../cliError.js';
+import { normalizePath } from '../../utils/pathUtils.js';
+import { existsSync } from 'fs';
 
 export const staticFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Static,
@@ -21,6 +23,47 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             }
 
             logger.info('Static project built successfully!');
+        },
+
+        'build:routes:finish': async ({ config }) => {
+            // Create fallback route with default file and status if specified
+            // NOTE: This allows to serve index.html with 200 status code for all paths in SPA applications
+            // and custom 404.html with 404 status code for not found paths in MPA applications such as Docusaurus.
+            const defaultNotFoundFile = '404.html';
+            const defaultFile = config.assets.defaultFile || config.permanentAssets.defaultFile || defaultNotFoundFile;
+            const defaultStatus = Number(config.assets.defaultStatus || config.permanentAssets.defaultStatus || 404);
+
+            const defaultFilePath = normalizePath(defaultFile);
+            const isAsset = existsSync(resolve(ASSETS_DIR_PATH, defaultFilePath));
+            const isPermanentAsset = existsSync(resolve(PERMANENT_ASSETS_DIR_PATH, defaultFilePath));
+
+            // Throw error if user specified default file that doesn't exist
+            if (defaultFile !== defaultNotFoundFile && !isAsset && !isPermanentAsset) {
+                throw new CliError(
+                    `The default file '${defaultFile}' was not found in the assets or permanent assets directory. Make sure the specified file path is relative to the --assets-dir and file exists.\r\n\r\n` +
+                        `For example to build SPA with index.html as default file and 200 status code for all paths, run: npx ${NAME_SHORT} build --assets-dir=dist --default-file=index.html --default-status=200`,
+                );
+            }
+
+            // Set correct action type based on the default file location
+            const actionType = isPermanentAsset ? 'servePersistentAsset' : 'serveAsset';
+            config.router.any(
+                [
+                    {
+                        type: actionType,
+                        path: defaultFilePath,
+                    },
+                    {
+                        type: 'setResponseStatus',
+                        statusCode: defaultStatus,
+                    },
+                ],
+                true,
+            );
+
+            logger.debug(`Default file: ${defaultFile}`);
+            logger.debug(`Default status: ${defaultStatus}`);
+            logger.debug(`Default action: ${actionType}`);
         },
 
         'dev:start': async () => {

@@ -270,6 +270,18 @@ export class Config {
         return this;
     }
 
+    setDefaultFile(defaultFile: string) {
+        this.assets.defaultFile = defaultFile;
+        this.permanentAssets.defaultFile = defaultFile;
+        return this;
+    }
+
+    setDefaultStatus(defaultStatus: number) {
+        this.assets.defaultStatus = defaultStatus;
+        this.permanentAssets.defaultStatus = defaultStatus;
+        return this;
+    }
+
     async startApp() {
         if (!this.app.entrypoint) {
             logger.debug('No app entrypoint was specified, skipping');
@@ -548,6 +560,20 @@ export interface AssetsConfig extends FilesConfig {
      * @default false
      */
     htmlToFolders?: boolean;
+
+    /**
+     * The default file to serve if no other route matches.
+     * For example set this to index.html to serve it for all paths
+     * in SPA applications.
+     * @default 404.html
+     */
+    defaultFile?: string;
+
+    /**
+     * The status code to serve if no other route matches.
+     * @default 404
+     */
+    defaultStatus?: number;
 }
 
 export interface AppConfig extends FilesConfig {

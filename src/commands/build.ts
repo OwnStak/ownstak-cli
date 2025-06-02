@@ -41,6 +41,9 @@ export interface BuildCommandOptions {
     framework?: Framework;
     skipFrameworkBuild?: boolean;
     assetsDir?: string;
+    permanentAssetsDir?: string;
+    defaultFile?: string;
+    defaultStatus?: number;
 }
 
 export async function build(options: BuildCommandOptions) {
@@ -78,6 +81,14 @@ export async function build(options: BuildCommandOptions) {
     // Add assets directory to config if specified
     if (options.assetsDir) {
         config.assets.include[`${options.assetsDir}`] = './';
+    }
+    // Add default file to config if specified
+    if (options.defaultFile) {
+        config.assets.defaultFile = options.defaultFile;
+    }
+    // Add default status to config if specified
+    if (options.defaultStatus) {
+        config.assets.defaultStatus = options.defaultStatus;
     }
 
     // Check if framework is supported

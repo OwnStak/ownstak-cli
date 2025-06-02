@@ -10,6 +10,7 @@ import { readFile } from 'fs/promises';
  * @example
  * \my\folder1\..\folder2 -> /my/folder2
  * /my//folder1 -> /my/folder1
+ * ./my/folder1 -> my/folder1
  */
 export function normalizePath(path: string) {
     return normalize(path).replace(/\\+/g, '/').replace(/\/\/+/g, '/');
