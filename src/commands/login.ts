@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import ConsoleClient from '../api/ConsoleClient.js';
 import { CliConfig } from '../cliConfig.js';
 import { CliError } from '../cliError.js';
-import { BRAND, CONSOLE_API_URL, CONSOLE_URL, NAME_SHORT } from '../constants.js';
+import { BRAND, CONSOLE_API_URL, CONSOLE_URL, NAME } from '../constants.js';
 import { logger, LogLevel } from '../logger.js';
 import os from 'os';
 
@@ -21,7 +21,7 @@ export async function login(options: LoginCommandOptions) {
         logger.info(`You're already logged in ${BRAND}`);
         logger.info(`API token: ${chalk.cyan(maskedExistingApiToken)}`);
         logger.info(`API URL: ${chalk.cyan(apiUrl)}`);
-        logger.info(chalk.gray(`If you want to login to a different account, please logout by running \`npx ${NAME_SHORT} logout\` first.`));
+        logger.info(chalk.gray(`If you want to login to a different account, please logout by running \`npx ${NAME} logout\` first.`));
         return;
     }
 

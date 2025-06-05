@@ -1,5 +1,5 @@
 import { existsSync } from 'fs';
-import { ASSETS_DIR_PATH, BRAND, BUILD_DIR_PATH, COMPUTE_DIR_PATH, NAME, NAME_SHORT, PERMANENT_ASSETS_DIR_PATH, PORT, PROXY_DIR_PATH } from '../constants.js';
+import { ASSETS_DIR_PATH, BRAND, BUILD_DIR_PATH, COMPUTE_DIR_PATH, NAME, PERMANENT_ASSETS_DIR_PATH, PORT, PROXY_DIR_PATH } from '../constants.js';
 import { resolve } from 'path';
 import { logger } from '../logger.js';
 import { stat, access } from 'fs/promises';
@@ -13,7 +13,7 @@ import { CliError } from '../cliError.js';
 
 export async function start() {
     if (!existsSync(BUILD_DIR_PATH)) {
-        throw new CliError(`The ${BRAND} project build does not exist. Please run \`npx ${NAME_SHORT} build\` first.`);
+        throw new CliError(`The ${BRAND} project build does not exist. Please run \`npx ${NAME} build\` first.`);
     }
 
     logger.info(`Starting ${BRAND} project...`);
@@ -66,7 +66,7 @@ export async function start() {
         return;
     }
 
-    throw new CliError(`Failed to start ${BRAND} project. Please try to run 'npx ${NAME_SHORT} build' again.`);
+    throw new CliError(`Failed to start ${BRAND} project. Please try to run 'npx ${NAME} build' again.`);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { logger } from '../../logger.js';
 import { FrameworkAdapter } from '../../config.js';
-import { ASSETS_DIR_PATH, BRAND, FRAMEWORKS, NAME_SHORT, PERMANENT_ASSETS_DIR_PATH } from '../../constants.js';
+import { ASSETS_DIR_PATH, BRAND, FRAMEWORKS, NAME, PERMANENT_ASSETS_DIR_PATH } from '../../constants.js';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import { spawn } from 'child_process';
@@ -17,8 +17,8 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
                 throw new CliError(
                     `Looks like you are trying to build static project without any assets. \r\n` +
                         `- Please specify the folder with static assets in the build command. \r\n` +
-                        `  For example: 'npx ${NAME_SHORT} build static --assets-dir ./assets'\r\n` +
-                        `- Or create custom ${BRAND} project config by running 'npx ${NAME_SHORT} config init'.`,
+                        `  For example: 'npx ${NAME} build static --assets-dir ./assets'\r\n` +
+                        `- Or create custom ${BRAND} project config by running 'npx ${NAME} config init'.`,
                 );
             }
 
@@ -41,7 +41,7 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             if (defaultFile !== defaultNotFoundFile && !isAsset && !isPermanentAsset) {
                 throw new CliError(
                     `The default file '${defaultFile}' was not found in the assets or permanent assets directory. Make sure the specified file path is relative to the --assets-dir and file exists.\r\n\r\n` +
-                        `For example to build SPA with index.html as default file and 200 status code for all paths, run: npx ${NAME_SHORT} build --assets-dir=dist --default-file=index.html --default-status=200`,
+                        `For example to build SPA with index.html as default file and 200 status code for all paths, run: npx ${NAME} build --assets-dir=dist --default-file=index.html --default-status=200`,
                 );
             }
 

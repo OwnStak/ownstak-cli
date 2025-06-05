@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { CliError } from '../cliError.js';
 import { Command, Option } from 'commander';
 import { logger, LogLevel } from '../logger.js';
-import { BRAND, CONSOLE_API_URL, CONSOLE_API_URL_DEV, CONSOLE_API_URL_STAGE, CONSOLE_API_URL_LOCAL, NAME, NAME_SHORT, SUPPORT_URL } from '../constants.js';
+import { BRAND, CONSOLE_API_URL, CONSOLE_API_URL_DEV, CONSOLE_API_URL_STAGE, CONSOLE_API_URL_LOCAL, NAME, SUPPORT_URL, DOCS_URL } from '../constants.js';
 
 import { build } from './build.js';
 import { dev } from './dev.js';
@@ -22,7 +22,7 @@ process.on('uncaughtException', handleException);
 // Use version and description from package.json
 const program = new Command()
     .name(NAME)
-    .description(`Build and deploy your project to ${BRAND}`)
+    .description(`Build and deploy your projects to ${BRAND} platform`)
     .version(CliConfig.getCurrentVersion(), '-v, --version')
     .addHelpText('beforeAll', () => `${logger.drawTitle('help') ?? ''}`)
     .helpOption('-h, --help', 'Display help for command')
@@ -77,10 +77,12 @@ program.addHelpText(
     'after',
     `
 Examples:
-  npx ${NAME_SHORT} build nextjs
-  npx ${NAME_SHORT} build astro
-  npx ${NAME_SHORT} config init
-  npx ${NAME_SHORT} config print
+  npx ${NAME} build nextjs
+  npx ${NAME} build astro
+  npx ${NAME} config init
+
+Documentation:
+  For more information and detailed guides, visit ${DOCS_URL}
 `,
 );
 

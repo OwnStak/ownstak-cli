@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 import { logger, LogLevel } from '../logger.js';
-import { BRAND, NAME, NAME_SHORT } from '../constants.js';
+import { BRAND, NAME } from '../constants.js';
 import { readFile, writeFile } from 'fs/promises';
 import { installDependencies } from '../utils/moduleUtils.js';
 import { CliError } from '../cliError.js';
@@ -96,7 +96,7 @@ export async function displayUpgradeNotice(currentVersion = CliConfig.getCurrent
             logger.drawTable(
                 [
                     `The new version ${upgradeVersion} of ${BRAND} CLI is available.`,
-                    `When you're ready to upgrade, run: ${chalk.cyan(`npx ${NAME_SHORT} upgrade ${upgradeVersion}`)}`,
+                    `When you're ready to upgrade, run: ${chalk.cyan(`npx ${NAME} upgrade ${upgradeVersion}`)}`,
                 ],
                 {
                     title: 'Upgrade available',

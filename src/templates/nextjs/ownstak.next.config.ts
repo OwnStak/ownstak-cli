@@ -10,7 +10,7 @@ const ownstakNextConfig = {
 };
 
 /**
- * This is TS Next config wrapper added by the @ownstak/cli.
+ * This is TS Next config wrapper added by the ownstak.
  * It injects additional config into the user's next.config.ts file.
  *
  * DON'T DELETE THIS FILE UNTIL THE BUILD FINISHES.

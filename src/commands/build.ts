@@ -18,7 +18,6 @@ import {
     CACHE_CONTROL_CONFIG,
     HEADERS,
     BUILD_DIR,
-    NAME_SHORT,
     ASSETS_MANIFEST_FILE_PATH,
     PERMANENT_ASSETS_MANIFEST_FILE_PATH,
     INTERNAL_PATH_PREFIX,
@@ -102,8 +101,8 @@ export async function build(options: BuildCommandOptions) {
                 `\r\n\r\n` +
                 `Please try the following steps to resolve this issue:\r\n` +
                 `- Check the framework name first\r\n` +
-                `- If you don't know which framework to use, just run 'npx ${NAME_SHORT} build' and let ${BRAND} detect the framework for you.\r\n` +
-                `- If don't see your framework in the list, try to upgrade ${BRAND} CLI to the latest version first by running 'npx ${NAME_SHORT} upgrade'.`,
+                `- If you don't know which framework to use, just run 'npx ${NAME} build' and let ${BRAND} detect the framework for you.\r\n` +
+                `- If don't see your framework in the list, try to upgrade ${BRAND} CLI to the latest version first by running 'npx ${NAME} upgrade'.`,
         );
     }
 
@@ -116,7 +115,7 @@ export async function build(options: BuildCommandOptions) {
                     .map((adapter) => `- ${adapter.name}`)
                     .join('\r\n') +
                 `\r\n\r\n` +
-                `If you would like to deploy just folder with static assets, please run 'npx ${NAME_SHORT} build static'.`,
+                `If you would like to deploy just folder with static assets, please run 'npx ${NAME} build static'.`,
         );
     }
 
@@ -359,8 +358,8 @@ export async function build(options: BuildCommandOptions) {
     logger.info('');
     logger.drawTable(
         [
-            `Run ${chalk.cyan(`npx ${NAME_SHORT} start`)} to test your project locally.`,
-            `When you're ready, run ${chalk.cyan(`npx ${NAME_SHORT} deploy`)} to deploy to ${BRAND}.`,
+            `Run ${chalk.cyan(`npx ${NAME} start`)} to test your project locally.`,
+            `When you're ready, run ${chalk.cyan(`npx ${NAME} deploy`)} to deploy to ${BRAND}.`,
         ],
         {
             title: "What's Next",

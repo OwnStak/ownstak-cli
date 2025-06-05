@@ -1,6 +1,6 @@
-# @ownstak/cli
+# OwnStak CLI
 
-The **@ownstak/cli** is an useful tool that allows users to build, deploy, and manage their projects on the Ownstak platform.
+The **OwnStak CLI** is an useful tool that allows users to build, deploy, and manage their projects on the Ownstak platform.
 With a focus on simplicity and efficiency, this CLI provides a seamless experience for developers.
 
 ## Requirements
@@ -22,9 +22,9 @@ npm i
 ## Development
 
 To start local development, simply run `npm run dev`. This command will build the package and publish it in the local store using `npm link`.
-Every time any file in the `src/` directory is changed, `nodemon` rebuilds the package.
+Every time any file in the `src/` directory is changed, `chokidar` rebuilds the package.
 
-You can test the package locally in a different project by running the `npm link @ownstak/cli` command.
+You can test the package locally in a different project by running the `npm link ownstak` command.
 
 For example, to test the package locally before publishing with a Next.js project, follow these steps:
 
@@ -32,7 +32,7 @@ For example, to test the package locally before publishing with a Next.js projec
 npx create-next-app@latest
 cd my-app
 npm i
-npm link @ownstak/cli
+npm link ownstak
 ```
 
 Then you can run:
@@ -41,15 +41,13 @@ Then you can run:
 npx ownstak build
 ```
 
-Following aliases work too:
+Following alias works too:
 
 ```bash
-npx @ownstak/cli
 npx ownstak-cli
-npx ownstak
 ```
 
-NOTE: Keep in mind that running `npm install` inside the Next.js project after `npm link @ownstak/cli` command will again override your local version with the version from NPM.
+NOTE: Keep in mind that running `npm install` inside the Next.js project after `npm link ownstak` command will again override your local version with the version from NPM.
 
 ## Stable release
 
@@ -58,7 +56,7 @@ After the release is created, the GitHub Actions will build the CLI and publish 
 
 Steps to release a new version:
 
-1. Create a new release in the [Releases](https://github.com/ownstak-org/ownstak-proxy/releases/new) page or use existing release draft.
+1. Create a new release in the [Releases](https://github.com/ownstak/ownstak-cli/releases/new) page or use existing release draft.
 2. Create a new tag with the corresponding version. The current release candidate version can be found in the `package.json` file under `version` property but the release pipeline will use the version from the tag.
 3. The tag name should be in the format of `v{version}`. For example, `v1.0.1`. Then click on `Create new tag` button.
 4. Set the release title to same name as the tag. e.g: `v1.0.1`

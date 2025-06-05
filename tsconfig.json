@@ -14,8 +14,8 @@
         "resolveJsonModule": true,
         "baseUrl": ".",
         "paths": {
-            "@ownstak/cli": ["src/index.ts"],
-            "@ownstak/cli/*": ["src/*"]
+            "ownstak": ["src/index.ts"],
+            "ownstak/*": ["src/*"]
         }
     },
     "include": ["src"],

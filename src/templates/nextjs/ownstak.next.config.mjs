@@ -9,7 +9,7 @@ const ownstakNextConfig = {
 };
 
 /**
- * This is MJS Next config wrapper added by the @ownstak/cli.
+ * This is MJS Next config wrapper added by the ownstak.
  * It injects additional config into the user's next.config.ts file.
  *
  * DON'T DELETE THIS FILE UNTIL THE BUILD FINISHES.

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { BRAND, NAME_SHORT } from './constants.js';
+import { BRAND, NAME } from './constants.js';
 import { CliConfig } from './cliConfig.js';
 
 /**
@@ -268,7 +268,7 @@ class Logger {
      * Show a styled command example
      */
     public command(command: string, description?: string): void {
-        const formattedCommand = `${chalk.cyan(NAME_SHORT)} ${chalk.bold(command)}`;
+        const formattedCommand = `${chalk.cyan(NAME)} ${chalk.bold(command)}`;
         if (description) {
             this.info(`${formattedCommand} - ${description}`);
         } else {

@@ -1,7 +1,7 @@
 import { Request } from '../router/request.js';
 import { Response } from '../router/response.js';
 import { Config } from '../../config.js';
-import { PORT, BRAND, HOST, NAME_SHORT } from '../../constants.js';
+import { PORT, BRAND, HOST, NAME } from '../../constants.js';
 import http from 'http';
 import { logger, LogLevel } from '../../logger.js';
 import chalk from 'chalk';

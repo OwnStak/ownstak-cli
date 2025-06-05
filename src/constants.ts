@@ -2,12 +2,12 @@ import os from 'os';
 import { normalizePath } from './utils/pathUtils.js';
 import { resolve } from 'path';
 
-export const NAME = '@ownstak/cli';
-export const NAME_SHORT = 'ownstak';
-export const DESCRIPTION = 'OwnStak CLI';
+export const NAME = 'ownstak';
+export const DESCRIPTION = 'The command line interface for OwnStak platform';
 
 export const BRAND = 'OwnStak';
 export const SUPPORT_URL = `https://ownstak.com/support`;
+export const DOCS_URL = `https://docs.ownstak.com`;
 
 export const CONSOLE_URL = 'https://console.ownstak.com';
 // TODO: eventually we will have a dedicated API hostname but the
@@ -135,5 +135,5 @@ export const HEADERS = {
 export const CACHE_CONTROL_CONFIG = {
     prerenderedPages: `public, max-age=0, s-maxage=3600`, // cache pre-rendered pages for 1 hour by the CDN and never in the browser
     assets: `public, max-age=3600, s-maxage=31536000`, // cache assets for 1 hour in the browser and 1 year by the CDN
-    permanentAssets: `public, max-age=86400, s-maxage=31536000, immutable`, // cache persistent assets for 1 day in the browser and 1 year by the CDN
+    permanentAssets: `public, max-age=86400, s-maxage=31536000, immutable`, // cache permanent assets for 1 day in the browser and 1 year by the CDN
 } as const;

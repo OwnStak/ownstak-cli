@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { stat, unlink } from 'fs/promises';
 import { logger, LogLevel } from '../logger.js';
-import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_URL, DEBUG_DIR, NAME_SHORT, PERMANENT_ASSETS_DIR } from '../constants.js';
+import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_URL, DEBUG_DIR, NAME, PERMANENT_ASSETS_DIR } from '../constants.js';
 import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
@@ -22,14 +22,14 @@ export async function deploy(options: DeployCommandOptions) {
     logger.info(`Let's bring your project to life!`);
 
     if (!existsSync(BUILD_DIR_PATH)) {
-        throw new CliError(`The project build does not exist. Please run \`npx ${NAME_SHORT} build\` first.`);
+        throw new CliError(`The project build does not exist. Please run \`npx ${NAME} build\` first.`);
     }
 
     const config = await Config.loadFromBuild();
     const currentCliVersion = CliConfig.getCurrentVersion();
     if (config.cliVersion !== currentCliVersion) {
         throw new CliError(
-            `The project was built with different version of ${BRAND} CLI (${config.cliVersion}). Please run \`npx ${NAME_SHORT} build\` and re-build your project with the current CLI version ${currentCliVersion} before deploying. `,
+            `The project was built with different version of ${BRAND} CLI (${config.cliVersion}). Please run \`npx ${NAME} build\` and re-build your project with the current CLI version ${currentCliVersion} before deploying. `,
         );
     }
 
@@ -37,8 +37,8 @@ export async function deploy(options: DeployCommandOptions) {
     const apiToken = options.apiToken || cliConfig.getToken(options.apiUrl);
     if (!apiToken) {
         throw new CliError(
-            `Something is missing here... The CLI cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings and pass it to deploy command or login on this machine using \`npx ${NAME_SHORT} login. ` +
-                `Example: npx ${NAME_SHORT} deploy --api-token <token>`,
+            `Something is missing here... The CLI cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings and pass it to deploy command or login on this machine using \`npx ${NAME} login. ` +
+                `Example: npx ${NAME} deploy --api-token <token>`,
         );
     }
 
@@ -54,7 +54,7 @@ export async function deploy(options: DeployCommandOptions) {
     if (!organizationSlug) {
         throw new CliError(
             `Something is missing here... The CLI cannot deploy without an --organization option. Please pass it to deploy command or set the organization property in the ownstak.config.js file. ` +
-                `Example: npx ${NAME_SHORT} deploy --organization <organization> --project <project> --environment <environment> --api-token <token>`,
+                `Example: npx ${NAME} deploy --organization <organization> --project <project> --environment <environment> --api-token <token>`,
         );
     }
 
