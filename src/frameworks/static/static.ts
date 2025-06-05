@@ -46,7 +46,7 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             }
 
             // Set correct action type based on the default file location
-            const actionType = isPermanentAsset ? 'servePersistentAsset' : 'serveAsset';
+            const actionType = isPermanentAsset ? 'servePermanentAsset' : 'serveAsset';
             config.router.any(
                 [
                     {

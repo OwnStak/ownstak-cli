@@ -19,7 +19,7 @@ import {
     Rewrite,
     Proxy,
     ServeAsset,
-    ServePersistentAsset,
+    ServePermanentAsset,
     isEchoAction,
     isImageOptimizerAction,
     isAddResponseHeaderAction,
@@ -28,7 +28,7 @@ import {
     isSetResponseHeaderAction,
     isSetRequestHeaderAction,
     isServeAssetAction,
-    isServePersistentAssetAction,
+    isServePermanentAssetAction,
     isServeAppAction,
     isRewriteAction,
     isRedirectAction,
@@ -293,8 +293,8 @@ export class Router {
         if (isServeAssetAction(action)) {
             return this.executeServeAsset(action, request, response);
         }
-        if (isServePersistentAssetAction(action)) {
-            return this.executeServePersistentAsset(action, request, response);
+        if (isServePermanentAssetAction(action)) {
+            return this.executeServePermanentAsset(action, request, response);
         }
         if (isServeAppAction(action)) {
             return this.executeServeApp(request, response);
@@ -721,7 +721,7 @@ export class Router {
      * @param response The response to serve the asset on.
      * @private
      */
-    async executeServeAsset(action: ServeAsset | ServePersistentAsset, request: Request, response: Response, bucketUrl: string = ASSETS_URL): Promise<void> {
+    async executeServeAsset(action: ServeAsset | ServePermanentAsset, request: Request, response: Response, bucketUrl: string = ASSETS_URL): Promise<void> {
         let assetPath = action.path || request.path;
 
         // If path doesn't end with a file extension, add index.html to it
@@ -765,13 +765,13 @@ export class Router {
     }
 
     /**
-     * Executes a serve persistent asset action.
+     * Executes a serve permanent asset action.
      * @param action The action to execute.
      * @param request The request to serve the asset on.
      * @param response The response to serve the asset on.
      * @private
      */
-    async executeServePersistentAsset(action: ServePersistentAsset, request: Request, response: Response): Promise<void> {
+    async executeServePermanentAsset(action: ServePermanentAsset, request: Request, response: Response): Promise<void> {
         return this.executeServeAsset(action, request, response, PERMANENT_ASSETS_URL);
     }
 

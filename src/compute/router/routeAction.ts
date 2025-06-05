@@ -82,8 +82,8 @@ export interface ServeAsset extends BaseRouteAction {
     revalidate?: number;
 }
 
-export interface ServePersistentAsset extends BaseRouteAction {
-    type: 'servePersistentAsset';
+export interface ServePermanentAsset extends BaseRouteAction {
+    type: 'servePermanentAsset';
     path?: string;
 }
 
@@ -109,7 +109,7 @@ export type RouteAction = BaseRouteAction &
         | AddResponseHeader
         | AddRequestHeader
         | ServeAsset
-        | ServePersistentAsset
+        | ServePermanentAsset
         | ServeApp
         | Redirect
         | Rewrite
@@ -136,8 +136,8 @@ export function isServeAssetAction(action: RouteAction): action is ServeAsset {
     return action.type === 'serveAsset';
 }
 
-export function isServePersistentAssetAction(action: RouteAction): action is ServePersistentAsset {
-    return action.type === 'servePersistentAsset';
+export function isServePermanentAssetAction(action: RouteAction): action is ServePermanentAsset {
+    return action.type === 'servePermanentAsset';
 }
 
 export function isSetResponseHeaderAction(action: RouteAction): action is SetResponseHeader {

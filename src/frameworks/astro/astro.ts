@@ -126,7 +126,7 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
             config.assets.include[clientOutputDir] = `./`;
             config.assets.include[`./_astro`] = false;
 
-            // Configure persistent assets
+            // Configure permanent assets
             config.permanentAssets.include[join(clientOutputDir, '_astro')] = `./_astro`;
 
             if (outputMode === 'static') {

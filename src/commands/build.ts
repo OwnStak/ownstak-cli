@@ -265,7 +265,7 @@ export async function build(options: BuildCommandOptions) {
         },
         [
             {
-                type: 'servePersistentAsset',
+                type: 'servePermanentAsset',
             },
             {
                 type: 'setDefaultResponseHeader',

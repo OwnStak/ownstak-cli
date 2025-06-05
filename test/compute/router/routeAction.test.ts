@@ -32,9 +32,9 @@ describe('Router - Route Actions', () => {
             } else if (req.url === '/assets/image.png') {
                 res.writeHead(200, { 'Content-Type': 'image/png' });
                 res.end('Image content');
-            } else if (req.url === '/persistent/image.png') {
+            } else if (req.url === '/permanent/image.png') {
                 res.writeHead(200, { 'Content-Type': 'image/png' });
-                res.end('Persistent image content');
+                res.end('Permanent image content');
             } else if (req.url === '/app') {
                 res.writeHead(200, { 'Content-Type': 'text/html', 'x-app': 'served' });
                 res.end('<html><body>App content</body></html>');
@@ -492,11 +492,11 @@ describe('Router - Route Actions', () => {
         expect(response.body?.toString()).toBe('Image content');
     });
 
-    it('should execute servePersistentAsset action with proxy locally', async () => {
+    it('should execute servePermanentAsset action with proxy locally', async () => {
         router.get('/test', [
             {
-                type: 'servePersistentAsset',
-                path: '/persistent/image.png',
+                type: 'servePermanentAsset',
+                path: '/permanent/image.png',
             },
         ]);
 
@@ -504,14 +504,14 @@ describe('Router - Route Actions', () => {
         const response = new Response();
         await router.execute(request, response);
         expect(response.getHeader('content-type')).toBe('image/png');
-        expect(response.body?.toString()).toBe('Persistent image content');
+        expect(response.body?.toString()).toBe('Permanent image content');
     });
 
     it('should execute serveAsset action with follow-redirect behind proxy', async () => {
         router.get('/test', [
             {
-                type: 'servePersistentAsset',
-                path: '/persistent/image.png',
+                type: 'servePermanentAsset',
+                path: '/permanent/image.png',
             },
         ]);
         const request = new Request(`http://example.com/test`, {
@@ -523,7 +523,7 @@ describe('Router - Route Actions', () => {
         const response = new Response();
         await router.execute(request, response);
         expect(response.statusCode).toBe(301);
-        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/persistent/image.png`);
+        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/permanent/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
     });
 

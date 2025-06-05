@@ -123,7 +123,7 @@ export interface ConfigOptions {
     assets?: AssetsConfig;
 
     /**
-     * The persistent assets config for the project.
+     * The permanent assets config for the project.
      * The include keys can contain files, directories or glob patterns. The values can be:
      * - true - to include and serve all files under same path as in the source folder.
      * - false - to exclude a specific file or all files.
@@ -250,7 +250,7 @@ export class Config {
         return this;
     }
 
-    includePersistentAsset(path: string, destination?: string) {
+    includePermanentAsset(path: string, destination?: string) {
         this.permanentAssets.include[path] = destination ?? true;
         return this;
     }

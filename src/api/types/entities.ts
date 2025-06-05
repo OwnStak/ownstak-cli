@@ -23,6 +23,7 @@ export type ApiDeploymentOnCreate = ApiDeployment & {
         compute: string;
         assets: string;
         permanent_assets: string;
+        debug: string;
     };
 };
 
