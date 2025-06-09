@@ -6,7 +6,7 @@ import net from 'net';
  * @param port - The port to check
  * @param skipNext - The number of ports to skip when searching for an unused port
  */
-export async function getNearestFreePort(port: number, skipNext = 1000): Promise<number | undefined> {
+export async function getNearestFreePort(port: number, skipNext = 100): Promise<number | undefined> {
     if (port > 65535) return undefined;
     const freePort = await isPortFree(port);
     return freePort ? port : getNearestFreePort(port + skipNext);

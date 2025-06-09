@@ -19,11 +19,11 @@ export async function start() {
     logger.info(`Starting ${BRAND} project...`);
 
     // By default, we listen on 3000 port and all other apps 3001, 3002, etc...
-    // If there's a port conflict, we'll try to find the nearest unused port and move to that one (4000, 5000, etc...)
+    // If there's a port conflict, we'll try to find the nearest unused port and move to that one
     const freeMainPort = (await getNearestFreePort(PORT)) || PORT;
-    const freeAssetsPort = (await getNearestFreePort(freeMainPort + 1)) || freeMainPort + 1;
-    const freepermanentAssetsPort = (await getNearestFreePort(freeMainPort + 2)) || freeMainPort + 2;
-    const freeAppPort = (await getNearestFreePort(freeMainPort + 100)) || freeMainPort + 100;
+    const freeAppPort = (await getNearestFreePort(freeMainPort + 1)) || freeMainPort + 1;
+    const freeAssetsPort = (await getNearestFreePort(freeMainPort + 2)) || freeMainPort + 2;
+    const freepermanentAssetsPort = (await getNearestFreePort(freeMainPort + 3)) || freeMainPort + 3;
 
     // Set env vars before starting the compute server
     process.env.LOCAL = 'true';

@@ -523,7 +523,7 @@ describe('Router - Route Actions', () => {
         const response = new Response();
         await router.execute(request, response);
         expect(response.statusCode).toBe(301);
-        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/permanent/image.png`);
+        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3003/permanent/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
     });
 
@@ -543,7 +543,7 @@ describe('Router - Route Actions', () => {
         const response = new Response();
         await router.execute(request, response);
         expect(response.statusCode).toBe(301);
-        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3001/assets/image.png`);
+        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
     });
 
@@ -578,7 +578,7 @@ describe('Router - Route Actions', () => {
         const response = new Response();
         await router.execute(request, response);
         expect(response.statusCode).toBe(301);
-        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3001/asset/image.png`);
+        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/asset/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
     });
 

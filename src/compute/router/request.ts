@@ -9,6 +9,7 @@ export interface RequestOptions {
     host?: string;
     protocol?: string;
     port?: number;
+    remoteAddress?: string;
     method?: string;
     headers?: Record<string, string | string[]>;
     body?: string | Buffer;
@@ -26,7 +27,7 @@ export class Request {
     params: Record<string, string | string[]> = {};
     _cookies?: Record<string, string | string[]>;
     _pathExtension?: string;
-
+    remoteAddress?: string;
     originalEvent?: Event;
     originalNodeRequest?: http.IncomingMessage;
 
@@ -34,6 +35,7 @@ export class Request {
         this.url = url ? new URL(url) : new URL('https://127.0.0.1');
         this.host = options.host || this.url.host;
         this.protocol = options.protocol || this.url.protocol.replace(':', '');
+        this.remoteAddress = options.remoteAddress || '127.0.0.1';
         Object.assign(this, options);
         this.setHeaders(options.headers || {});
     }
@@ -42,15 +44,25 @@ export class Request {
         const request = new Request();
         if (isProxyRequestEvent(event)) {
             request.originalEvent = event;
-            request.host = event.headers[HEADERS.XForwardedHost]?.toString()?.split(',')?.[0] || event.headers.host || 'localhost';
+            // Make sure all header keys are normalized to lowercase
+            request.headers = Object.fromEntries(Object.entries(event.headers).map(([key, value]) => [key.toLowerCase(), value]));
+
+            request.host = request.headers[HEADERS.XForwardedHost]?.toString()?.split(',')?.[0] || request.headers.host?.toString() || 'localhost';
             request.protocol =
-                event.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (event.requestContext.http.protocol.toLowerCase() as 'http' | 'https');
-            request.port = Number(event.headers[HEADERS.XForwardedPort]) || (request.protocol === 'https' ? 443 : 80);
+                request.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (event.requestContext.http.protocol.toLowerCase() as 'http' | 'https');
+            request.remoteAddress = event.requestContext.http.sourceIp || request.headers[HEADERS.XForwardedFor]?.toString()?.split(',')[0] || '127.0.0.1';
+            request.port = Number(request.headers[HEADERS.XForwardedPort]) || (request.protocol === 'https' ? 443 : 80);
             request.url = new URL(`${request.protocol}://${request.host}${event.rawPath}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`);
             request.path = event.rawPath;
             request.method = event.requestContext.http.method;
-            request.headers = Object.fromEntries(Object.entries(event.headers).map(([key, value]) => [key.toLowerCase(), value]));
             request.body = event.body ? Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf-8') : undefined;
+
+            // Make sure host and x-forwarded-* headers are in sync
+            request.setHeader(HEADERS.Host, request.host);
+            request.setHeader(HEADERS.XForwardedHost, request.getHeader(HEADERS.XForwardedHost) || request.host);
+            request.setHeader(HEADERS.XForwardedProto, request.getHeader(HEADERS.XForwardedProto) || request.protocol);
+            request.setHeader(HEADERS.XForwardedPort, request.getHeader(HEADERS.XForwardedPort) || request.port.toString());
+            request.setHeader(HEADERS.XForwardedFor, request.getHeader(HEADERS.XForwardedFor) || request.remoteAddress);
         } else {
             throw new Error('Received unsupported event type');
         }
@@ -62,12 +74,22 @@ export class Request {
         const request = new Request();
         const isEncrypted = (nodeRequest.socket as any).encrypted;
         request.originalNodeRequest = nodeRequest;
-        request.host = nodeRequest.headers[HEADERS.XForwardedHost]?.toString()?.split(',')[0] || nodeRequest.headers.host || 'localhost';
-        request.protocol = nodeRequest.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (isEncrypted ? 'https' : 'http');
+        // Make sure all header keys are normalized to lowercase
+        request.headers = Object.fromEntries(Object.entries(nodeRequest.headers).map(([key, value]) => [key.toLowerCase(), value as string | string[]]));
+
+        request.host = request.headers[HEADERS.XForwardedHost]?.toString()?.split(',')[0] || request.headers.host?.toString() || 'localhost';
+        request.protocol = request.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (isEncrypted ? 'https' : 'http');
+        request.remoteAddress = request.headers[HEADERS.XForwardedFor]?.toString()?.split(',')[0] || nodeRequest.socket.remoteAddress || '127.0.0.1';
         request.port = nodeRequest.socket.localPort || (request.protocol === 'https' ? 443 : 80);
         request.url = new URL(`${request.protocol}://${request.host}${nodeRequest.url}`);
         request.method = nodeRequest.method || 'GET';
-        request.headers = Object.fromEntries(Object.entries(nodeRequest.headers).map(([key, value]) => [key.toLowerCase(), value as string | string[]]));
+
+        // Make sure host and x-forwarded-* headers are in sync
+        request.setHeader(HEADERS.Host, request.host);
+        request.setHeader(HEADERS.XForwardedHost, request.getHeader(HEADERS.XForwardedHost) || request.host);
+        request.setHeader(HEADERS.XForwardedProto, request.getHeader(HEADERS.XForwardedProto) || request.protocol);
+        request.setHeader(HEADERS.XForwardedPort, request.getHeader(HEADERS.XForwardedPort) || request.port.toString());
+        request.setHeader(HEADERS.XForwardedFor, request.getHeader(HEADERS.XForwardedFor) || request.remoteAddress);
 
         // Read body from request
         const chunks: Buffer[] = [];

@@ -52,9 +52,9 @@ export const PERMANENT_ASSETS_MANIFEST_FILE_PATH = normalizePath(resolve(COMPUTE
 // The CLI will try to find the nearest free port if the specified port is already in use.
 export const HOST = process.env.HOST || '0.0.0.0';
 export const PORT = Number(process.env.PORT || 3000);
-export const ASSETS_PORT = Number(process.env.ASSETS_PORT || PORT + 1);
-export const PERMANENT_ASSETS_PORT = Number(process.env.PERMANENT_ASSETS_PORT || PORT + 2);
-export const APP_PORT = Number(process.env.APP_PORT || PORT + 100);
+export const APP_PORT = Number(process.env.APP_PORT || PORT + 1);
+export const ASSETS_PORT = Number(process.env.ASSETS_PORT || PORT + 2);
+export const PERMANENT_ASSETS_PORT = Number(process.env.PERMANENT_ASSETS_PORT || PORT + 3);
 
 // Default URLs for our proxy
 // These should be provided as ENV variables to lambda:
@@ -102,6 +102,9 @@ export const DEFAULT_ENVIRONMENT = 'default';
 // For example: /__ownstak__/health, /__ownstak__/image etc...
 // This needs to be in sync with ownstak-proxy
 export const INTERNAL_PATH_PREFIX = '/__ownstak__';
+
+// Header keys for quick access
+// All needs to be normalized to lowercase here
 export const HEADERS = {
     Host: 'host',
     Cookie: 'cookie',
@@ -120,6 +123,7 @@ export const HEADERS = {
 
     // Custom headers
     // Below headers needs to be in sync with ownstak-proxy
+    // See: https://github.com/OwnStak/ownstak-proxy/blob/main/src/server/headers.go
     XOwnProxy: 'x-own-proxy',
     XOwnProxyVersion: 'x-own-proxy-version',
     XOwnFollowRedirect: 'x-own-follow-redirect',

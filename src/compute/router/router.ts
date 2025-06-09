@@ -52,6 +52,7 @@ export class Router {
      */
     get(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('GET', condition, actions, done);
+        return this;
     }
 
     /**
@@ -62,6 +63,7 @@ export class Router {
      */
     post(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('POST', condition, actions, done);
+        return this;
     }
 
     /**
@@ -72,6 +74,7 @@ export class Router {
      */
     put(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('PUT', condition, actions, done);
+        return this;
     }
 
     /**
@@ -82,6 +85,7 @@ export class Router {
      */
     delete(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('DELETE', condition, actions, done);
+        return this;
     }
 
     /**
@@ -92,6 +96,7 @@ export class Router {
      */
     patch(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('PATCH', condition, actions, done);
+        return this;
     }
 
     /**
@@ -102,6 +107,7 @@ export class Router {
      */
     options(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('OPTIONS', condition, actions, done);
+        return this;
     }
 
     /**
@@ -112,6 +118,7 @@ export class Router {
      */
     head(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal('HEAD', condition, actions, done);
+        return this;
     }
 
     /**
@@ -122,6 +129,7 @@ export class Router {
      */
     match(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, condition, actions, done);
+        return this;
     }
 
     /**
@@ -131,6 +139,7 @@ export class Router {
      */
     any(actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, {}, actions, done);
+        return this;
     }
 
     /**
@@ -155,6 +164,7 @@ export class Router {
      */
     addRoute(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, condition, actions, done);
+        return this;
     }
 
     /**
@@ -173,6 +183,7 @@ export class Router {
      */
     addRouteFront(condition: RouteCondition | string, actions: RouteAction[], done: boolean = false) {
         this.addRouteInternal(undefined, condition, actions, done, true);
+        return this;
     }
 
     /**
@@ -207,6 +218,7 @@ export class Router {
         } else {
             this.routes.push({ condition, actions, done });
         }
+        return this;
     }
 
     /**

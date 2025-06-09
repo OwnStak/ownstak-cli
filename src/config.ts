@@ -425,7 +425,7 @@ export class Config {
         // Do not use instanceof Config here, because it doesn't work with bundled files.
         const configModule = mod?.default?.default || mod?.default || new Config();
         if (configModule.toString() != new Config().toString()) {
-            const exampleConfigFilePath = resolve(__dirname, '../templates/config/ownstak.config.js');
+            const exampleConfigFilePath = resolve(__dirname, 'templates', 'config', 'ownstak.config.js');
             const exampleConfig = await readFile(exampleConfigFilePath, 'utf8');
             logger.error(
                 `The ${BRAND} config file format was not recognized. Make sure the '${relativeConfigFilePath}' file exports instance of the Config class as default.`,

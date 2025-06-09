@@ -6,6 +6,7 @@ import http from 'http';
 class MockSocket extends EventEmitter {
     encrypted = false;
     localPort = 8080;
+    remoteAddress?: string;
 }
 
 class MockTLSSocket extends MockSocket {
@@ -14,7 +15,7 @@ class MockTLSSocket extends MockSocket {
 
 describe('Request', () => {
     describe('initialization', () => {
-        it('should initialize with minimal valid options', () => {
+        it('should initialize with minimal options', () => {
             const request = new Request('http://example.com/path', {
                 method: 'GET',
             });
@@ -344,10 +345,6 @@ describe('Request', () => {
 
     describe('fromEvent', () => {
         it('should create a request from raw proxy event', () => {
-            // NOTE: This test is skipped because we can't easily mock the
-            // isProxyRequestEvent function without importing jest.mock
-
-            // In a real test environment, you would create a ProxyRequestEvent like this:
             const event: ProxyRequestEvent = {
                 version: '2.0',
                 headers: {
@@ -383,10 +380,6 @@ describe('Request', () => {
         });
 
         it('should create a request from base64 encoded proxy event', () => {
-            // NOTE: This test is skipped because we can't easily mock the
-            // isProxyRequestEvent function without importing jest.mock
-
-            // In a real test environment, you would create a ProxyRequestEvent like this:
             const event: ProxyRequestEvent = {
                 version: '2.0',
                 headers: {
@@ -419,6 +412,514 @@ describe('Request', () => {
             expect(request.getQuery('id')).toBe('123');
             expect(request.getHeader('content-type')).toBe('application/json');
             expect(request.body?.toString()).toEqual(JSON.stringify({ test: 'data' }));
+        });
+
+        it('should use values from x-forwarded-* headers when provided', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                    'x-forwarded-proto': 'https',
+                    'x-forwarded-host': 'original-host.com',
+                    'x-forwarded-port': '8443',
+                    'x-forwarded-for': '10.0.0.1, 192.168.1.100',
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Test that all x-forwarded headers are preserved
+            expect(request.getHeader('x-forwarded-proto')).toBe('https');
+            expect(request.getHeader('x-forwarded-host')).toBe('original-host.com');
+            expect(request.getHeader('x-forwarded-port')).toBe('8443');
+            expect(request.getHeader('x-forwarded-for')).toBe('10.0.0.1, 192.168.1.100');
+        });
+
+        it('should auto-populate missing x-forwarded-* header values from event properties or defaults', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                    // Missing all x-forwarded headers
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Test that missing x-forwarded headers are auto-populated
+            expect(request.getHeader('x-forwarded-proto')).toBe('https'); // from request.protocol
+            expect(request.getHeader('x-forwarded-host')).toBe('api.example.com'); // from request.host
+            expect(request.getHeader('x-forwarded-port')).toBe('443'); // from HTTPS default port
+            expect(request.getHeader('x-forwarded-for')).toBe('192.168.1.1');
+        });
+
+        it('should correctly x-forwarded-* headers with comma-separated values', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                    'x-forwarded-host': 'original-host.com, proxy1.com, proxy2.com',
+                    'x-forwarded-proto': 'https, http',
+                    'x-forwarded-port': '443, 80',
+                    'x-forwarded-for': '10.0.0.1, 192.168.1.100',
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+            expect(request.getHeader('x-forwarded-host')).toBe('original-host.com, proxy1.com, proxy2.com');
+            expect(request.getHeader('x-forwarded-proto')).toBe('https, http');
+            expect(request.getHeader('x-forwarded-port')).toBe('443, 80');
+            expect(request.getHeader('x-forwarded-for')).toBe('10.0.0.1, 192.168.1.100');
+        });
+
+        it('should set host header to original host header from x-forwarded-host header', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                    'x-forwarded-host': 'original-host.com, proxy1.com, proxy2.com',
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            expect(request.host).toBe('original-host.com');
+            expect(request.getHeader('host')).toBe('original-host.com');
+            expect(request.getHeader('x-forwarded-host')).toBe('original-host.com, proxy1.com, proxy2.com');
+        });
+
+        it('should correctly parse query parameters from rawQueryString', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                },
+                rawPath: '/api/search',
+                rawQueryString: 'q=test&page=2&sort=asc&category=books',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/search',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            expect(request.getQuery('q')).toBe('test');
+            expect(request.getQuery('page')).toBe('2');
+            expect(request.getQuery('sort')).toBe('asc');
+            expect(request.getQuery('category')).toBe('books');
+            expect(request.url.toString()).toBe('https://api.example.com/api/search?q=test&page=2&sort=asc&category=books');
+        });
+
+        it('should handle duplicate query parameters from rawQueryString', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                },
+                rawPath: '/api/products',
+                rawQueryString: 'tag=new&tag=sale&tag=featured&category=books',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/products',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            expect(request.getQuery('tag')).toBe('new'); // First value
+            expect(request.getQueryArray('tag')).toEqual(['new', 'sale', 'featured']);
+            expect(request.getQuery('category')).toBe('books');
+            expect(request.getQueryArray('category')).toEqual(['books']);
+        });
+
+        it('should handle URL-encoded query parameters from rawQueryString', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                },
+                rawPath: '/api/search',
+                rawQueryString: 'q=hello%20world&special=%3D%26%23%25&utf8=%C3%A9%C3%A0%C3%A8',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/search',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            expect(request.getQuery('q')).toBe('hello world');
+            expect(request.getQuery('special')).toBe('=&#%');
+            expect(request.getQuery('utf8')).toBe('éàè');
+        });
+
+        it('should handle empty and no-value query parameters from rawQueryString', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                },
+                rawPath: '/api/test',
+                rawQueryString: 'empty=&novalue&normal=test&another=',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            expect(request.getQuery('empty')).toBe('');
+            expect(request.getQuery('novalue')).toBe('');
+            expect(request.getQuery('normal')).toBe('test');
+            expect(request.getQuery('another')).toBe('');
+        });
+
+        it('should handle empty rawQueryString', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            expect(request.url.toString()).toBe('https://api.example.com/api/test');
+            expect(request.getQuery('anything')).toBeUndefined();
+            expect(request.getQueryArray('anything')).toEqual([]);
+        });
+
+        it('should handle headers case insensitively from proxy event', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'X-API-Key': 'secret-api-key',
+                    'user-agent': 'Custom User Agent/1.0',
+                    Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+                    'x-custom-header': 'custom-value-123',
+                    HOST: 'api.example.com',
+                    'Cache-Control': 'no-cache',
+                    'X-Forwarded-For': '203.0.113.195, 70.41.3.18, 150.172.238.178',
+                },
+                rawPath: '/api/test',
+                rawQueryString: 'param1=value1&param2=value2',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'POST',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '203.0.113.195',
+                        userAgent: 'Custom User Agent/1.0',
+                    },
+                },
+                body: JSON.stringify({ message: 'test data' }),
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Test that headers can be accessed with different cases
+            expect(request.getHeader('content-type')).toBe('application/json');
+            expect(request.getHeader('Content-Type')).toBe('application/json');
+            expect(request.getHeader('CONTENT-TYPE')).toBe('application/json');
+            expect(request.getHeader('Content-type')).toBe('application/json');
+
+            expect(request.getHeader('accept-encoding')).toBe('gzip, deflate, br');
+            expect(request.getHeader('Accept-Encoding')).toBe('gzip, deflate, br');
+            expect(request.getHeader('ACCEPT-ENCODING')).toBe('gzip, deflate, br');
+
+            expect(request.getHeader('x-api-key')).toBe('secret-api-key');
+            expect(request.getHeader('X-API-Key')).toBe('secret-api-key');
+            expect(request.getHeader('X-API-KEY')).toBe('secret-api-key');
+            expect(request.getHeader('x-Api-Key')).toBe('secret-api-key');
+
+            expect(request.getHeader('user-agent')).toBe('Custom User Agent/1.0');
+            expect(request.getHeader('User-Agent')).toBe('Custom User Agent/1.0');
+            expect(request.getHeader('USER-AGENT')).toBe('Custom User Agent/1.0');
+
+            expect(request.getHeader('authorization')).toBe('Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+            expect(request.getHeader('Authorization')).toBe('Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+            expect(request.getHeader('AUTHORIZATION')).toBe('Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+
+            expect(request.getHeader('x-custom-header')).toBe('custom-value-123');
+            expect(request.getHeader('X-Custom-Header')).toBe('custom-value-123');
+            expect(request.getHeader('X-CUSTOM-HEADER')).toBe('custom-value-123');
+
+            expect(request.getHeader('host')).toBe('api.example.com');
+            expect(request.getHeader('Host')).toBe('api.example.com');
+            expect(request.getHeader('HOST')).toBe('api.example.com');
+
+            expect(request.getHeader('cache-control')).toBe('no-cache');
+            expect(request.getHeader('Cache-Control')).toBe('no-cache');
+            expect(request.getHeader('CACHE-CONTROL')).toBe('no-cache');
+
+            expect(request.getHeader('x-forwarded-for')).toBe('203.0.113.195, 70.41.3.18, 150.172.238.178');
+            expect(request.getHeader('X-Forwarded-For')).toBe('203.0.113.195, 70.41.3.18, 150.172.238.178');
+            expect(request.getHeader('X-FORWARDED-FOR')).toBe('203.0.113.195, 70.41.3.18, 150.172.238.178');
+        });
+
+        it('should handle mixed case headers in proxy event consistently', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    'CoNtEnT-tYpE': 'text/html',
+                    aCcEpT: 'text/html,application/xhtml+xml',
+                    'X-cUsToM-hEaDeR': 'MiXeD-cAsE-vAlUe',
+                    hOsT: 'mixed-case.example.com',
+                },
+                rawPath: '/mixed-case',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'mixed-case.example.com',
+                    domainPrefix: 'mixed-case',
+                    http: {
+                        method: 'GET',
+                        path: '/mixed-case',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Test accessing with normalized case
+            expect(request.getHeader('content-type')).toBe('text/html');
+            expect(request.getHeader('accept')).toBe('text/html,application/xhtml+xml');
+            expect(request.getHeader('x-custom-header')).toBe('MiXeD-cAsE-vAlUe');
+            expect(request.getHeader('host')).toBe('mixed-case.example.com');
+
+            // Test accessing with different cases
+            expect(request.getHeader('Content-Type')).toBe('text/html');
+            expect(request.getHeader('ACCEPT')).toBe('text/html,application/xhtml+xml');
+            expect(request.getHeader('X-Custom-Header')).toBe('MiXeD-cAsE-vAlUe');
+            expect(request.getHeader('HOST')).toBe('mixed-case.example.com');
+
+            // Test that the original mixed case is preserved in value but not in key access
+            expect(request.getHeader('X-CUSTOM-HEADER')).toBe('MiXeD-cAsE-vAlUe'); // Value case preserved
+        });
+
+        it('should handle header arrays case insensitively from proxy event', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Custom': 'value1',
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Add additional header values to test arrays with different cases
+            request.addHeader('X-Custom', 'value2');
+            request.addHeader('x-custom', 'value3');
+            request.addHeader('X-CUSTOM', 'value4');
+
+            expect(request.getHeaderArray('accept')).toEqual(['application/json']);
+            expect(request.getHeaderArray('Accept')).toEqual(['application/json']);
+            expect(request.getHeaderArray('ACCEPT')).toEqual(['application/json']);
+
+            // Test that adding headers with different cases all contribute to the same logical header
+            const customHeaders = request.getHeaderArray('x-custom');
+            expect(customHeaders.length).toBeGreaterThanOrEqual(4); // Original + 3 added
+            expect(customHeaders).toContain('value1');
+            expect(customHeaders).toContain('value2');
+            expect(customHeaders).toContain('value3');
+            expect(customHeaders).toContain('value4');
+
+            // Test accessing with different cases returns the same array
+            expect(request.getHeaderArray('X-Custom')).toEqual(customHeaders);
+            expect(request.getHeaderArray('X-CUSTOM')).toEqual(customHeaders);
+            expect(request.getHeaderArray('x-CUSTOM')).toEqual(customHeaders);
+        });
+
+        it('should handle x-forwarded-* headers case insensitively from proxy event', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                    'X-Forwarded-Proto': 'https',
+                    'x-forwarded-host': 'original.example.com',
+                    'X-FORWARDED-PORT': '8443',
+                    'x-Forwarded-For': '203.0.113.1, 192.168.1.1',
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Test x-forwarded-proto with different cases
+            expect(request.getHeader('x-forwarded-proto')).toBe('https');
+            expect(request.getHeader('X-Forwarded-Proto')).toBe('https');
+            expect(request.getHeader('X-FORWARDED-PROTO')).toBe('https');
+            expect(request.getHeader('x-Forwarded-Proto')).toBe('https');
+
+            // Test x-forwarded-host with different cases
+            expect(request.getHeader('x-forwarded-host')).toBe('original.example.com');
+            expect(request.getHeader('X-Forwarded-Host')).toBe('original.example.com');
+            expect(request.getHeader('X-FORWARDED-HOST')).toBe('original.example.com');
+            expect(request.getHeader('x-Forwarded-Host')).toBe('original.example.com');
+
+            // Test x-forwarded-port with different cases
+            expect(request.getHeader('x-forwarded-port')).toBe('8443');
+            expect(request.getHeader('X-Forwarded-Port')).toBe('8443');
+            expect(request.getHeader('X-FORWARDED-PORT')).toBe('8443');
+            expect(request.getHeader('x-Forwarded-Port')).toBe('8443');
+
+            // Test x-forwarded-for with different cases
+            expect(request.getHeader('x-forwarded-for')).toBe('203.0.113.1, 192.168.1.1');
+            expect(request.getHeader('X-Forwarded-For')).toBe('203.0.113.1, 192.168.1.1');
+            expect(request.getHeader('X-FORWARDED-FOR')).toBe('203.0.113.1, 192.168.1.1');
+            expect(request.getHeader('x-Forwarded-For')).toBe('203.0.113.1, 192.168.1.1');
         });
     });
 
@@ -489,6 +990,432 @@ describe('Request', () => {
             expect(request.host).toBe('secure.example.com');
             expect(request.path).toBe('/secure');
             expect(request.url.protocol).toBe('https:');
+        });
+
+        it('should correctly parse query parameters from node request URL', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/search?q=test&page=2&sort=asc&category=books',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.getQuery('q')).toBe('test');
+            expect(request.getQuery('page')).toBe('2');
+            expect(request.getQuery('sort')).toBe('asc');
+            expect(request.getQuery('category')).toBe('books');
+            expect(request.url.toString()).toBe('http://api.example.com/api/search?q=test&page=2&sort=asc&category=books');
+        });
+
+        it('should handle duplicate query parameters from node request URL', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/products?tag=new&tag=sale&tag=featured&category=books',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.getQuery('tag')).toBe('new'); // First value
+            expect(request.getQueryArray('tag')).toEqual(['new', 'sale', 'featured']);
+            expect(request.getQuery('category')).toBe('books');
+            expect(request.getQueryArray('category')).toEqual(['books']);
+        });
+
+        it('should handle URL-encoded query parameters from node request URL', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/search?q=hello%20world&special=%3D%26%23%25&utf8=%C3%A9%C3%A0%C3%A8',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.getQuery('q')).toBe('hello world');
+            expect(request.getQuery('special')).toBe('=&#%');
+            expect(request.getQuery('utf8')).toBe('éàè');
+        });
+
+        it('should handle empty and no-value query parameters from node request URL', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/test?empty=&novalue&normal=test&another=',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.getQuery('empty')).toBe('');
+            expect(request.getQuery('novalue')).toBe('');
+            expect(request.getQuery('normal')).toBe('test');
+            expect(request.getQuery('another')).toBe('');
+        });
+
+        it('should handle complex query strings with mixed encoding from node request URL', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/complex?arr[]=1&arr[]=2&obj[key]=value&mixed=a%20b&mixed=c%2Bd&filter[name]=john&filter[age]=25',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.getQuery('arr[]')).toBe('1'); // First value
+            expect(request.getQueryArray('arr[]')).toEqual(['1', '2']);
+            expect(request.getQuery('obj[key]')).toBe('value');
+            expect(request.getQuery('mixed')).toBe('a b'); // First value, URL decoded
+            expect(request.getQueryArray('mixed')).toEqual(['a b', 'c+d']);
+            expect(request.getQuery('filter[name]')).toBe('john');
+            expect(request.getQuery('filter[age]')).toBe('25');
+        });
+
+        it('should handle node request URL with no query parameters', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/test',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.url.toString()).toBe('http://api.example.com/api/test');
+            expect(request.getQuery('anything')).toBeUndefined();
+            expect(request.getQueryArray('anything')).toEqual([]);
+        });
+
+        it('should handle node request URL with only question mark and no parameters', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/test?',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.url.toString()).toBe('http://api.example.com/api/test?');
+            expect(request.getQuery('anything')).toBeUndefined();
+            expect(request.getQueryArray('anything')).toEqual([]);
+        });
+
+        it('should use values from x-forwarded-* headers when provided in node request', async () => {
+            const body = JSON.stringify({ test: 'data' });
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/test',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                    'x-forwarded-proto': 'https',
+                    'x-forwarded-host': 'original-host.com',
+                    'x-forwarded-port': '8443',
+                    'x-forwarded-for': '10.0.0.1, 192.168.1.100',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from(body);
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test that all x-forwarded headers are preserved
+            expect(request.getHeader('x-forwarded-proto')).toBe('https');
+            expect(request.getHeader('x-forwarded-host')).toBe('original-host.com');
+            expect(request.getHeader('x-forwarded-port')).toBe('8443');
+            expect(request.getHeader('x-forwarded-for')).toBe('10.0.0.1, 192.168.1.100');
+        });
+
+        it('should auto-populate missing x-forwarded-* header values from node request properties or defaults', async () => {
+            const body = JSON.stringify({ test: 'data' });
+            const socket = new MockSocket();
+            socket.remoteAddress = '192.168.1.100'; // Set remote address
+            const mockReq = {
+                url: '/api/test',
+                method: 'POST',
+                headers: {
+                    host: 'api.example.com',
+                    // Missing all x-forwarded headers
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from(body);
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test that missing x-forwarded headers are auto-populated
+            expect(request.getHeader('x-forwarded-proto')).toBe('http'); // from request.protocol (HTTP socket)
+            expect(request.getHeader('x-forwarded-host')).toBe('api.example.com'); // from request.host
+            expect(request.getHeader('x-forwarded-port')).toBe('8080'); // from socket.localPort
+            expect(request.getHeader('x-forwarded-for')).toBe('192.168.1.100'); // from socket.remoteAddress
+        });
+
+        it('should auto-populate x-forwarded-* header values for HTTPS requests', async () => {
+            const body = JSON.stringify({ test: 'data' });
+            const socket = new MockTLSSocket(); // TLS socket for HTTPS
+            socket.remoteAddress = '10.0.0.1';
+            const mockReq = {
+                url: '/secure/api',
+                method: 'PUT',
+                headers: {
+                    host: 'secure.example.com',
+                    // Missing all x-forwarded headers
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from(body);
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test that missing x-forwarded headers are auto-populated for HTTPS
+            expect(request.getHeader('x-forwarded-proto')).toBe('https'); // from TLS socket
+            expect(request.getHeader('x-forwarded-host')).toBe('secure.example.com'); // from request.host
+            expect(request.getHeader('x-forwarded-port')).toBe('8080'); // from socket.localPort
+            expect(request.getHeader('x-forwarded-for')).toBe('10.0.0.1'); // from socket.remoteAddress
+        });
+
+        it('should handle partial x-forwarded-* header values and auto-populate missing ones in node request', async () => {
+            const body = JSON.stringify({ partial: 'test' });
+            const socket = new MockSocket();
+            socket.remoteAddress = '172.16.0.1';
+            const mockReq = {
+                url: '/api/partial',
+                method: 'PATCH',
+                headers: {
+                    host: 'partial.example.com',
+                    'x-forwarded-for': '203.0.113.1', // Only this header is provided
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from(body);
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test that existing header is preserved and missing ones are auto-populated
+            expect(request.getHeader('x-forwarded-for')).toBe('203.0.113.1'); // preserved from headers
+            expect(request.getHeader('x-forwarded-proto')).toBe('http'); // auto-populated
+            expect(request.getHeader('x-forwarded-host')).toBe('partial.example.com'); // auto-populated
+            expect(request.getHeader('x-forwarded-port')).toBe('8080'); // auto-populated
+        });
+
+        it('should handle x-forwarded-* headers with comma-separated values', async () => {
+            const body = '';
+            const socket = new MockTLSSocket();
+            const mockReq = {
+                url: '/api/comma-test',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                    'x-forwarded-host': 'original-host.com, proxy1.com, proxy2.com',
+                    'x-forwarded-proto': 'https, http',
+                    'x-forwarded-port': '443, 80',
+                    'x-forwarded-for': '10.0.0.1, 192.168.1.100',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from(body);
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            expect(request.host).toBe('original-host.com');
+            expect(request.getHeader('x-forwarded-host')).toBe('original-host.com, proxy1.com, proxy2.com');
+            expect(request.getHeader('x-forwarded-proto')).toBe('https, http');
+            expect(request.getHeader('x-forwarded-port')).toBe('443, 80');
+            expect(request.getHeader('x-forwarded-for')).toBe('10.0.0.1, 192.168.1.100');
+        });
+
+        it('should handle headers case insensitively from node request', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/test',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'X-API-Key': 'secret-key-123',
+                    'user-agent': 'Mozilla/5.0',
+                    Authorization: 'Bearer token123',
+                    'x-custom-header': 'custom-value',
+                    HOST: 'api.example.com',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('{"test": "data"}');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test that headers can be accessed with different cases
+            expect(request.getHeader('content-type')).toBe('application/json');
+            expect(request.getHeader('Content-Type')).toBe('application/json');
+            expect(request.getHeader('CONTENT-TYPE')).toBe('application/json');
+            expect(request.getHeader('Content-type')).toBe('application/json');
+
+            expect(request.getHeader('accept-encoding')).toBe('gzip, deflate');
+            expect(request.getHeader('Accept-Encoding')).toBe('gzip, deflate');
+            expect(request.getHeader('ACCEPT-ENCODING')).toBe('gzip, deflate');
+
+            expect(request.getHeader('x-api-key')).toBe('secret-key-123');
+            expect(request.getHeader('X-API-Key')).toBe('secret-key-123');
+            expect(request.getHeader('X-API-KEY')).toBe('secret-key-123');
+            expect(request.getHeader('x-Api-Key')).toBe('secret-key-123');
+
+            expect(request.getHeader('user-agent')).toBe('Mozilla/5.0');
+            expect(request.getHeader('User-Agent')).toBe('Mozilla/5.0');
+            expect(request.getHeader('USER-AGENT')).toBe('Mozilla/5.0');
+
+            expect(request.getHeader('authorization')).toBe('Bearer token123');
+            expect(request.getHeader('Authorization')).toBe('Bearer token123');
+            expect(request.getHeader('AUTHORIZATION')).toBe('Bearer token123');
+
+            expect(request.getHeader('x-custom-header')).toBe('custom-value');
+            expect(request.getHeader('X-Custom-Header')).toBe('custom-value');
+            expect(request.getHeader('X-CUSTOM-HEADER')).toBe('custom-value');
+
+            expect(request.getHeader('host')).toBe('api.example.com');
+            expect(request.getHeader('Host')).toBe('api.example.com');
+            expect(request.getHeader('HOST')).toBe('api.example.com');
+        });
+
+        it('should handle header arrays case insensitively from node request', async () => {
+            const socket = new MockSocket();
+            const mockReq = {
+                url: '/api/test',
+                method: 'GET',
+                headers: {
+                    'Set-Cookie': ['session=abc123', 'user=john'],
+                    Accept: 'application/json',
+                    'X-Custom': 'value1',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            // Manually set up the headers object to simulate multiple values
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Manually add additional header values to test arrays
+            request.addHeader('X-Custom', 'value2');
+            request.addHeader('x-custom', 'value3');
+
+            expect(request.getHeaderArray('set-cookie')).toEqual(['session=abc123', 'user=john']);
+            expect(request.getHeaderArray('Set-Cookie')).toEqual(['session=abc123', 'user=john']);
+            expect(request.getHeaderArray('SET-COOKIE')).toEqual(['session=abc123', 'user=john']);
+
+            expect(request.getHeaderArray('accept')).toEqual(['application/json']);
+            expect(request.getHeaderArray('Accept')).toEqual(['application/json']);
+            expect(request.getHeaderArray('ACCEPT')).toEqual(['application/json']);
+
+            // Test that adding headers with different cases still works correctly
+            expect(request.getHeaderArray('x-custom').length).toBeGreaterThanOrEqual(2);
+            expect(request.getHeaderArray('X-Custom').length).toBeGreaterThanOrEqual(2);
+            expect(request.getHeaderArray('X-CUSTOM').length).toBeGreaterThanOrEqual(2);
+        });
+
+        it('should handle x-forwarded-* headers case insensitively from node request', async () => {
+            const socket = new MockSocket();
+            socket.remoteAddress = '10.0.0.1';
+            const mockReq = {
+                url: '/api/test',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                    'X-Forwarded-Proto': 'https',
+                    'x-forwarded-host': 'original.example.com',
+                    'X-FORWARDED-PORT': '8443',
+                    'x-Forwarded-For': '203.0.113.1, 192.168.1.1',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test x-forwarded-proto with different cases
+            expect(request.getHeader('x-forwarded-proto')).toBe('https');
+            expect(request.getHeader('X-Forwarded-Proto')).toBe('https');
+            expect(request.getHeader('X-FORWARDED-PROTO')).toBe('https');
+            expect(request.getHeader('x-Forwarded-Proto')).toBe('https');
+
+            // Test x-forwarded-host with different cases
+            expect(request.getHeader('x-forwarded-host')).toBe('original.example.com');
+            expect(request.getHeader('X-Forwarded-Host')).toBe('original.example.com');
+            expect(request.getHeader('X-FORWARDED-HOST')).toBe('original.example.com');
+            expect(request.getHeader('x-Forwarded-Host')).toBe('original.example.com');
+
+            // Test x-forwarded-port with different cases
+            expect(request.getHeader('x-forwarded-port')).toBe('8443');
+            expect(request.getHeader('X-Forwarded-Port')).toBe('8443');
+            expect(request.getHeader('X-FORWARDED-PORT')).toBe('8443');
+            expect(request.getHeader('x-Forwarded-Port')).toBe('8443');
+
+            // Test x-forwarded-for with different cases
+            expect(request.getHeader('x-forwarded-for')).toBe('203.0.113.1, 192.168.1.1');
+            expect(request.getHeader('X-Forwarded-For')).toBe('203.0.113.1, 192.168.1.1');
+            expect(request.getHeader('X-FORWARDED-FOR')).toBe('203.0.113.1, 192.168.1.1');
+            expect(request.getHeader('x-Forwarded-For')).toBe('203.0.113.1, 192.168.1.1');
         });
     });
 
