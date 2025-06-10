@@ -39,7 +39,10 @@ program
     .option('--default-status <status>', 'The status to serve as default for not found routes. Defaults to 404')
     .action((framework, options) => build({ framework, ...options }));
 
-program.command('dev').description('Start the project in development mode').action(dev);
+program
+    .command('dev [framework]')
+    .description('Start the project in development mode')
+    .action((framework, options) => dev({ framework, ...options }));
 program.command('start').alias('run').description('Start the project in production mode').action(start);
 
 const withApiUrl = (command: Command) => {
@@ -61,7 +64,7 @@ const withEnvironmentSlugsOptions = (command: Command) =>
 withEnvironmentSlugsOptions(withApiOptions(program.command('deploy')))
     .description('Deploy the project to the platform')
     .action(deploy);
-withApiUrl(program.command('login')).description('Log in to the platform').action(login);
+withApiOptions(program.command('login')).description('Log in to the platform').action(login);
 withApiUrl(program.command('logout')).description('Log out of the platform').action(logout);
 
 const configCommand = program.command('config').description(`Manage the ${BRAND} project config`);
@@ -99,8 +102,8 @@ export async function preAction(thisCommand: Command, actionCommand: Command) {
     logger.drawTitle(commandName);
 
     // Update the default api-url to the correct value based on the flags
-    const { dev, stage, local } = actionCommand.opts();
-    actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL);
+    const { dev, stage, local, apiUrl } = actionCommand.opts();
+    actionCommand.setOptionValue('apiUrl', apiUrl || CONSOLE_API_URL);
     if (dev) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_DEV);
     if (stage) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_STAGE);
     if (local) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_LOCAL);

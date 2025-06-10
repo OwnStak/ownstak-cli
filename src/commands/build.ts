@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'url';
 import { dirname, resolve, join, relative, basename } from 'path';
 import { mkdir, rm, writeFile, copyFile, readdir, readFile } from 'fs/promises';
-import { existsSync, statSync } from 'fs';
+import { existsSync, lstatSync } from 'fs';
 import {
     BUILD_DIR_PATH,
     COMPUTE_DIR_PATH,
@@ -412,80 +412,151 @@ export function normalizeFilesConfig(filesConfig: FilesConfig) {
 export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
     const { include = {} } = filesConfig;
 
-    for (const [pattern, destination] of Object.entries(include)) {
-        const isGlob = pattern.includes('*') || pattern.includes('{');
-        const baseDir = pattern.split('*')[0];
+    // Process each pattern/destination pair from the configuration
+    for (const [srcPattern, destination] of Object.entries(include)) {
+        // Check if the pattern contains wildcards (glob pattern)
+        // Examples: "src/*.js" (glob), "src/file.js" (regular file)
+        const isGlob = srcPattern.includes('*') || srcPattern.includes('{');
+        // Extract the base directory from the pattern (everything before the first wildcard)
+        // Examples: "src/public/*.css" -> "src/public/", "src/file.js" -> "src/file.js"
+        const baseDir = srcPattern.split('*')[0];
         const baseDirExists = existsSync(baseDir);
 
+        // Skip non-glob patterns that don't exist to avoid errors
         if (!isGlob && !baseDirExists) {
-            logger.debug(`File ${pattern} with baseDir ${baseDir} does not exist. Skipping...`);
+            logger.debug(`File ${srcPattern} with baseDir ${baseDir} does not exist. Skipping...`);
             continue;
         }
 
-        const globFiles = isGlob ? await glob.glob(pattern) : [pattern];
-        for (const srcFile of globFiles) {
-            const stat = statSync(srcFile);
-            let destFile = resolve(destDir, srcFile);
+        // Get list of files to process:
+        // - For glob patterns: find all matching files (excluding build directory)
+        // - For regular files/directories: use the pattern as-is (for performance reason, glob on node_modules/**/* is extremely slow)
+        const srcFiles = isGlob
+            ? await glob.glob(srcPattern, {
+                  ignore: resolve(BUILD_DIR_PATH), // Skip .ownstak folder in glob patterns
+              })
+            : [srcPattern];
 
-            if (destination === './') {
+        // Process each found file/directory
+        for (const srcFile of srcFiles) {
+            if (resolve(srcFile) === process.cwd()) {
+                logger.info('');
+                logger.drawTable(
+                    [
+                        `Looks like you're trying to include the entire project root directory (./) in your build.`,
+                        `Be careful, this can lead to unexpected side effects, such as:`,
+                        `- Silently including all node_modules`,
+                        `- Accidentally including hidden or sensitive files`,
+                        `- And other unintended behavior\n`,
+                        `It's recommended to move your build target files into a dedicated directory (e.g. src/, static/, public/, etc...), ` +
+                            `and then include that directory in your build. This gives you full control over what gets included. ` +
+                            `For example: npx ${NAME} build static --assets-dir=./static`,
+                    ],
+                    {
+                        title: 'Warning',
+                        borderColor: 'yellow',
+                        logLevel: LogLevel.WARN,
+                        maxWidth: 100,
+                    },
+                );
+                logger.info('');
+            }
+
+            let destFile = resolve(destDir, srcFile);
+            if (destination === false) {
+                // If destination is false, remove the file from the build directory
+                // Example: "temp/*.tmp" with destination false
+                // Safety check: only remove files under the build directory .ownstak
+                if (resolve(destFile).startsWith(resolve(BUILD_DIR_PATH))) {
+                    logger.debug(`Removing '${srcFile}' from '${destFile}'`);
+                    rm(destFile, { force: true, recursive: true });
+                }
+                continue;
+            } else if (destination === true) {
+                // Example: "src/index.js" with destination true
+                // copies "src/index.js" to "build/src/index.js" (preserves full path)
+                destFile = resolve(destDir, srcFile);
+            } else if (destination === './') {
+                // Example: "./src/public" with destination "./"
+                // copies "src/public/style.css" to "build/style.css" (flattened)
                 destFile = resolve(destDir, relative(baseDir, srcFile));
             } else if (destination.toString().includes('**/*')) {
+                // Example: "src/*.js" with destination "js/**/*"
+                // copies "src/app.js" to "build/js/app.js"
                 const relativeDir = relative(baseDir, dirname(srcFile));
                 const fileName = basename(srcFile);
                 destFile = resolve(destDir, destination.toString().replace('**', relativeDir).replace('*', fileName));
             } else if (destination.toString().includes('**')) {
+                // Example: "src/components/**" with destination "lib/**"
+                // copies "src/components/Button/index.js" to "build/lib/Button/index.js"
                 const relativePath = relative(baseDir, srcFile);
                 destFile = resolve(destDir, destination.toString().replace('**', relativePath));
             } else if (destination.toString().includes('*')) {
+                // Example: "src/*.js" with destination "js/*"
+                // copies "src/app.js" to "build/js/app.js"
                 const fileName = basename(srcFile);
                 destFile = resolve(destDir, destination.toString().replace('*', fileName));
-            } else if (destination === true) {
-                destFile = resolve(destDir, srcFile);
-            } else if (destination === false) {
-                const destFileRelative = relative(process.cwd(), destFile);
-                // Make sure to remove only files under the build directory .ownstak
-                if (destFileRelative.startsWith(BUILD_DIR)) {
-                    logger.debug(`Removing '${srcFile}' from '${destFileRelative}'`);
-                    rm(destFile, { force: true, recursive: true });
-                }
-                continue;
             } else {
+                // Example: "src/app.js" with destination "main.js"
+                // copies "src/app.js" to "build/main.js" (custom name)
                 destFile = resolve(destDir, destination);
             }
 
-            const destFileDir = dirname(destFile);
-
+            // Use the unified copy function that handles files, directories, and symlinks properly
             logger.debug(`Copying '${srcFile}' to '${destFile}'`);
-            if (stat.isDirectory()) {
-                await copyDir(srcFile, destFile);
-            } else {
-                await mkdir(destFileDir, { recursive: true });
-                await copyFile(srcFile, destFile);
-            }
+            await copy(srcFile, destFile);
         }
     }
 }
 
 /**
- * Copies a directory from the source to the destination.
- * @param {string} src - The source directory.
- * @param {string} dest - The destination directory.
+ * Copies a file or directory from source to destination.
+ * Handles both files and directories, creates destination paths recursively.
+ * @param {string} src - The source file or directory path.
+ * @param {string} dest - The destination file or directory path.
  * @returns {Promise<void>}
  */
-async function copyDir(src: string, dest: string) {
-    await mkdir(dest, { recursive: true });
-    const entries = await readdir(src, { withFileTypes: true });
-
-    for (const entry of entries) {
-        const srcPath = join(src, entry.name);
-        const destPath = join(dest, entry.name);
-
-        if (entry.isDirectory()) {
-            await copyDir(srcPath, destPath);
-        } else {
-            await copyFile(srcPath, destPath);
-        }
+export async function copy(src: string, dest: string) {
+    // Skip .ownstak folder to avoid infinite recursion
+    // when user includes the project root as folder
+    if (resolve(src).startsWith(resolve(BUILD_DIR_PATH))) {
+        logger.debug(`Skipping '${src}' because it's inside .ownstak folder`);
+        return;
     }
+
+    const stat = lstatSync(src);
+    if (stat.isSymbolicLink()) {
+        // Skip symlinks with debug message
+        logger.debug(`Skipping symlink '${src}'`);
+        return;
+    }
+
+    if (stat.isFile()) {
+        // For files: create destination directory recursively and copy file
+        const destDir = dirname(dest);
+        await mkdir(destDir, { recursive: true });
+        await copyFile(src, dest);
+        return;
+    }
+
+    if (stat.isDirectory()) {
+        // For directories: create destination directory and copy all contents
+        await mkdir(dest, { recursive: true });
+        const entries = await readdir(src, { withFileTypes: true });
+        for (const entry of entries) {
+            const srcPath = join(src, entry.name);
+            const destPath = join(dest, entry.name);
+
+            // Recursively call copy for each entry (file, directory)
+            if (entry.isDirectory() || entry.isFile()) {
+                await copy(srcPath, destPath);
+            }
+        }
+        return;
+    }
+
+    // Handle any other file types by logging and skipping
+    logger.debug(`Skipping unknown type '${src}'`);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { stat, unlink } from 'fs/promises';
 import { logger, LogLevel } from '../logger.js';
-import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_URL, DEBUG_DIR, NAME, PERMANENT_ASSETS_DIR } from '../constants.js';
+import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_API_URL, CONSOLE_URL, DEBUG_DIR, NAME, PERMANENT_ASSETS_DIR } from '../constants.js';
 import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
@@ -95,6 +95,11 @@ export async function deploy(options: DeployCommandOptions) {
     logger.info(`${chalk.blueBright('Environment:')} ${chalk.cyan(environment.slug)}`);
     const maskedApiToken = `${apiToken.slice(0, 3)}******${apiToken.slice(-4)}`;
     logger.info(`${chalk.blueBright('API token:')} ${chalk.cyan(maskedApiToken)}`);
+
+    // Display the API URL if it's not the default
+    if (options.apiUrl !== CONSOLE_API_URL) {
+        logger.info(`${chalk.blueBright('API URL:')} ${chalk.cyan(options.apiUrl)}`);
+    }
 
     logger.info('');
     logger.drawSubtitle(`Step 1/3`, 'Zipping');
