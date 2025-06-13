@@ -80,6 +80,7 @@ export async function deploy(options: DeployCommandOptions) {
         environment = await api.createEnvironment(project.id, environmentSlug);
     }
 
+    let deploymentStatus = 'draft';
     const draftDeployment = await api.createDeployment(environment.id, {
         cli_version: config.cliVersion,
         framework: config.framework,
@@ -88,6 +89,23 @@ export async function deploy(options: DeployCommandOptions) {
         timeout: config.timeout,
         arch: config.arch,
     });
+
+    const handleSIGINT = () => {
+        deploymentStatus = 'deleting';
+        logger.stopSpinner();
+        logger.info('');
+        logger.startSpinner('Deploment was interrupted. Cleaning up...');
+        // Fire and forget cancellation, we don't want to block the process from exiting
+        // for too long just to show errors
+        setTimeout(() => process.exit(0), 3 * 1000);
+        api.deleteDeployment(draftDeployment.id).then(() => {
+            logger.stopSpinner('Deployment was successfully cancelled. See you later!', LogLevel.SUCCESS);
+            process.exit(0);
+        });
+    };
+
+    // Handle CONTROL+C and delete the deployment if it's still a draft
+    process.on('SIGINT', handleSIGINT);
 
     // Display where the project will be deployed
     logger.info(`${chalk.blueBright('Organization:')} ${chalk.cyan(organization.slug)}`);
@@ -130,6 +148,22 @@ export async function deploy(options: DeployCommandOptions) {
         // Clean up the zip file
         await unlink(zipFilePath);
     }
+
+    // Too late to cancel the deployment,
+    // just handle the SIGINT event, show a warning and immediately exit
+    process.removeListener('SIGINT', handleSIGINT);
+    process.on('SIGINT', () => {
+        logger.stopSpinner();
+        logger.info('');
+        logger.warn("Oops! It's too late to cancel the deployment at this point. The deployment to cloud backends will continue on background.");
+        logger.warn('You can watch the progress at: ' + chalk.cyan(draftDeployment.console_url));
+        logger.warn('See you there!');
+        process.exit(0);
+    });
+
+    // If the deployment is not a draft, it means it's already deployed or cancelled.
+    // Don't continue with the deployment.
+    if (deploymentStatus !== 'draft') return;
 
     logger.info('');
     logger.drawSubtitle(`Step 3/3`, 'Deployment');

@@ -119,6 +119,12 @@ export default class ConsoleClient extends Client {
             .then((data) => data as ApiDeployment);
     }
 
+    async deleteDeployment(deploymentId: string) {
+        return this.delete({ path: `/api/deployments/${deploymentId}` })
+            .then((res) => res.json())
+            .then((data) => data as ApiDeployment);
+    }
+
     async getCloudBackendDeploymentLogs(cloudBackendDeploymentId: string) {
         return this.get({ path: `/api/cloud_backend_deployments/${cloudBackendDeploymentId}/logs` })
             .then((res) => res.json())
