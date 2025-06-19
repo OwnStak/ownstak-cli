@@ -38,6 +38,7 @@ export type NextJsConfig = {
 let nextConfig: NextJsConfig;
 let distDir: string;
 let basePath: string;
+let buildId: string;
 
 export const nextjsFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.NextJs,
@@ -74,6 +75,9 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             distDir = nextConfig.distDir || '.next';
             basePath = nextConfig.basePath || '/';
 
+            // Load buildId from the build output
+            buildId = await readFile(resolve(distDir, 'BUILD_ID'), 'utf-8');
+
             // Include next.config.js in debugAssets,
             // so we can debug customer's issues with their next.config.js file.
             config.debugAssets.include[`./next.config.{js,ts,mjs,cjs}`] = true;
@@ -87,17 +91,29 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             // For example: /favicon.ico -> /docs/favicon.ico
             // For example: /docs/index.html -> /docs/index.html
             config.assets.include[`./public`] = `.${basePath}/`;
-            config.assets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = `.${basePath}/**`;
-            config.assets.include[`${distDir}/standalone/${distDir}/server/app/**/*.{html,htm,json,rsc}`] = `.${basePath}/**`;
+            config.assets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.{html,htm}`] = `.${basePath}/**`;
+            config.assets.include[`${distDir}/standalone/${distDir}/server/app/**/*.{html,htm}`] = `.${basePath}/**`;
+
+            // Include props of pre-rendered pages
+            // For example: /_next/data/{buildId}/products/123.json
+            config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.json`] = `.${basePath}/_next/data/${buildId}/**`;
+            // Exclude trace json files from permanent assets to save space, we don't need them
+            config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.nft.json`] = false;
+
             // Edge case: If i18n is enabled, we need to also copy default locale pre-rendered pages to the base path.
             // Usually, this is handled by the Next.js server, but because we moved the pre-rendered pages to S3, we need to handle it here.
             // For example: /en/products/123.html -> /products/123/index.html
             // For example: /en/index.html -> /docs/index.html
+            // For example: /_next/data/{buildId}/en/products/123.json -> /_next/data/{buildId}/products/123.json
             if (nextConfig.i18n?.defaultLocale) {
-                config.assets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.{html,htm,json,rsc}`] =
-                    `.${basePath}/**`;
-                config.assets.include[`${distDir}/standalone/${distDir}/server/app/${nextConfig.i18n.defaultLocale}/**/*.{html,htm,json,rsc}`] =
-                    `.${basePath}/**`;
+                config.assets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.{html,htm}`] = `.${basePath}/**`;
+                config.assets.include[`${distDir}/standalone/${distDir}/server/app/${nextConfig.i18n.defaultLocale}/**/*.{html,htm}`] = `.${basePath}/**`;
+
+                // Include props of pre-rendered pages with with default locale
+                config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.json`] =
+                    `.${basePath}/_next/data/${buildId}/**`;
+                // Exclude trace json files from permanent assets to save space, we don't need them
+                config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.nft.json`] = false;
             }
 
             // Include static assets with file hash
@@ -116,8 +132,10 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             config.app.include[`${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = false;
             config.app.include[`${distDir}/server/app/**/*.{html,htm,json,rsc}`] = false;
 
-            // Keep only 404.html,500.html files
+            // Keep only 404.html,500.html files in the compute folder, otherwise Next.js server throws an error
             config.app.include[`${distDir}/standalone/${distDir}/server/pages/**/{404,500}.html`] = `${distDir}/server/pages/**`;
+
+            // Start the Next.js server from the server.js file
             config.app.entrypoint = `./server.js`;
         },
         'build:routes:start': async ({ config }: HookArgs): Promise<void> => {

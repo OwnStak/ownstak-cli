@@ -393,9 +393,9 @@ export function normalizeFilesConfig(filesConfig: FilesConfig) {
  * Copies files from the source directory to the destination directory
  * based on the specified entries. Entries can be files, directories or glob patterns
  * and the values can be true, false, a string or an object.
- * - true: Copy the file to dest folder under the same path as in the source folder.
+ * - true: Copy the file to destination folder under the same path as in the source folder.
  * - false: Exclude the file.
- * - string: Copy the file to dest folder under the specified path.
+ * - string: Copy the file to destination folder under the specified path.
  * @param {FilesConfig} filesConfig - The files configuration.
  * @param {string} destDir - The destination directory.
  * @returns {Promise<void>}
@@ -410,10 +410,21 @@ export function normalizeFilesConfig(filesConfig: FilesConfig) {
  * }
  */
 export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
-    const { include = {} } = filesConfig;
+    const patterns = Object.entries(filesConfig.include || {});
 
-    // Process each pattern/destination pair from the configuration
-    for (const [srcPattern, destination] of Object.entries(include)) {
+    // Process each pattern/destPattern pair from the configuration
+    for (const [index, [srcPattern, destPattern]] of patterns.entries()) {
+        // When we're including/excluding files, we still maintain the order
+        // and exclude only the patterns that comes after the included pattern.
+        // This allows user to copy whole folder, exclude all .html files from it,
+        // and then again include some specific .html files back for edge-cases.
+        const excludePatterns = [
+            // Always exclude .ownstak folder
+            resolve(BUILD_DIR_PATH),
+            // Apply all exclude patterns that come after the current include pattern
+            ...patterns.slice(index + 1).flatMap(([excludeSrcPattern, excludeDestPattern]) => (excludeDestPattern === false ? [excludeSrcPattern] : [])),
+        ];
+
         // Check if the pattern contains wildcards (glob pattern)
         // Examples: "src/*.js" (glob), "src/file.js" (regular file)
         const isGlob = srcPattern.includes('*') || srcPattern.includes('{');
@@ -433,7 +444,7 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
         // - For regular files/directories: use the pattern as-is (for performance reason, glob on node_modules/**/* is extremely slow)
         const srcFiles = isGlob
             ? await glob.glob(srcPattern, {
-                  ignore: resolve(BUILD_DIR_PATH), // Skip .ownstak folder in glob patterns
+                  ignore: excludePatterns,
               })
             : [srcPattern];
 
@@ -463,43 +474,43 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
             }
 
             let destFile = resolve(destDir, srcFile);
-            if (destination === false) {
-                // If destination is false, remove the file from the build directory
-                // Example: "temp/*.tmp" with destination false
+            if (destPattern === false) {
+                // If destPattern is false, remove the file from the build directory
+                // Example: "temp/*.tmp" with destPattern false
                 // Safety check: only remove files under the build directory .ownstak
                 if (resolve(destFile).startsWith(resolve(BUILD_DIR_PATH))) {
                     logger.debug(`Removing '${srcFile}' from '${destFile}'`);
                     rm(destFile, { force: true, recursive: true });
                 }
                 continue;
-            } else if (destination === true) {
-                // Example: "src/index.js" with destination true
+            } else if (destPattern === true) {
+                // Example: "src/index.js" with destPattern true
                 // copies "src/index.js" to "build/src/index.js" (preserves full path)
                 destFile = resolve(destDir, srcFile);
-            } else if (destination === './') {
-                // Example: "./src/public" with destination "./"
+            } else if (destPattern === './') {
+                // Example: "./src/public" with destPattern "./"
                 // copies "src/public/style.css" to "build/style.css" (flattened)
                 destFile = resolve(destDir, relative(baseDir, srcFile));
-            } else if (destination.toString().includes('**/*')) {
-                // Example: "src/*.js" with destination "js/**/*"
+            } else if (destPattern.toString().includes('**/*')) {
+                // Example: "src/*.js" with destPattern "js/**/*"
                 // copies "src/app.js" to "build/js/app.js"
                 const relativeDir = relative(baseDir, dirname(srcFile));
                 const fileName = basename(srcFile);
-                destFile = resolve(destDir, destination.toString().replace('**', relativeDir).replace('*', fileName));
-            } else if (destination.toString().includes('**')) {
-                // Example: "src/components/**" with destination "lib/**"
+                destFile = resolve(destDir, destPattern.toString().replace('**', relativeDir).replace('*', fileName));
+            } else if (destPattern.toString().includes('**')) {
+                // Example: "src/components/**" with destPattern "lib/**"
                 // copies "src/components/Button/index.js" to "build/lib/Button/index.js"
                 const relativePath = relative(baseDir, srcFile);
-                destFile = resolve(destDir, destination.toString().replace('**', relativePath));
-            } else if (destination.toString().includes('*')) {
-                // Example: "src/*.js" with destination "js/*"
+                destFile = resolve(destDir, destPattern.toString().replace('**', relativePath));
+            } else if (destPattern.toString().includes('*')) {
+                // Example: "src/*.js" with destPattern "js/*"
                 // copies "src/app.js" to "build/js/app.js"
                 const fileName = basename(srcFile);
-                destFile = resolve(destDir, destination.toString().replace('*', fileName));
+                destFile = resolve(destDir, destPattern.toString().replace('*', fileName));
             } else {
-                // Example: "src/app.js" with destination "main.js"
+                // Example: "src/app.js" with destPattern "main.js"
                 // copies "src/app.js" to "build/main.js" (custom name)
-                destFile = resolve(destDir, destination);
+                destFile = resolve(destDir, destPattern);
             }
 
             // Use the unified copy function that handles files, directories, and symlinks properly
@@ -532,7 +543,7 @@ export async function copy(src: string, dest: string) {
     }
 
     if (stat.isFile()) {
-        // For files: create destination directory recursively and copy file
+        // For files: create destPattern directory recursively and copy file
         const destDir = dirname(dest);
         await mkdir(destDir, { recursive: true });
         await copyFile(src, dest);
@@ -540,7 +551,7 @@ export async function copy(src: string, dest: string) {
     }
 
     if (stat.isDirectory()) {
-        // For directories: create destination directory and copy all contents
+        // For directories: create destPattern directory and copy all contents
         await mkdir(dest, { recursive: true });
         const entries = await readdir(src, { withFileTypes: true });
         for (const entry of entries) {
