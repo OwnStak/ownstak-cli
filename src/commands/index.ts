@@ -156,6 +156,15 @@ export async function handleException(e: any) {
         maxWidth: 70,
     });
 
+    if (e instanceof CliError && e.hasInstructions()) {
+        logger.info('');
+        logger.drawTable(e.instructions, {
+            title: 'Next Steps',
+            logLevel: LogLevel.INFO,
+            minWidth: 70,
+            maxWidth: 70,
+        });
+    }
     // Show help
     logger.info('');
     logger.drawTable([`Nothing helped? Do you think this is a bug? Reach out to us at ${SUPPORT_URL}`], {

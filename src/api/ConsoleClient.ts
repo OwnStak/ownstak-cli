@@ -4,10 +4,19 @@ import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
 import { ListProjectsResponse } from './requests/ListProjects.js';
 import { ResolveEnvironmentSlugsResponse, ResolveProjectSlugResponse } from './requests/ResolveSlugs.js';
 import { ListEnvironmentsResponse } from './requests/ListEnvironements.js';
-import { BaseConsoleError, ConsoleErrorResult, ConsoleResourceNotFoundError, ConsoleUnauthenticatedError, ConsoleUnauthorizedError } from './ConsoleError.js';
+import {
+    BaseConsoleError,
+    ConsoleErrorResult,
+    ConsoleResourceNotFoundError,
+    ConsoleUnauthenticatedError,
+    ConsoleUnauthorizedError,
+    ConsoleValidationError,
+} from './ConsoleError.js';
 import { Client } from '../utils/Client.js';
-import { BRAND, HEADERS } from '../constants.js';
+import { BRAND, HEADERS, NAME } from '../constants.js';
 import { CliConfig } from '../cliConfig.js';
+import chalk from 'chalk';
+import { logger } from '../logger.js';
 
 export default class ConsoleClient extends Client {
     constructor({ url, token }: { url: string; token?: string }) {
@@ -153,11 +162,35 @@ export default class ConsoleClient extends Client {
         const result = await response.json();
         switch (response.status) {
             case 401:
-                throw new ConsoleUnauthenticatedError(result as ConsoleErrorResult, response);
+                throw new ConsoleUnauthenticatedError(result as ConsoleErrorResult, response, {
+                    instructions: [`Please run \`npx ${NAME} login\` to authenticate with the platform.`],
+                });
             case 403:
-                throw new ConsoleUnauthorizedError(result as ConsoleErrorResult, response);
+                throw new ConsoleUnauthorizedError(result as ConsoleErrorResult, response, {
+                    instructions: [
+                        `Verify your access permissions and try again. If the problem continues, contact your administrator to request elevated access.`,
+                    ],
+                });
             case 404:
-                throw new ConsoleResourceNotFoundError(result as ConsoleErrorResult, response);
+                throw new ConsoleResourceNotFoundError(result as ConsoleErrorResult, response, {
+                    instructions: [
+                        `The requested resource could not be found. Please verify the resource details and try again. If the problem persists, contact support for assistance.`,
+                    ],
+                });
+            case 422:
+                let details = '';
+                try {
+                    details = Object.entries(result.details as { [key: string]: string[] })
+                        .map(([key, value]) => `- ${chalk.bold(key)}: ${value.join(', ')}`)
+                        .join('\n');
+                } catch (e) {
+                    logger.warn(`Failed to parse validation errors: ${e}`);
+                    details = JSON.stringify(result, null, 2);
+                }
+
+                throw new ConsoleValidationError(result as ConsoleErrorResult, response, {
+                    instructions: [`Please address the validation issues below and try again:\n\n${details}`],
+                });
             default:
                 throw new BaseConsoleError(result as ConsoleErrorResult, response);
         }
