@@ -1,5 +1,11 @@
-import { jest } from '@jest/globals';
 import { modifyConfigSource } from '../../src/commands/config/init.js';
+import { dirname, resolve } from 'path';
+import { readFile } from 'fs/promises';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 describe('modifyConfigSource', () => {
     describe('basic functionality', () => {
         it('should add setter methods to a simple Config constructor', () => {
@@ -229,6 +235,18 @@ describe('modifyConfigSource', () => {
                     timeout: 20
                 }).setOrganization("test-org");`);
         });
+
+        it('should work with real ownnstak.config.ts template', async () => {
+            const templatePath = resolve(__dirname, '..', '..', 'src', 'templates', 'config', 'ownstak.config.ts');
+            const sourceCode = await readFile(templatePath, 'utf-8');
+            const result = modifyConfigSource(sourceCode, {
+                organization: 'my-org',
+                project: 'my-project',
+            });
+
+            expect(result).toContain(`import { Config } from 'ownstak';`);
+            expect(result).toContain(`export default new Config().setOrganization("my-org").setProject("my-project");`);
+        });
     });
 
     describe('capitalize function', () => {
@@ -304,35 +322,6 @@ describe('modifyConfigSource', () => {
                 path: "path/to/\\"quoted\\"/(something)",
                 message: 'This is a \\'quoted\\' string'
             }).setOrganization("test-org");`);
-        });
-
-        it('should skip new Config() calls in comments', () => {
-            const sourceCode = `const config = new Config({
-                memory: 2048, // this is a comment with new Config() call
-                timeout: 30 /* another comment with new Config() call */
-            });`;
-            const result = modifyConfigSource(sourceCode, { organization: 'test-org' });
-
-            expect(result).toBe(`const config = new Config({
-                memory: 2048, // this is a comment with new Config() call
-                timeout: 30 /* another comment with new Config() call */
-            }).setOrganization("test-org");`);
-        });
-
-        it('should only modify actual Config constructors, not those in comments', () => {
-            const sourceCode = `
-                // const config = new Config({ memory: 1024 }); // This should be ignored
-                const config = new Config({ memory: 2048 }); // This should be modified
-                /* 
-                 * const otherConfig = new Config({ timeout: 30 }); // This should be ignored
-                 */
-            `;
-            const result = modifyConfigSource(sourceCode, { organization: 'test-org' });
-
-            // Should only modify the actual Config constructor, not the ones in comments
-            expect(result).toContain(`const config = new Config({ memory: 2048 }).setOrganization("test-org");`);
-            expect(result).not.toContain(`new Config({ memory: 1024 }).setOrganization`);
-            expect(result).not.toContain(`new Config({ timeout: 30 }).setOrganization`);
         });
     });
 });

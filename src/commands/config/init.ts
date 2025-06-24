@@ -150,16 +150,16 @@ export function modifyConfigSource(sourceCode: string, setOptions: Record<string
         let index = startIndex;
         let openParens = 0;
         let foundStart = false;
-        let inSingleLineComment = false;
-        let inMultiLineComment = false;
         let inString = false;
         let stringChar = '';
+        let inSingleLineComment = false;
+        let inMultiLineComment = false;
 
         while (index < sourceCode.length) {
             const char = sourceCode[index];
             const nextChar = sourceCode[index + 1] || '';
 
-            // Handle string literals
+            // Handle string literals to avoid counting parentheses inside strings
             if (!inSingleLineComment && !inMultiLineComment && (char === '"' || char === "'" || char === '`')) {
                 if (!inString) {
                     inString = true;
@@ -190,7 +190,7 @@ export function modifyConfigSource(sourceCode: string, setOptions: Record<string
                 index++; // Skip the next character
             }
 
-            // Only process parentheses if not in comments or strings
+            // Only process parentheses if not inside comments or strings
             if (!inSingleLineComment && !inMultiLineComment && !inString) {
                 if (char === '(') {
                     openParens++;
@@ -209,62 +209,9 @@ export function modifyConfigSource(sourceCode: string, setOptions: Record<string
         return index;
     }
 
-    function isInComment(index: number): boolean {
-        let i = 0;
-        let inSingleLineComment = false;
-        let inMultiLineComment = false;
-        let inString = false;
-        let stringChar = '';
-
-        while (i < index) {
-            const char = sourceCode[i];
-            const nextChar = sourceCode[i + 1] || '';
-
-            // Handle string literals
-            if (!inSingleLineComment && !inMultiLineComment && (char === '"' || char === "'" || char === '`')) {
-                if (!inString) {
-                    inString = true;
-                    stringChar = char;
-                } else if (stringChar === char) {
-                    // Check for escaped quotes
-                    if (sourceCode[i - 1] !== '\\') {
-                        inString = false;
-                        stringChar = '';
-                    }
-                }
-            }
-
-            // Handle single-line comments
-            if (!inString && !inMultiLineComment && char === '/' && nextChar === '/') {
-                inSingleLineComment = true;
-                i++; // Skip the next character
-            } else if (inSingleLineComment && char === '\n') {
-                inSingleLineComment = false;
-            }
-
-            // Handle multi-line comments
-            if (!inString && !inSingleLineComment && char === '/' && nextChar === '*') {
-                inMultiLineComment = true;
-                i++; // Skip the next character
-            } else if (inMultiLineComment && char === '*' && nextChar === '/') {
-                inMultiLineComment = false;
-                i++; // Skip the next character
-            }
-
-            i++;
-        }
-
-        return inSingleLineComment || inMultiLineComment;
-    }
-
     const inserts: Array<{ start: number; end: number }> = [];
     let match;
     while ((match = newConfigRegex.exec(sourceCode)) !== null) {
-        // Skip if the match is inside a comment
-        if (isInComment(match.index)) {
-            continue;
-        }
-
         const start = match.index;
         const end = findFullNewConfig(newConfigRegex.lastIndex - 1);
         inserts.push({ start, end });
