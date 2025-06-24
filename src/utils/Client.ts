@@ -107,7 +107,7 @@ export class Client {
                 case 'ENOTFOUND':
                     throw new ClientError('The API server was not found', this);
                 default:
-                    throw new ClientError(error.cause?.message || error.message, this);
+                    throw error;
             }
         }
     }
