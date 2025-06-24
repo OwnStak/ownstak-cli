@@ -13,11 +13,11 @@ const __dirname = dirname(__filename);
 let cachedPackageJson: PackageJson | undefined;
 
 export interface CliConfigOptions {
-    tokens?: Record<string, string>;
+    apiKeys?: Record<string, string>;
 }
 
 export class CliConfig {
-    tokens: Record<string, string> = {};
+    apiKeys: Record<string, string> = {};
 
     constructor(configObject: CliConfigOptions = {}) {
         Object.assign(this, configObject);
@@ -32,38 +32,52 @@ export class CliConfig {
             return new CliConfig();
         }
         const configFile = readFileSync(CLI_CONFIG_FILE_PATH, 'utf8');
-        return new CliConfig(JSON.parse(configFile));
+        // Just for backward compatibility, so users don't have to login again,
+        // load the API keys from the tokens field too.
+        // TODO: Remove this after reasonable time has passed.
+        const config = JSON.parse(configFile);
+        if (config.tokens) config.apiKeys = config.tokens;
+        return new CliConfig(config);
     }
 
     /**
-     * Returns the token for a given Console API URL
+     * Reloads the CLI config from the persistent CLI config file
      */
-    getToken(url = CONSOLE_API_URL) {
-        if (this.tokens) {
-            return this.tokens[url];
+    reload() {
+        const config = CliConfig.load();
+        Object.assign(this, config);
+        return this;
+    }
+
+    /**
+     * Returns the API key for a given API URL
+     */
+    getApiKey(url = CONSOLE_API_URL) {
+        if (this.apiKeys) {
+            return this.apiKeys[url];
         }
         return undefined;
     }
 
     /**
-     * Sets the token for a given Console API URL
+     * Sets the API key for a given API URL
      */
-    setToken(token: string, url = CONSOLE_API_URL) {
-        this.tokens[url] = token;
+    setApiKey(apiKey: string, url = CONSOLE_API_URL) {
+        this.apiKeys[url] = apiKey;
     }
 
     /**
-     * Deletes the token for a given Console API URL
+     * Deletes the API key for a given API URL
      */
-    deleteToken(url = CONSOLE_API_URL) {
-        delete this.tokens[url];
+    deleteApiKey(url = CONSOLE_API_URL) {
+        delete this.apiKeys[url];
     }
 
     /**
-     * Deletes all the tokens
+     * Deletes all the API keys
      */
-    deleteTokens() {
-        this.tokens = {};
+    deleteApiKeys() {
+        this.apiKeys = {};
     }
 
     /**

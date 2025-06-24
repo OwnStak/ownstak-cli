@@ -6,9 +6,9 @@ import { logger } from '../../logger.js';
 import { FrameworkAdapter, HookArgs } from '../../config.js';
 import { BRAND, FRAMEWORKS } from '../../constants.js';
 import { bundleRequire } from 'bundle-require';
-import { nodeFileTrace } from '@vercel/nft';
 import { CliError } from '../../cliError.js';
 import chalk from 'chalk';
+import { filenameToPath } from '../../utils/pathUtils.js';
 
 export type AstroConfig = {
     adapter?: {
@@ -16,7 +16,19 @@ export type AstroConfig = {
     };
     outputDir?: string;
     publicDir?: string;
+    base?: string;
+    redirects?: AstroRedirects;
 };
+
+export type AstroRedirects = {
+    [source: string]: AstroRedirect;
+};
+export type AstroRedirect =
+    | string
+    | {
+          status?: number;
+          destination: string;
+      };
 
 export const astroFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Astro,
@@ -29,6 +41,9 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
             const publicDir: string = astroConfig.publicDir || 'public';
             const clientOutputDir: string = outputMode === 'server' ? `${outputDir}/client` : outputDir;
             const serverOutputDir: string = outputMode === 'server' ? `${outputDir}/server` : outputDir;
+            // Construct normalized base path: docs => /docs/, /docs => /docs/, '' => '/'
+            const basePath = `/${astroConfig.base ?? ''}/`.replace(/\/\//g, '/');
+            const redirects = astroConfig.redirects || {};
 
             logger.info(`Astro adapter: ${adapterName ?? 'None'}`);
             if (adapterName && adapterName !== '@astrojs/node') {
@@ -111,7 +126,7 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
                 config.router.any([
                     {
                         type: 'serveAsset',
-                        path: '404.html',
+                        path: `${basePath}404.html`,
                         description: 'Serve 404.html page by default',
                     },
                 ]);
@@ -122,12 +137,12 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
 
             // Configure assets
             config.assets.htmlToFolders = true;
-            config.assets.include[publicDir] = `./`;
-            config.assets.include[clientOutputDir] = `./`;
+            config.assets.include[publicDir] = `./`; // public assets are without base path
+            config.assets.include[clientOutputDir] = `.${basePath}`;
             config.assets.include[`./_astro`] = false;
 
             // Configure permanent assets
-            config.permanentAssets.include[join(clientOutputDir, '_astro')] = `./_astro`;
+            config.permanentAssets.include[join(clientOutputDir, '_astro')] = `.${basePath}_astro`;
 
             if (outputMode === 'static') {
                 logger.info('');
@@ -142,6 +157,26 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
                         title: 'Hint',
                         borderColor: 'brand',
                     },
+                );
+            }
+
+            // Configure redirects from astro.config.mjs,
+            // so they work also for static assets, pre-rendered pages, etc...
+            for (const [sourcePattern, destinationPattern] of Object.entries(redirects)) {
+                const path = filenameToPath(sourcePattern);
+                const to = filenameToPath(typeof destinationPattern === 'string' ? destinationPattern : destinationPattern.destination);
+                const statusCode = typeof destinationPattern === 'string' ? 302 : (destinationPattern.status ?? 302);
+                config.router.match(
+                    {
+                        path,
+                    },
+                    [
+                        {
+                            type: 'redirect',
+                            to,
+                            statusCode,
+                        },
+                    ],
                 );
             }
         },

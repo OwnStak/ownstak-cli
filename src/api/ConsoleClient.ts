@@ -1,4 +1,4 @@
-import { ApiDeployment, ApiDeploymentOnCreate, ApiKeyRequest, ApiLogs, ApiApiKey } from './types/entities.js';
+import { ApiDeployment, ApiDeploymentOnCreate, ApiKeyRequest, ApiLogs, ApiKey } from './types/entities.js';
 import { CreateDeploymentRequest } from './requests/CreateDeployment.js';
 import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
 import { ListProjectsResponse } from './requests/ListProjects.js';
@@ -19,14 +19,14 @@ import chalk from 'chalk';
 import { logger } from '../logger.js';
 
 export default class ConsoleClient extends Client {
-    constructor({ url, token }: { url: string; token?: string }) {
-        super(url, {
+    constructor({ apiUrl, apiKey }: { apiUrl: string; apiKey?: string }) {
+        super(apiUrl, {
             [HEADERS.UserAgent]: `${BRAND} CLI ${CliConfig.getCurrentVersion()}`,
             [HEADERS.ContentType]: 'application/json',
         });
 
-        if (token) {
-            this.addHeader(HEADERS.Authorization, `Bearer ${token}`);
+        if (apiKey) {
+            this.addHeader(HEADERS.Authorization, `Bearer ${apiKey}`);
         }
     }
 
@@ -155,7 +155,7 @@ export default class ConsoleClient extends Client {
     async retrieveApiKeyFromRequest(apiKeyRequestId: string, apiKeyRequestSecret: string) {
         return this.post({ path: `/api/api_key_requests/${apiKeyRequestId}/retrieve_api_key`, body: { secret: apiKeyRequestSecret } })
             .then((res) => res.json())
-            .then((data) => data as ApiApiKey);
+            .then((data) => data as ApiKey);
     }
 
     protected async handleError(response: Response) {

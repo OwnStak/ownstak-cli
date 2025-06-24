@@ -40,12 +40,12 @@ export interface BuildCommandOptions {
     framework?: Framework;
     skipFrameworkBuild?: boolean;
     assetsDir?: string;
-    permanentAssetsDir?: string;
     defaultFile?: string;
     defaultStatus?: number;
+    skipSummary?: boolean;
 }
 
-export async function build(options: BuildCommandOptions) {
+export async function build(options: BuildCommandOptions = {}) {
     const startTime = Date.now();
 
     // Clear everything under the build directory except the proxy,
@@ -335,38 +335,40 @@ export async function build(options: BuildCommandOptions) {
     const isDefaultArch = Config.getDefaultArch() === config.arch;
     const isDefaultTimeout = Config.getDefaultTimeout() === config.timeout;
 
-    // Print build summary
-    logger.info('');
-    logger.drawTable(
-        [
-            `Framework: ${chalk.cyan(config.framework)}`,
-            `Runtime: ${chalk.cyan(config.runtime)} ${chalk.gray(isDefaultRuntime ? '' : 'custom')}`,
-            `Memory: ${chalk.cyan(`${config.memory}MiB`)} ${chalk.gray(isDefaultMemory ? '' : 'custom')}`,
-            `Arch: ${chalk.cyan(config.arch)} ${chalk.gray(isDefaultArch ? '' : 'custom')}`,
-            `Timeout: ${chalk.cyan(`${config.timeout}s`)} ${chalk.gray(isDefaultTimeout ? '' : 'custom')}`,
-            `Routes: ${chalk.cyan(config.router.routes.length.toString())}`,
-            `Build duration: ${chalk.cyan(`${duration.toFixed(2)}s`)}`,
-        ],
-        {
-            title: 'Build Successful',
-            logLevel: LogLevel.SUCCESS,
-            minWidth: tableMinWidth,
-        },
-    );
+    if (!options.skipSummary) {
+        // Display build summary when running as a standalone command but not as part of deploy command.
+        logger.info('');
+        logger.drawTable(
+            [
+                `Framework: ${chalk.cyan(config.framework)}`,
+                `Runtime: ${chalk.cyan(config.runtime)} ${chalk.gray(isDefaultRuntime ? '' : 'custom')}`,
+                `Memory: ${chalk.cyan(`${config.memory}MiB`)} ${chalk.gray(isDefaultMemory ? '' : 'custom')}`,
+                `Arch: ${chalk.cyan(config.arch)} ${chalk.gray(isDefaultArch ? '' : 'custom')}`,
+                `Timeout: ${chalk.cyan(`${config.timeout}s`)} ${chalk.gray(isDefaultTimeout ? '' : 'custom')}`,
+                `Routes: ${chalk.cyan(config.router.routes.length.toString())}`,
+                `Build duration: ${chalk.cyan(`${duration.toFixed(2)}s`)}`,
+            ],
+            {
+                title: 'Build Successful',
+                logLevel: LogLevel.SUCCESS,
+                minWidth: tableMinWidth,
+            },
+        );
 
-    // Display what to do next ibfo
-    logger.info('');
-    logger.drawTable(
-        [
-            `Run ${chalk.cyan(`npx ${NAME} start`)} to test your project locally.`,
-            `When you're ready, run ${chalk.cyan(`npx ${NAME} deploy`)} to deploy to ${BRAND}.`,
-        ],
-        {
-            title: "What's Next",
-            borderColor: 'brand',
-            minWidth: tableMinWidth,
-        },
-    );
+        // Display what to do next ibfo
+        logger.info('');
+        logger.drawTable(
+            [
+                `Run ${chalk.cyan(`npx ${NAME} start`)} to test your project locally.`,
+                `When you're ready, run ${chalk.cyan(`npx ${NAME} deploy`)} to deploy to ${BRAND}.`,
+            ],
+            {
+                title: "What's Next",
+                borderColor: 'brand',
+                minWidth: tableMinWidth,
+            },
+        );
+    }
 }
 
 /**
@@ -487,10 +489,6 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
                 // Example: "src/index.js" with destPattern true
                 // copies "src/index.js" to "build/src/index.js" (preserves full path)
                 destFile = resolve(destDir, srcFile);
-            } else if (destPattern === './') {
-                // Example: "./src/public" with destPattern "./"
-                // copies "src/public/style.css" to "build/style.css" (flattened)
-                destFile = resolve(destDir, relative(baseDir, srcFile));
             } else if (destPattern.toString().includes('**/*')) {
                 // Example: "src/*.js" with destPattern "js/**/*"
                 // copies "src/app.js" to "build/js/app.js"
@@ -510,7 +508,7 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
             } else {
                 // Example: "src/app.js" with destPattern "main.js"
                 // copies "src/app.js" to "build/main.js" (custom name)
-                destFile = resolve(destDir, destPattern);
+                destFile = join(destDir, destPattern);
             }
 
             // Use the unified copy function that handles files, directories, and symlinks properly

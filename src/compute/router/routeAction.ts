@@ -99,6 +99,11 @@ export interface ImageOptimizer extends BaseRouteAction {
     type: 'imageOptimizer';
 }
 
+export interface NodeFunction extends BaseRouteAction {
+    type: 'nodeFunction';
+    path: string;
+}
+
 export type RouteAction = BaseRouteAction &
     (
         | Proxy
@@ -118,6 +123,7 @@ export type RouteAction = BaseRouteAction &
         | SetResponseStatus
         | DeleteResponseHeader
         | DeleteRequestHeader
+        | NodeFunction
     );
 
 export function isRouteAction(action: any): action is RouteAction {
@@ -190,4 +196,8 @@ export function isEchoAction(action: RouteAction): action is Echo {
 
 export function isImageOptimizerAction(action: RouteAction): action is ImageOptimizer {
     return action.type === 'imageOptimizer';
+}
+
+export function isNodeFunctionAction(action: RouteAction): action is NodeFunction {
+    return action.type === 'nodeFunction';
 }

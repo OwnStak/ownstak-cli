@@ -1,6 +1,6 @@
 import { logger } from '../../logger.js';
 import { FrameworkAdapter } from '../../config.js';
-import { ASSETS_DIR_PATH, BRAND, FRAMEWORKS, NAME, PERMANENT_ASSETS_DIR_PATH } from '../../constants.js';
+import { ASSETS_DIR_PATH, BRAND, FRAMEWORKS, INPUT_CONFIG_FILE, NAME, PERMANENT_ASSETS_DIR_PATH } from '../../constants.js';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import { spawn } from 'child_process';
@@ -16,9 +16,16 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             if (Object.keys(config.assets.include).length == 0) {
                 throw new CliError(
                     `Looks like you are trying to build static project without any assets. \r\n` +
-                        `- Please specify the folder with static assets in the build command. \r\n` +
-                        `  For example: 'npx ${NAME} build static --assets-dir ./assets'\r\n` +
-                        `- Or create custom ${BRAND} project config by running 'npx ${NAME} config init'.`,
+                        `Please specify the folder with static assets in your project config. \r\n\r\n` +
+                        `Example ${INPUT_CONFIG_FILE}:\r\n` +
+                        `import { Config } from '${NAME}';\r\n` +
+                        `export default new Config().includeAsset("./static")\r\n\r\n` +
+                        `Or\r\n\r\n` +
+                        `export default new Config(\r\n` +
+                        `    assets: {\r\n` +
+                        `        include: { './static': true },\r\n` +
+                        `    },\r\n` +
+                        `);`,
                 );
             }
 

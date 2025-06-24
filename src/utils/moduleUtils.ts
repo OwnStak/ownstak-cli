@@ -2,7 +2,8 @@ import { dirname, join, resolve } from 'path';
 import { exists } from './fsUtils.js';
 import { createRequire } from 'module';
 import { existsSync, readFileSync } from 'fs';
-import { execSync } from 'child_process';
+import util from 'util';
+import { exec } from 'child_process';
 
 /**
  * Finds the location of a module in the project's node_modules
@@ -41,29 +42,25 @@ export async function getModuleFileUrl(moduleName: string, filePath: string): Pr
     return `file://${fullPath}`;
 }
 
-export function installDependencies(cwd: string = process.cwd()) {
-    if (existsSync(join(cwd, 'package-lock.json'))) {
-        execSync('npm install --no-audit --no-fund --legacy-peer-deps', {
-            stdio: 'inherit',
-            cwd,
-        });
-        return true;
+export async function installDependencies(cwd: string = process.cwd()) {
+    const execAsync = util.promisify(exec);
+    const packageManager = getPackageManager(cwd);
+    if (!packageManager) {
+        return false;
     }
-    if (existsSync(join(cwd, 'yarn.lock'))) {
-        execSync('yarn install --no-audit', {
-            stdio: 'inherit',
-            cwd,
-        });
-        return true;
-    }
-    if (existsSync(join(cwd, 'pnpm-lock.yaml'))) {
-        execSync('pnpm install', {
-            stdio: 'inherit',
-            cwd,
-        });
-        return true;
-    }
-    return false;
+
+    const cmd = {
+        npm: 'npm install --no-audit --no-fund --legacy-peer-deps',
+        yarn: 'yarn install --no-audit',
+        pnpm: 'pnpm install --no-audit',
+        bun: 'bun install',
+    }[packageManager];
+
+    await execAsync(cmd, {
+        cwd,
+    });
+
+    return true;
 }
 
 export function getProjectType(cwd: string = process.cwd()): 'commonjs' | 'module' | 'typescript' {
@@ -99,4 +96,20 @@ export function getFileModuleType(filePath: string): 'commonjs' | 'module' | 'ty
         return 'module';
     }
     return 'commonjs';
+}
+
+function getPackageManager(cwd: string = process.cwd()) {
+    if (existsSync(join(cwd, 'package-lock.json'))) {
+        return 'npm';
+    }
+    if (existsSync(join(cwd, 'yarn.lock'))) {
+        return 'yarn';
+    }
+    if (existsSync(join(cwd, 'pnpm-lock.yaml'))) {
+        return 'pnpm';
+    }
+    if (existsSync(join(cwd, 'bun.lockb'))) {
+        return 'bun';
+    }
+    return null;
 }

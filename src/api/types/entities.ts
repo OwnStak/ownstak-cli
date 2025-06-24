@@ -51,6 +51,6 @@ export type ApiKeyRequest = {
     name?: string;
 };
 
-export type ApiApiKey = {
+export type ApiKey = {
     token: string;
 };

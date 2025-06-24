@@ -37,7 +37,7 @@ program
     .option('--assets-dir <dir>', 'Optional directory with static assets to include in the build')
     .option('--default-file <file>', 'The file to serve as default for not found routes. Defaults to 404.html')
     .option('--default-status <status>', 'The status to serve as default for not found routes. Defaults to 404')
-    .action((framework, options) => build({ framework, ...options }));
+    .action((framework, options) => build({ framework, ...options, displaySummary: true }));
 
 program
     .command('dev [framework]')
@@ -53,8 +53,15 @@ const withApiUrl = (command: Command) => {
         .addOption(new Option('--api-url <url>', 'The API URL to use').default(CONSOLE_API_URL, 'production API URL').hideHelp());
 };
 
-const withApiToken = (command: Command) => command.option('--api-token <token>', 'The API token to use');
-const withApiOptions = (command: Command) => withApiUrl(withApiToken(command));
+const withApiKey = (command: Command) => {
+    return (
+        command
+            .addOption(new Option('--api-key <key>', 'The API key to use'))
+            // Support --api-token as well for backwards compatibility
+            .addOption(new Option('--api-token <key>', 'The API token to use').hideHelp())
+    );
+};
+const withApiOptions = (command: Command) => withApiUrl(withApiKey(command));
 const withEnvironmentSlugsOptions = (command: Command) =>
     command
         .option('--organization <slug>', 'The organization slug to use')
@@ -63,12 +70,20 @@ const withEnvironmentSlugsOptions = (command: Command) =>
 
 withEnvironmentSlugsOptions(withApiOptions(program.command('deploy')))
     .description('Deploy the project to the platform')
-    .action(deploy);
+    .action(deploy)
+    .addOption(new Option(`--skip-build`, `Skip the build step and use existing build output from npx ${NAME} build`))
+    .addOption(new Option(`--skip-framework-build`, `Skip the build of the framework in the build step`))
+    .addOption(new Option(`--assets-dir <dir>`, `Optional directory with static assets to include in the build`))
+    .addOption(new Option(`--default-file <file>`, `The file to serve as default for not found routes. Defaults to 404.html`))
+    .addOption(new Option(`--default-status <status>`, `The status to serve as default for not found routes. Defaults to 404`));
+
 withApiOptions(program.command('login')).description('Log in to the platform').action(login);
 withApiUrl(program.command('logout')).description('Log out of the platform').action(logout);
 
 const configCommand = program.command('config').description(`Manage the ${BRAND} project config`);
-configCommand.command('init').description(`Initialize the ${BRAND} project config file`).action(configInit);
+withEnvironmentSlugsOptions(withApiOptions(configCommand.command('init')))
+    .description(`Initialize the ${BRAND} project config file`)
+    .action(configInit);
 configCommand.command('print').description(`Prints the current ${BRAND} project config`).action(configPrint);
 
 program
@@ -102,7 +117,8 @@ export async function preAction(thisCommand: Command, actionCommand: Command) {
     logger.drawTitle(commandName);
 
     // Update the default api-url to the correct value based on the flags
-    const { dev, stage, local, apiUrl } = actionCommand.opts();
+    const { dev, stage, local, apiUrl, apiKey, apiToken } = actionCommand.opts();
+    actionCommand.setOptionValue('apiKey', apiKey || apiToken); // Set the apiKey to the value of apiToken for backwards compatibility
     actionCommand.setOptionValue('apiUrl', apiUrl || CONSOLE_API_URL);
     if (dev) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_DEV);
     if (stage) actionCommand.setOptionValue('apiUrl', CONSOLE_API_URL_STAGE);
@@ -126,6 +142,7 @@ export async function postAction(_thisCommand: Command, actionCommand: Command) 
  * @param e - The error object.
  */
 export async function handleException(e: any) {
+    logger.stopSpinner();
     const errorMessage: string = e.message;
     const errorStack: string = e.stack
         .split('\n')

@@ -9,20 +9,19 @@ import {
     APP_PORT,
     INPUT_CONFIG_FILE,
     COMPUTE_DIR_PATH,
-    NAME,
     ARCHS,
     DEFAULT_MEMORY,
     DEFAULT_TIMEOUT,
     HOST,
     DEFAULT_ENVIRONMENT,
 } from './constants.js';
-import { dirname, relative, resolve } from 'path';
+import { basename, dirname, join, relative, resolve } from 'path';
 import { logger } from './logger.js';
 import { normalizePath } from './utils/pathUtils.js';
-import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { CliError } from './cliError.js';
 import { waitForSocket } from './utils/portUtils.js';
+import { RouteCondition } from './compute/router/route.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -184,8 +183,9 @@ export class Config {
 
     constructor(options: ConfigOptions = {}) {
         Object.assign(this, options);
-        this.cliVersion ??= '0.0.0';
-        this.project ??= Config.getDefaultProject();
+
+        // NOTE: The organization and project are intentionally not set here.
+        // We prompt the user to confirm them in the deploy command when it's run the first time.
         this.environment ??= Config.getDefaultEnvironment();
 
         this.runtime ??= Config.getDefaultRuntime();
@@ -198,90 +198,191 @@ export class Config {
         this.permanentAssets ??= { include: {} };
         this.debugAssets ??= { include: {} };
         this.app ??= { include: {}, entrypoint: undefined };
+        this.cliVersion ??= '0.0.0';
     }
 
+    /**
+     * Sets the organization name.
+     */
     setOrganization(organization: string) {
         this.organization = organization;
         return this;
     }
 
+    /**
+     * Sets the project name.
+     */
     setProject(project: string) {
         this.project = project;
         return this;
     }
 
+    /**
+     * Sets the environment name.
+     */
     setEnvironment(environment: string) {
         this.environment = environment;
         return this;
     }
 
+    /**
+     * Sets the runtime.
+     */
     setRuntime(runtime: Runtime) {
         this.runtime = runtime;
         return this;
     }
 
+    /**
+     * Sets the memory.
+     */
     setMemory(memory: number) {
         this.memory = memory;
         return this;
     }
 
+    /**
+     * Sets the architecture.
+     */
     setArch(arch: Architecture) {
         this.arch = arch;
         return this;
     }
 
+    /**
+     * Sets the timeout.
+     */
     setTimeout(timeout: number) {
         this.timeout = timeout;
         return this;
     }
 
+    /**
+     * Sets the framework.
+     */
     setFramework(framework: Framework) {
         this.framework = framework;
         return this;
     }
 
+    /**
+     * Sets the framework adapter.
+     */
     setFrameworkAdapter(frameworkAdapter: FrameworkAdapter) {
         this.frameworkAdapter = frameworkAdapter;
         return this;
     }
 
+    /**
+     * Includes an asset.
+     * By default, the asset will be served from the project root folder.
+     * e.g. includeAsset('./public/image.png') will be served at /public/image.png
+     * If you want to serve the asset from a different path, you can specify the destination path.
+     * e.g. includeAsset('./public/image.png', './image.png') will be served at /image.png
+     * e.g. includeAsset('./public', './') will serve files from ./public folder at /
+     */
     includeAsset(path: string, destination?: string) {
         this.assets.include[path] = destination ?? true;
         return this;
     }
 
+    /**
+     * Includes a permanent asset.
+     * By default, the asset will be served from the project root folder.
+     * e.g. includePermanentAsset('./public/image.png') will be served at /public/image.png
+     * If you want to serve the asset from a different path, you can specify the destination path.
+     * e.g. includePermanentAsset('./public/image.png', './image.png') will be served at /image.png
+     */
     includePermanentAsset(path: string, destination?: string) {
         this.permanentAssets.include[path] = destination ?? true;
         return this;
     }
 
+    /**
+     * Includes a debug asset.
+     */
     includeDebugAsset(path: string, destination?: string) {
         this.debugAssets.include[path] = destination ?? true;
         return this;
     }
 
+    /**
+     * Includes source code files of your app.
+     */
     includeApp(path: string, destination?: string) {
         this.app.include[path] = destination ?? true;
         return this;
     }
 
+    /**
+     * Sets the entrypoint of your app.
+     */
     setAppEntrypoint(entrypoint: string) {
         this.app.entrypoint = entrypoint;
         return this;
     }
 
+    /**
+     * Sets the default file to serve if no other route matches.
+     */
     setDefaultFile(defaultFile: string) {
         this.assets.defaultFile = defaultFile;
         this.permanentAssets.defaultFile = defaultFile;
         return this;
     }
 
+    /**
+     * Sets the default status code to serve if no other route matches.
+     */
     setDefaultStatus(defaultStatus: number) {
         this.assets.defaultStatus = defaultStatus;
         this.permanentAssets.defaultStatus = defaultStatus;
         return this;
     }
 
+    /**
+     * Sets whether to skip the framework build.
+     */
+    setSkipFrameworkBuild(value = true) {
+        this.skipFrameworkBuild = value;
+        return this;
+    }
+
+    /**
+     * Adds a Node.js function to the router.
+     * @param functionPath - The path to the module that exports the function.
+     * @param condition - The condition to match the function.
+     * @example
+     * addNodeFunction('./urlTransformFunction.js', {
+     *     path: '/_next/image',
+     * });
+     * @example urlTransformFunction.js
+     * import type { Request, Response } from 'ownstak';
+     * export default function urlTransformFunction(req: Request, res: Response) {
+     *     const url = new URL(req.url);
+     *     url.pathname = url.pathname.replace('/_next/image', '/_next/image/');
+     *     req.url = url.toString();
+     * }
+     * @private
+     */
+    addNodeFunction(functionPath: string, condition: RouteCondition = {}) {
+        const name = `${basename(functionPath).split('.').slice(0, -1).join('.')}-${Date.now()}.mjs`;
+        const srcPath = relative(process.cwd(), functionPath);
+        const destPath = join('node-functions', name);
+        this.includeApp(srcPath, destPath);
+        this.router.match(condition, [
+            {
+                type: 'nodeFunction',
+                path: destPath,
+            },
+        ]);
+        return this;
+    }
+
+    /**
+     * Starts the user's app if defined.
+     * @private
+     */
     async startApp() {
         if (!this.app.entrypoint) {
             logger.debug('No app entrypoint was specified, skipping');
@@ -313,6 +414,10 @@ export class Config {
         await waitForSocket(HOST, APP_PORT);
     }
 
+    /**
+     * Serializes the config to a JSON string
+     * @private
+     */
     serialize() {
         const replacer = (key: string, value: any) => {
             if (value instanceof RegExp) {
@@ -323,6 +428,10 @@ export class Config {
         return JSON.stringify(this, replacer, 2);
     }
 
+    /**
+     * Deserializes the config from a JSON string
+     * @private
+     */
     static deserialize(json: string) {
         const reviver = (_key: string, value: any) => {
             if (typeof value === 'string' && value.startsWith('regexp:')) {
@@ -345,6 +454,7 @@ export class Config {
     /**
      * Validates the config.
      * @throws {CliError} if the config is invalid.
+     * @private
      */
     async validate() {
         const supportedFrameworks: string[] = Object.values(FRAMEWORKS);
@@ -370,19 +480,18 @@ export class Config {
     /**
      * Loads the built JSON config file from the .ownstak folder.
      * This should be called in lambda and when running build locally.
-     * @returns
+     * @private
      */
     static async loadFromBuild() {
-        const configFile = [resolve(__dirname, OUTPUT_CONFIG_FILE), resolve(OUTPUT_CONFIG_FILE), resolve(COMPUTE_DIR_PATH, OUTPUT_CONFIG_FILE)].find(
+        const configFilePath = [resolve(__dirname, OUTPUT_CONFIG_FILE), resolve(OUTPUT_CONFIG_FILE), resolve(COMPUTE_DIR_PATH, OUTPUT_CONFIG_FILE)].find(
             existsSync,
         );
-        logger.debug(`Loading ${BRAND} project config from: ${configFile}`);
-
-        if (!configFile) {
+        if (!configFilePath) {
             throw new Error(`Config file was not found: ${OUTPUT_CONFIG_FILE}`);
         }
 
-        return this.deserialize(await readFile(configFile, 'utf8'));
+        logger.debug(`Loading ${BRAND} project config from: ${configFilePath}`);
+        return this.deserialize(await readFile(configFilePath, 'utf8'));
     }
 
     /**
@@ -390,7 +499,7 @@ export class Config {
      * This requires the bundle-require module with esbuild to be installed,
      * so we can correctly load mjs/cjs/ts files.
      * This should not be called in lambda.
-     * @returns
+     * @private
      */
     static async loadFromSource() {
         // We use dynamic import here to avoid bundling the bundle-require module.
@@ -401,22 +510,13 @@ export class Config {
             resolve(INPUT_CONFIG_FILE).replace('.js', '.cjs'),
             resolve(INPUT_CONFIG_FILE).replace('.js', '.ts'),
         ].find(existsSync);
-
         if (!configFilePath) {
-            // Display hint what to do to customize the default config
-            logger.info(`Using default ${BRAND} config....`);
-            logger.info('');
-            logger.drawTable([`Run ${chalk.cyan(`npx ${NAME} config init`)} to customize your project's config.`], {
-                title: 'Hint',
-                borderColor: 'brand',
-            });
-            logger.info('');
-
+            logger.debug(`No config file found, using default ${BRAND} projectconfig...`);
             return new Config();
         }
 
         const relativeConfigFilePath = relative(process.cwd(), configFilePath);
-        logger.info(`Loading ${BRAND} project config: ${relativeConfigFilePath}`);
+        logger.debug(`Loading ${BRAND} project config: ${relativeConfigFilePath}`);
         const { mod } = await bundleRequire({
             filepath: normalizePath(configFilePath),
         });
@@ -427,28 +527,44 @@ export class Config {
         if (configModule.toString() != new Config().toString()) {
             const exampleConfigFilePath = resolve(__dirname, 'templates', 'config', 'ownstak.config.js');
             const exampleConfig = await readFile(exampleConfigFilePath, 'utf8');
-            logger.error(
-                `The ${BRAND} config file format was not recognized. Make sure the '${relativeConfigFilePath}' file exports instance of the Config class as default.`,
+            throw new CliError(
+                `The ${BRAND} project config file format was not recognized. Make sure the '${relativeConfigFilePath}' file exports instance of the Config class as default.` +
+                    `Example config file: \r\n${exampleConfig}`,
             );
-            logger.error(`Example config file: \r\n${exampleConfig}`);
-            process.exit(1);
         }
 
         return configModule as Config;
     }
 
     /**
+     * Reloads the config from the build file.
+     * @private
+     */
+    async reloadFromBuild() {
+        const config = await Config.loadFromBuild();
+        Object.assign(this, config);
+        return this;
+    }
+
+    /**
+     * Reloads the config from the source file.
+     * @private
+     */
+    async reloadFromSource() {
+        const config = await Config.loadFromSource();
+        Object.assign(this, config);
+        return this;
+    }
+
+    /**
      * Builds the source config in JS/TS format
      * to normalized JSON output format.
      * @param destDir - The destination directory for the output config file.
+     * @private
      */
     async build(destDir: string = COMPUTE_DIR_PATH) {
         logger.debug(`Building ${BRAND} project config...`);
         await writeFile(resolve(destDir, OUTPUT_CONFIG_FILE), this.serialize(), 'utf8');
-    }
-
-    toString() {
-        return this.constructor.name;
     }
 
     /**
@@ -508,6 +624,10 @@ export class Config {
         if (!existsSync(packageJsonPath)) return 'default';
         const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
         return packageJson.name || 'default';
+    }
+
+    toString() {
+        return this.constructor.name;
     }
 }
 

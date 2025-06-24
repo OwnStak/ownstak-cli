@@ -1,6 +1,5 @@
 import { isProxyRequestEvent, Event } from './proxyRequestEvent.js';
 import http from 'http';
-import tls from 'tls';
 import { HEADERS } from '../../constants.js';
 import { stringify } from 'querystring';
 

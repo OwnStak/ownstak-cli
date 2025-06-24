@@ -1,11 +1,12 @@
 import http from 'http';
 import https from 'https';
-import { ASSETS_URL, PERMANENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX, ASSETS_FOLDER, PERMANENT_ASSETS_FOLDER } from '../../constants.js';
+import { ASSETS_URL, PERMANENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX, ASSETS_FOLDER, PERMANENT_ASSETS_FOLDER, APP_DIR } from '../../constants.js';
 import { Request } from './request.js';
 import { Response } from './response.js';
 import { logger } from '../../logger.js';
 import { extractPathToRegexpParams, pathToRegexp, substitutePathToRegexpParams } from '../../utils/pathUtils.js';
 import { isNot, Route, RouteCondition } from './route.js';
+import { resolve } from 'path';
 import {
     RouteAction,
     SetResponseHeader,
@@ -13,6 +14,8 @@ import {
     AddResponseHeader,
     AddRequestHeader,
     SetResponseStatus,
+    SetDefaultResponseHeader,
+    SetDefaultRequestHeader,
     DeleteResponseHeader,
     DeleteRequestHeader,
     Redirect,
@@ -20,6 +23,7 @@ import {
     Proxy,
     ServeAsset,
     ServePermanentAsset,
+    NodeFunction,
     isEchoAction,
     isImageOptimizerAction,
     isAddResponseHeaderAction,
@@ -37,8 +41,7 @@ import {
     isDeleteRequestHeaderAction,
     isSetDefaultRequestHeaderAction,
     isSetDefaultResponseHeaderAction,
-    SetDefaultResponseHeader,
-    SetDefaultRequestHeader,
+    isNodeFunctionAction,
 } from './routeAction.js';
 
 export class Router {
@@ -319,6 +322,9 @@ export class Router {
         }
         if (isImageOptimizerAction(action)) {
             return this.executeImageOptimizer(request, response);
+        }
+        if (isNodeFunctionAction(action)) {
+            return this.executeNodeFunction(action, request, response);
         }
     }
 
@@ -928,5 +934,22 @@ export class Router {
             response.body = 'The fetched resource is not an image';
             return;
         }
+    }
+
+    /**
+     * Executes function in Node.js environment
+     * @param action The action to execute.
+     * @param request The request to execute the action on.
+     * @param response The response to execute the action on.
+     * @private
+     */
+    async executeNodeFunction(action: NodeFunction, request: Request, response: Response): Promise<void> {
+        const path = resolve(action.path);
+        const module = await import(`file://${path}`);
+        const fn = module.default?.default || module.default || module;
+        if (typeof fn !== 'function') {
+            throw new Error(`Default export of '${path}' is not a function`);
+        }
+        await fn(request, response);
     }
 }

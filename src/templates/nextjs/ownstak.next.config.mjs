@@ -5,6 +5,10 @@ const ownstakNextConfig = {
     images: {
         loader: 'custom',
         loaderFile: 'ownstak.image.loader.js',
+        remotePatterns: ['localhost', '127.0.0.1'].map(host => ({
+            protocol: 'http',
+            hostname: host,
+        })),
     },
 };
 
@@ -26,6 +30,10 @@ export default async function nextConfig() {
         images: {
             ...originalNextConfig.images,
             ...(originalNextConfig.images?.loader ? {} : ownstakNextConfig.images),
+            remotePatterns: [
+                ...(originalNextConfig.images?.remotePatterns ?? []),
+                ...ownstakNextConfig.images.remotePatterns,
+            ],
         },
         experimental: {
             ...originalNextConfig.experimental,

@@ -1,7 +1,6 @@
-import { existsSync } from 'fs';
 import { stat, unlink } from 'fs/promises';
 import { logger, LogLevel } from '../logger.js';
-import { ASSETS_DIR, BRAND, BUILD_DIR_PATH, COMPUTE_DIR, CONSOLE_API_URL, CONSOLE_URL, DEBUG_DIR, NAME, PERMANENT_ASSETS_DIR } from '../constants.js';
+import { ASSETS_DIR, BRAND, COMPUTE_DIR, CONSOLE_API_URL, CONSOLE_URL, DEBUG_DIR, NAME, PERMANENT_ASSETS_DIR } from '../constants.js';
 import { CliError } from '../cliError.js';
 import { formatBytes, zipFolder } from '../utils/fsUtils.js';
 import chalk from 'chalk';
@@ -9,53 +8,76 @@ import { Config } from '../config.js';
 import { CliConfig } from '../cliConfig.js';
 import ConsoleClient from '../api/ConsoleClient.js';
 import { uploadToPresignedUrl } from '../utils/s3Upload.js';
+import { login } from './login.js';
+import { build } from './build.js';
+import { configInit } from './config/init.js';
 
 export interface DeployCommandOptions {
     apiUrl: string;
-    apiToken?: string;
-    organization: string;
-    project: string;
-    environment: string;
+    apiKey?: string;
+    organization?: string;
+    project?: string;
+    environment?: string;
+    skipBuild?: boolean;
+    skipFrameworkBuild?: boolean;
 }
 
 export async function deploy(options: DeployCommandOptions) {
     logger.info(`Let's bring your project to life!`);
 
-    if (!existsSync(BUILD_DIR_PATH)) {
-        throw new CliError(`The project build does not exist. Please run \`npx ${NAME} build\` first.`);
-    }
-
-    const config = await Config.loadFromBuild();
-    const currentCliVersion = CliConfig.getCurrentVersion();
-    if (config.cliVersion !== currentCliVersion) {
-        throw new CliError(
-            `The project was built with different version of ${BRAND} CLI (${config.cliVersion}). Please run \`npx ${NAME} build\` and re-build your project with the current CLI version ${currentCliVersion} before deploying. `,
-        );
-    }
-
     const cliConfig = CliConfig.load();
-    const apiToken = options.apiToken || cliConfig.getToken(options.apiUrl);
-    if (!apiToken) {
+    const config = await Config.loadFromSource();
+
+    const apiUrl = options.apiUrl;
+    const initialApiKey = options.apiKey || cliConfig.getApiKey(apiUrl);
+
+    // If we don't have an API key, prompt the user to login
+    if (!initialApiKey) {
+        logger.info(`You'll need to login to ${BRAND} first.`);
+        await login({ apiUrl });
+        cliConfig.reload();
+        logger.info('');
+    }
+    const apiKey = initialApiKey || cliConfig.getApiKey(apiUrl);
+    if (!apiKey) {
         throw new CliError(
-            `Something is missing here... The CLI cannot deploy without an --api-token option. Please create a token at ${CONSOLE_URL}/settings and pass it to deploy command or login on this machine using \`npx ${NAME} login. ` +
-                `Example: npx ${NAME} deploy --api-token <token>`,
+            `Oops! The API key is missing possibily because of an error in the interactive login process.  ` +
+                `Please create new API key at ${CONSOLE_URL}/settings and pass it to deploy command manually. ` +
+                `Example: npx ${NAME} deploy --api-key <key>`,
         );
     }
 
-    const api = new ConsoleClient({ url: options.apiUrl, token: apiToken });
+    // Use org, project and environment from options and config if provided.
+    const initialOrganizationSlug = (options.organization || config.organization)?.toLowerCase();
+    const initialProjectSlug = (options.project || config.project)?.toLowerCase();
+    const initialEnvironmentSlug = (options.environment || config.environment || Config.getDefaultEnvironment())?.toLowerCase();
+    // If the organization or project is not set, run interactive project config wizard
+    // that walks the user through the process of setting up the project config.
+    if (!initialOrganizationSlug || !initialProjectSlug) {
+        logger.info('Almost there! We just need to setup your project config.');
+        await configInit({ apiUrl, apiKey });
+        await config.reloadFromSource();
+        logger.info('');
+    }
+
+    // Load the organization, project and environment again after the config init
+    const organizationSlug = (initialOrganizationSlug || config.organization)?.toLowerCase();
+    const projectSlug = (initialProjectSlug || config.project)?.toLowerCase();
+    const environmentSlug = initialEnvironmentSlug;
+    // If the organization or project is still not set, throw an error.
+    // We shouldn't get here, but there might be error in the config file.
+    if (!organizationSlug || !projectSlug) {
+        throw new CliError(
+            `Organization and project options are required. ` +
+                `Please pass them to deploy command or make sure they are set in the config file. ` +
+                `For example: npx ${NAME} deploy --organization <organization> --project <project>`,
+        );
+    }
+
+    const api = new ConsoleClient({ apiUrl, apiKey });
     const organizations = await api.getOrganizations();
     if (organizations.length === 0) {
         throw new CliError(`You're not a member of any organization. Please create new organization at ${CONSOLE_URL}/organizations and come back.`);
-    }
-
-    const environmentSlug = (options.environment || config.environment || Config.getDefaultEnvironment())?.toLowerCase();
-    const projectSlug = (options.project || config.project || Config.getDefaultProject())?.toLowerCase();
-    const organizationSlug = (options.organization || config.organization || organizations[0]?.slug)?.toLowerCase();
-    if (!organizationSlug) {
-        throw new CliError(
-            `Something is missing here... The CLI cannot deploy without an --organization option. Please pass it to deploy command or set the organization property in the ownstak.config.js file. ` +
-                `Example: npx ${NAME} deploy --organization <organization> --project <project> --environment <environment> --api-token <token>`,
-        );
     }
 
     const organization = organizations.find((org) => org.slug === organizationSlug);
@@ -80,6 +102,40 @@ export async function deploy(options: DeployCommandOptions) {
         environment = await api.createEnvironment(project.id, environmentSlug);
     }
 
+    // Display where the project will be deployed
+    logger.info(`${chalk.blueBright('Organization:')} ${chalk.cyan(organization.slug)}`);
+    logger.info(`${chalk.blueBright('Project:')} ${chalk.cyan(project.slug)}`);
+    logger.info(`${chalk.blueBright('Environment:')} ${chalk.cyan(environment.slug)}`);
+    const maskedApiKey = `${apiKey.slice(0, 3)}******${apiKey.slice(-4)}`;
+    logger.info(`${chalk.blueBright('API key:')} ${chalk.cyan(maskedApiKey)}`);
+    if (options.apiUrl !== CONSOLE_API_URL) {
+        // Display the API URL if it's not the default
+        logger.info(`${chalk.blueBright('API URL:')} ${chalk.cyan(options.apiUrl)}`);
+    }
+
+    logger.info('');
+    logger.drawSubtitle('Step 1/4', 'Build');
+    if (!options.skipBuild) {
+        logger.info('Building the project...');
+        await build({
+            // Allow to skip only certain parts of the build process
+            skipFrameworkBuild: options.skipFrameworkBuild,
+            // Skip the summary of the build process when running as part of deploy command
+            skipSummary: true,
+        });
+        logger.success('Build completed successfully');
+    } else {
+        logger.info('Using existing build...');
+    }
+    await config.reloadFromBuild();
+    const currentCliVersion = CliConfig.getCurrentVersion();
+    if (config.cliVersion !== currentCliVersion) {
+        throw new CliError(
+            `The project was built with different version of ${BRAND} CLI (${config.cliVersion}). ` +
+                `Please run \`npx ${NAME} build\` and re-build your project with the current CLI version ${currentCliVersion} before deploying. `,
+        );
+    }
+
     let deploymentStatus = 'draft';
     const draftDeployment = await api.createDeployment(environment.id, {
         cli_version: config.cliVersion,
@@ -90,7 +146,7 @@ export async function deploy(options: DeployCommandOptions) {
         arch: config.arch,
     });
 
-    const handleSIGINT = () => {
+    const cleanupDraftDeployment = () => {
         deploymentStatus = 'deleting';
         logger.stopSpinner();
         logger.info('');
@@ -105,22 +161,10 @@ export async function deploy(options: DeployCommandOptions) {
     };
 
     // Handle CONTROL+C and delete the deployment if it's still a draft
-    process.on('SIGINT', handleSIGINT);
-
-    // Display where the project will be deployed
-    logger.info(`${chalk.blueBright('Organization:')} ${chalk.cyan(organization.slug)}`);
-    logger.info(`${chalk.blueBright('Project:')} ${chalk.cyan(project.slug)}`);
-    logger.info(`${chalk.blueBright('Environment:')} ${chalk.cyan(environment.slug)}`);
-    const maskedApiToken = `${apiToken.slice(0, 3)}******${apiToken.slice(-4)}`;
-    logger.info(`${chalk.blueBright('API token:')} ${chalk.cyan(maskedApiToken)}`);
-
-    // Display the API URL if it's not the default
-    if (options.apiUrl !== CONSOLE_API_URL) {
-        logger.info(`${chalk.blueBright('API URL:')} ${chalk.cyan(options.apiUrl)}`);
-    }
+    process.on('SIGINT', cleanupDraftDeployment);
 
     logger.info('');
-    logger.drawSubtitle(`Step 1/3`, 'Zipping');
+    logger.drawSubtitle(`Step 2/4`, 'Zipping');
     for (const dirName of [ASSETS_DIR, PERMANENT_ASSETS_DIR, COMPUTE_DIR, DEBUG_DIR]) {
         const zipFilePath = `${dirName}.zip`;
         logger.startSpinner(`Zipping ${dirName}...`);
@@ -132,7 +176,7 @@ export async function deploy(options: DeployCommandOptions) {
     }
 
     logger.info('');
-    logger.drawSubtitle(`Step 2/3`, 'Uploading');
+    logger.drawSubtitle(`Step 3/4`, 'Uploading');
     for (const uploadObject of [
         [ASSETS_DIR, draftDeployment.storage_urls.assets],
         [PERMANENT_ASSETS_DIR, draftDeployment.storage_urls.permanent_assets],
@@ -151,7 +195,7 @@ export async function deploy(options: DeployCommandOptions) {
 
     // Too late to cancel the deployment,
     // just handle the SIGINT event, show a warning and immediately exit
-    process.removeListener('SIGINT', handleSIGINT);
+    process.removeListener('SIGINT', cleanupDraftDeployment);
     process.on('SIGINT', () => {
         logger.stopSpinner();
         logger.info('');
@@ -166,7 +210,7 @@ export async function deploy(options: DeployCommandOptions) {
     if (deploymentStatus !== 'draft') return;
 
     logger.info('');
-    logger.drawSubtitle(`Step 3/3`, 'Deployment');
+    logger.drawSubtitle(`Step 4/4`, 'Deployment');
     let deployment = await api.deployDeployment(draftDeployment.id);
 
     // TODO: may need refinement when we have better status.

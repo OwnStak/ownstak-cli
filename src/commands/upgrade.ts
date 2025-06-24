@@ -47,7 +47,7 @@ export async function upgrade(options: UpgradeCommandOptions) {
     await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
     logger.info(`Installing dependencies`);
-    if (installDependencies()) {
+    if (await installDependencies()) {
         logger.info(`${NAME} upgraded to ${upgradeVersion}!`);
         logger.info(`Upgrade completed successfully.`);
         return;

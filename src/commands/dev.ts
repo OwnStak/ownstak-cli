@@ -1,6 +1,3 @@
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import { logger } from '../logger.js';
 import { detectFramework, getFrameworkAdapters } from '../frameworks/index.js';
 import { getFrameworkAdapter } from '../frameworks/index.js';
 import { NAME, PORT } from '../constants.js';

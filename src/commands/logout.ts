@@ -11,16 +11,16 @@ export interface LogoutCommandOptions {
 export async function logout(options: LogoutCommandOptions) {
     const cliConfig = CliConfig.load();
     const apiUrl = options.apiUrl || CONSOLE_API_URL;
-    const existingApiToken = cliConfig.getToken(apiUrl);
+    const existingApiKey = cliConfig.getApiKey(apiUrl);
 
-    if (!existingApiToken) {
+    if (!existingApiKey) {
         logger.info(`You're not logged in to ${BRAND}.`);
         logger.info(`API URL: ${chalk.cyan(apiUrl)}`);
         logger.info(chalk.gray(`If you want to logout of different Console instance, please provide the API URL using the --api-url option.`));
         return;
     }
 
-    cliConfig.deleteToken(apiUrl);
+    cliConfig.deleteApiKey(apiUrl);
     cliConfig.save();
     logger.info(`Successfully logged out from ${BRAND}.`);
     logger.info(`API URL: ${chalk.cyan(apiUrl)}`);

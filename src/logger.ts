@@ -320,7 +320,6 @@ class Logger {
 
             // Split by words but preserve ANSI codes
             const parts: { text: string; isAnsi: boolean }[] = [];
-            let currentIndex = 0;
 
             // Extract ANSI codes and text parts
             const ansiRegex = /\u001b\[[0-9;]*m/g;
@@ -362,23 +361,44 @@ class Logger {
                     for (const word of words) {
                         const wordLength = getVisibleLength(word);
 
-                        if (lineLength + wordLength > maxWidth) {
-                            // Line would be too long, wrap
-                            if (line) {
-                                result.push(line);
-                                line = currentAnsiState + word;
-                                lineLength = wordLength;
-                            } else {
-                                // Word itself is longer than max width
-                                result.push(currentAnsiState + word);
-                                line = '';
-                                lineLength = 0;
-                            }
-                        } else {
-                            // Add to current line
+                        if (lineLength + wordLength <= maxWidth) {
+                            // If line length is ok, just add the word to the line
                             line += word;
                             lineLength += wordLength;
+                            continue;
                         }
+
+                        // If the line would be too long, try to wrap the words to new line
+                        // without breaking the word first
+                        if (word.length <= maxWidth) {
+                            // Word length is ok, but line would be too long, wrap
+                            result.push(line);
+                            line = currentAnsiState + word;
+                            lineLength = wordLength;
+                            continue;
+                        }
+
+                        // Word itself is longer than max width, break the word to multiple lines until it fits
+                        let remainingWord = word;
+                        let remainingLineWidth = maxWidth - lineLength;
+
+                        // First, add what fits on the current line
+                        if (remainingLineWidth > 0) {
+                            const firstChunk = remainingWord.slice(0, remainingLineWidth);
+                            result.push(currentAnsiState + firstChunk);
+                            remainingWord = remainingWord.slice(remainingLineWidth);
+                        }
+
+                        // Then break the remaining word into chunks that fit the max width
+                        while (remainingWord.length > 0) {
+                            const chunk = remainingWord.slice(0, maxWidth);
+                            result.push(currentAnsiState + chunk);
+                            remainingWord = remainingWord.slice(maxWidth);
+                        }
+
+                        // Reset line state since we've broken the word
+                        line = '';
+                        lineLength = 0;
                     }
                 }
             }
@@ -404,14 +424,10 @@ class Logger {
         // Apply minimum width if specified, but don't exceed terminal width
         const minContentWidth = options.minWidth ? Math.min(options.minWidth, maxAvailableWidth) : 0;
 
-        // Wrap lines if maxWidth is specified
+        // Wrap lines and break them to fit within the available width
         let processedLines: string[] = [];
-        if (options.maxWidth) {
-            for (const line of lines) {
-                processedLines.push(...wrapText(line, maxContentWidth));
-            }
-        } else {
-            processedLines = lines;
+        for (const line of lines) {
+            processedLines.push(...wrapText(line, maxContentWidth));
         }
 
         // Find the longest line length (accounting for ANSI color codes)
