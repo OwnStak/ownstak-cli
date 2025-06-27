@@ -5,14 +5,12 @@ import { readFile, writeFile, copyFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { BRAND, CONSOLE_API_URL, CONSOLE_URL, INPUT_CONFIG_FILE, NAME } from '../../constants.js';
 import { fileURLToPath } from 'url';
-import { installDependencies } from '../../utils/moduleUtils.js';
 import { CliError } from '../../cliError.js';
 import { CliConfig } from '../../cliConfig.js';
 import { login } from '../login.js';
 import { Config } from '../../config.js';
+import { input, select, confirm } from '@inquirer/prompts';
 import ConsoleClient from '../../api/ConsoleClient.js';
-import { input } from '@inquirer/prompts';
-import { select } from '@inquirer/prompts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,48 +20,10 @@ export interface ConfigInitCommandOptions {
     project?: string;
     apiUrl?: string;
     apiKey?: string;
-    displaySummary?: boolean;
+    requireOrgAndProject?: boolean;
 }
 
 export async function configInit(options: ConfigInitCommandOptions = {}) {
-    await setupCli();
-    await setupConfig(options);
-}
-
-export async function setupCli() {
-    const cliVersion = CliConfig.getCurrentVersion();
-
-    // Install the current version of CLI into the project
-    const packageJsonPath = resolve('package.json');
-    if (!existsSync(packageJsonPath)) {
-        logger.info(`Creating package.json file...`);
-        await writeFile(
-            packageJsonPath,
-            JSON.stringify(
-                {
-                    dependencies: {},
-                    devDependencies: {},
-                },
-                null,
-                2,
-            ),
-        );
-    }
-
-    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-    packageJson.dependencies ??= {};
-    packageJson.devDependencies ??= {};
-
-    if (!packageJson.devDependencies?.[NAME]) {
-        delete packageJson.dependencies[NAME];
-        logger.info(`Installing ${NAME} ${cliVersion} into the project...`);
-        packageJson.devDependencies[NAME] = cliVersion;
-        await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
-        await installDependencies();
-    }
-}
-
-export async function setupConfig(options: ConfigInitCommandOptions = {}) {
     const projectType = getProjectType();
 
     const configTemplateExtension = projectType === 'typescript' ? 'ts' : 'js';
@@ -79,13 +39,38 @@ export async function setupConfig(options: ConfigInitCommandOptions = {}) {
         ) || INPUT_CONFIG_FILE.replace(`.js`, `.${destConfigExtension}`);
     // Copy the config template to the destination path if it doesn't exist
     if (!existsSync(destConfigPath)) {
+        logger.info(`Creating ${BRAND} project config...`);
         await copyFile(configTemplatePath, destConfigPath);
     }
 
+    const config = await Config.loadFromSource();
     const cliConfig = CliConfig.load();
+
+    if (config.organization && config.project) {
+        return logger.success(`Nothing to do! Your project config is set up at '${destConfigPath}'`);
+    }
+    if (process.env.CI) {
+        throw new CliError(
+            `The ${BRAND} CLI detected a CI environment. Please set the organization and project name manually in the config file, or pass them as command arguments. ` +
+                `Example: --organization=my-org --project=my-project`,
+        );
+    }
+
+    // If the command is run as standalone command, the organization and project names are optional,
+    // so we ask for confirmation if the user wants to set them up.
+    // If the command is run as part of deploy command, without provided org/project, this step is required.
+    const shouldSetupOrgAndProject =
+        options.requireOrgAndProject ||
+        (await confirm({
+            message: `Would you like to set up organization and project name (requires login)?`,
+            default: true,
+        }));
+    if (!shouldSetupOrgAndProject) {
+        return logger.success(`All set! You can always set organization and project settings later.\r\nYou’ll find your project config at '${destConfigPath}'`);
+    }
+
     const apiUrl = options.apiUrl || CONSOLE_API_URL;
     let apiKey = options.apiKey || cliConfig.getApiKey(apiUrl);
-
     if (!apiKey) {
         await login({ apiUrl });
         apiKey = cliConfig.reload().getApiKey(apiUrl);
@@ -100,7 +85,6 @@ export async function setupConfig(options: ConfigInitCommandOptions = {}) {
     const defaultOrganizationSlug = organizations[0]?.slug;
     const defaultProjectSlug = Config.getDefaultProject();
 
-    const config = await Config.loadFromSource();
     let organizationSlug = options.organization || config.organization;
     let projectSlug = options.project || config.project;
 
@@ -112,7 +96,7 @@ export async function setupConfig(options: ConfigInitCommandOptions = {}) {
 
         logger.info('');
         organizationSlug = await select({
-            message: `Which organization do you want use for this project? (default: ${defaultOrganizationSlug})`,
+            message: `Which organization do you want use for this project?`,
             choices: organizations.map((org) => ({
                 name: org.slug,
                 value: org.slug,
@@ -123,7 +107,7 @@ export async function setupConfig(options: ConfigInitCommandOptions = {}) {
     // Prompt for project if not provided
     if (!projectSlug) {
         projectSlug = await input({
-            message: `What's the name of your project? (default: ${defaultProjectSlug}):`,
+            message: `What's the name of your project?`,
             default: defaultProjectSlug,
             validate: (value) => {
                 if (!value || value.trim() === '') return 'Project name cannot be empty';
@@ -140,7 +124,7 @@ export async function setupConfig(options: ConfigInitCommandOptions = {}) {
     if (!config.project) optionsToSet.project = projectSlug;
 
     await writeFile(destConfigPath, modifyConfigSource(configSource, optionsToSet));
-    logger.success(`And we're all set! You can check your project config at '${destConfigPath}'`);
+    logger.success(`All set! You can check your project config at '${destConfigPath}'`);
 }
 
 export function modifyConfigSource(sourceCode: string, setOptions: Record<string, string | number | boolean> = {}) {

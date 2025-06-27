@@ -1,4 +1,3 @@
-import { Router } from './compute/router/router.js';
 import { readFile, writeFile } from 'fs/promises';
 import { existsSync, readFileSync } from 'fs';
 import {
@@ -14,14 +13,18 @@ import {
     DEFAULT_TIMEOUT,
     HOST,
     DEFAULT_ENVIRONMENT,
+    NAME,
 } from './constants.js';
 import { basename, dirname, join, relative, resolve } from 'path';
 import { logger } from './logger.js';
-import { normalizePath } from './utils/pathUtils.js';
 import { fileURLToPath } from 'url';
-import { CliError } from './cliError.js';
-import { waitForSocket } from './utils/portUtils.js';
+import { Router } from './compute/router/router.js';
 import { RouteCondition } from './compute/router/route.js';
+import { waitForSocket } from './utils/portUtils.js';
+import { normalizePath } from './utils/pathUtils.js';
+import { findModuleLocation, installDependency } from './utils/moduleUtils.js';
+import { CliError } from './cliError.js';
+import { CliConfig } from './cliConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -502,6 +505,15 @@ export class Config {
      * @private
      */
     static async loadFromSource() {
+        // Load the config from ownstak.config.json if it exists.
+        // This allows users to have pure .json config without any dependencies.
+        const jsonConfigFilePath = resolve(OUTPUT_CONFIG_FILE);
+        if (existsSync(jsonConfigFilePath)) {
+            logger.debug(`Loading ${BRAND} project config from: ${jsonConfigFilePath}`);
+            return this.deserialize(await readFile(jsonConfigFilePath, 'utf8'));
+        }
+
+        // Load the config from ownstak.config.js/mjs/cjs/ts if it exists.
         // We use dynamic import here to avoid bundling the bundle-require module.
         const { bundleRequire } = await import('bundle-require');
         const configFilePath = [
@@ -511,29 +523,45 @@ export class Config {
             resolve(INPUT_CONFIG_FILE).replace('.js', '.ts'),
         ].find(existsSync);
         if (!configFilePath) {
-            logger.debug(`No config file found, using default ${BRAND} projectconfig...`);
+            logger.debug(`No config file found, using default ${BRAND} project config...`);
             return new Config();
+        }
+
+        // Try to import the ownstak package to verify it's actually installed
+        // and not just in the package.json before we try to load the config with bundleRequire,
+        // so users don't see a confusing error message about missing ownstak package
+        // when they delete node_modules or have local symlink version of ownstak
+        try {
+            await findModuleLocation(NAME);
+        } catch (e: any) {
+            const cliVersion = CliConfig.getCurrentVersion();
+            logger.info(`Installing ${NAME} CLI v${cliVersion} into your project...`);
+            await installDependency(NAME, cliVersion);
         }
 
         const relativeConfigFilePath = relative(process.cwd(), configFilePath);
         logger.debug(`Loading ${BRAND} project config: ${relativeConfigFilePath}`);
-        const { mod } = await bundleRequire({
-            filepath: normalizePath(configFilePath),
-        });
+        try {
+            const { mod } = await bundleRequire({
+                filepath: normalizePath(configFilePath),
+            });
 
-        // Check if the config file is in the correct format.
-        // Do not use instanceof Config here, because it doesn't work with bundled files.
-        const configModule = mod?.default?.default || mod?.default || new Config();
-        if (configModule.toString() != new Config().toString()) {
-            const exampleConfigFilePath = resolve(__dirname, 'templates', 'config', 'ownstak.config.js');
-            const exampleConfig = await readFile(exampleConfigFilePath, 'utf8');
-            throw new CliError(
-                `The ${BRAND} project config file format was not recognized. Make sure the '${relativeConfigFilePath}' file exports instance of the Config class as default.` +
-                    `Example config file: \r\n${exampleConfig}`,
-            );
+            // Check if the config file is in the correct format.
+            // Do not use instanceof Config here, because it doesn't work with bundled files.
+            const configModule = mod?.default?.default || mod?.default || new Config();
+            if (configModule.toString() != new Config().toString()) {
+                const exampleConfigFilePath = resolve(__dirname, 'templates', 'config', 'ownstak.config.js');
+                const exampleConfig = await readFile(exampleConfigFilePath, 'utf8');
+                throw new CliError(
+                    `The ${BRAND} project config file format was not recognized. Make sure the '${relativeConfigFilePath}' file exports instance of the Config class as default.` +
+                        `Example config file: \r\n${exampleConfig}`,
+                );
+            }
+
+            return configModule as Config;
+        } catch (e: any) {
+            throw new CliError(`Failed to load ${BRAND} project config from '${relativeConfigFilePath}':\r\n${e.stack}`);
         }
-
-        return configModule as Config;
     }
 
     /**

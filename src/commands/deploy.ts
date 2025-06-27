@@ -55,7 +55,7 @@ export async function deploy(options: DeployCommandOptions) {
     // that walks the user through the process of setting up the project config.
     if (!initialOrganizationSlug || !initialProjectSlug) {
         logger.info('Almost there! We just need to setup your project config.');
-        await configInit({ apiUrl, apiKey });
+        await configInit({ apiUrl, apiKey, requireOrgAndProject: true });
         await config.reloadFromSource();
         logger.info('');
     }

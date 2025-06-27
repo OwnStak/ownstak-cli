@@ -1,7 +1,7 @@
-import { dirname, join, resolve } from 'path';
-import { exists } from './fsUtils.js';
+import { dirname, join } from 'path';
 import { createRequire } from 'module';
 import { existsSync, readFileSync } from 'fs';
+import { writeFile, readFile } from 'fs/promises';
 import util from 'util';
 import { exec } from 'child_process';
 
@@ -35,20 +35,46 @@ export async function getModuleFileUrl(moduleName: string, filePath: string): Pr
     const modulePath = await findModuleLocation(moduleName);
     const fullPath = join(modulePath, filePath);
 
-    if (!(await exists(fullPath))) {
+    if (!existsSync(fullPath)) {
         throw new Error(`File ${filePath} not found in module ${moduleName} at ${modulePath}`);
     }
 
     return `file://${fullPath}`;
 }
 
+export async function installDependency(packageName: string, packageVersion = 'latest', cwd: string = process.cwd()) {
+    // Create basic package.json if it doesn't exist
+    const packageJsonPath = join(cwd, 'package.json');
+    if (!existsSync(packageJsonPath)) {
+        await writeFile(
+            packageJsonPath,
+            JSON.stringify(
+                {
+                    dependencies: {},
+                    devDependencies: {},
+                },
+                null,
+                2,
+            ),
+        );
+    }
+
+    // Replace the existing dependency with the exact specified version
+    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+    packageJson.dependencies ??= {};
+    packageJson.devDependencies ??= {};
+    delete packageJson.dependencies[packageName];
+    delete packageJson.devDependencies[packageName];
+    packageJson.dependencies[packageName] = packageVersion;
+    await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+
+    // Install the dependency with used package manager
+    await installDependencies(cwd);
+}
+
 export async function installDependencies(cwd: string = process.cwd()) {
     const execAsync = util.promisify(exec);
     const packageManager = getPackageManager(cwd);
-    if (!packageManager) {
-        return false;
-    }
-
     const cmd = {
         npm: 'npm install --no-audit --no-fund --legacy-peer-deps',
         yarn: 'yarn install --no-audit',
@@ -59,8 +85,6 @@ export async function installDependencies(cwd: string = process.cwd()) {
     await execAsync(cmd, {
         cwd,
     });
-
-    return true;
 }
 
 export function getProjectType(cwd: string = process.cwd()): 'commonjs' | 'module' | 'typescript' {
@@ -111,5 +135,6 @@ function getPackageManager(cwd: string = process.cwd()) {
     if (existsSync(join(cwd, 'bun.lockb'))) {
         return 'bun';
     }
-    return null;
+    // If no package manager is found, default to npm
+    return 'npm';
 }

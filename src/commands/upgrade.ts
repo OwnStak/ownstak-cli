@@ -1,12 +1,10 @@
-import { resolve } from 'path';
 import { logger, LogLevel } from '../logger.js';
 import { BRAND, NAME } from '../constants.js';
-import { readFile, writeFile } from 'fs/promises';
-import { installDependencies } from '../utils/moduleUtils.js';
+import { installDependencies, installDependency } from '../utils/moduleUtils.js';
+import { CliConfig } from '../cliConfig.js';
 import { CliError } from '../cliError.js';
 import chalk from 'chalk';
 import semver from 'semver';
-import { CliConfig } from '../cliConfig.js';
 
 export interface UpgradeCommandOptions {
     version?: string;
@@ -21,7 +19,7 @@ export async function upgrade(options: UpgradeCommandOptions) {
     const upgradeVersion = options.version ?? latestMinorVersion;
 
     if (currentVersion === upgradeVersion) {
-        logger.info(`The ${NAME} is up to date!`);
+        logger.info(`The ${NAME} CLI is up to date!`);
         return;
     }
 
@@ -31,30 +29,10 @@ export async function upgrade(options: UpgradeCommandOptions) {
         return;
     }
 
-    logger.info(`Upgrading ${NAME} from ${currentVersion} to ${latestVersion}`);
-    const packageJsonPath = resolve('package.json');
-    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8')) as {
-        dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
-    };
-
-    packageJson.dependencies = packageJson.dependencies || {};
-    packageJson.devDependencies = packageJson.devDependencies || {};
-    delete packageJson.dependencies[NAME];
-    packageJson.devDependencies[NAME] = upgradeVersion;
-
-    logger.info(`Updating ${packageJsonPath}...`);
-    await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
-
-    logger.info(`Installing dependencies`);
-    if (await installDependencies()) {
-        logger.info(`${NAME} upgraded to ${upgradeVersion}!`);
-        logger.info(`Upgrade completed successfully.`);
-        return;
-    }
-
-    logger.info(`We're done! Now it's your turn.`);
-    logger.info(`Please run 'npm install', 'yarn install' etc.. with your favorite package manager to finish the upgrade.`);
+    const actionName = semver.lt(currentVersion, upgradeVersion) ? 'Upgrading' : 'Downgrading';
+    logger.info(`${actionName} ${NAME} from ${currentVersion} to ${upgradeVersion}...`);
+    await installDependency(NAME, upgradeVersion);
+    logger.info(`The ${NAME} CLI v${upgradeVersion} installed successfully.`);
 }
 
 /**

@@ -299,6 +299,7 @@ export async function build(options: BuildCommandOptions = {}) {
     await copyFile(resolve(__dirname, '../compute/serverless/serverless.js'), resolve(COMPUTE_DIR_PATH, 'serverless.mjs'));
     await copyFile(resolve(__dirname, '../compute/serverless/serverless.js.map'), resolve(COMPUTE_DIR_PATH, 'serverless.mjs.map'));
 
+    // Create package.json with default module type in folder
     await writeFile(
         resolve(COMPUTE_DIR_PATH, 'package.json'),
         JSON.stringify(
@@ -312,8 +313,9 @@ export async function build(options: BuildCommandOptions = {}) {
         ),
     );
 
-    // Finally build the project from source ownstak.config.js/ts/mjs
-    // to .ownstak/compute/ownstak.config.json and .ownstak/ownstak.config.json
+    // Finally, build the project config from the source file (ownstak.config.js/ts/mjs)
+    // to .ownstak/compute/ownstak.config.json. This captures the result of all environment variable usage
+    // and any other JS code, eliminating the need for runtime dependencies.
     await config.build(COMPUTE_DIR_PATH);
     await config.build(BUILD_DIR_PATH);
 
