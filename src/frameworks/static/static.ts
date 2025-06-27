@@ -7,6 +7,7 @@ import { spawn } from 'child_process';
 import { CliError } from '../../cliError.js';
 import { normalizePath } from '../../utils/pathUtils.js';
 import { existsSync } from 'fs';
+import { Config } from '../../config.js';
 
 export const staticFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Static,
@@ -28,6 +29,10 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
                         `);`,
                 );
             }
+
+            // Lower the default memory for static projects.
+            // The Node.js itself usually needs around 70MiB.
+            config.memory = config.memory == Config.getDefaultMemory() ? 128 : config.memory;
 
             logger.info('Static project built successfully!');
         },
