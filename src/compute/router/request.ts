@@ -2,6 +2,7 @@ import { isProxyRequestEvent, Event } from './proxyRequestEvent.js';
 import http from 'http';
 import { HEADERS } from '../../constants.js';
 import { stringify } from 'querystring';
+import { randomUUID } from 'crypto';
 
 export interface RequestOptions {
     url?: string;
@@ -55,17 +56,12 @@ export class Request {
             request.path = event.rawPath;
             request.method = event.requestContext.http.method;
             request.body = event.body ? Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf-8') : undefined;
-
-            // Make sure host and x-forwarded-* headers are in sync
-            request.setHeader(HEADERS.Host, request.host);
-            request.setHeader(HEADERS.XForwardedHost, request.getHeader(HEADERS.XForwardedHost) || request.host);
-            request.setHeader(HEADERS.XForwardedProto, request.getHeader(HEADERS.XForwardedProto) || request.protocol);
-            request.setHeader(HEADERS.XForwardedPort, request.getHeader(HEADERS.XForwardedPort) || request.port.toString());
-            request.setHeader(HEADERS.XForwardedFor, request.getHeader(HEADERS.XForwardedFor) || request.remoteAddress);
         } else {
             throw new Error('Received unsupported event type');
         }
+
         request.deleteAmznHeaders();
+        request.setDefaultHeaders();
         return request;
     }
 
@@ -83,13 +79,6 @@ export class Request {
         request.url = new URL(`${request.protocol}://${request.host}${nodeRequest.url}`);
         request.method = nodeRequest.method || 'GET';
 
-        // Make sure host and x-forwarded-* headers are in sync
-        request.setHeader(HEADERS.Host, request.host);
-        request.setHeader(HEADERS.XForwardedHost, request.getHeader(HEADERS.XForwardedHost) || request.host);
-        request.setHeader(HEADERS.XForwardedProto, request.getHeader(HEADERS.XForwardedProto) || request.protocol);
-        request.setHeader(HEADERS.XForwardedPort, request.getHeader(HEADERS.XForwardedPort) || request.port.toString());
-        request.setHeader(HEADERS.XForwardedFor, request.getHeader(HEADERS.XForwardedFor) || request.remoteAddress);
-
         // Read body from request
         const chunks: Buffer[] = [];
         for await (const chunk of nodeRequest) {
@@ -97,6 +86,8 @@ export class Request {
         }
         request.body = Buffer.concat(chunks);
 
+        request.deleteAmznHeaders();
+        request.setDefaultHeaders();
         return request;
     }
 
@@ -255,5 +246,21 @@ export class Request {
                 this.deleteHeader(key);
             }
         }
+    }
+
+    setDefaultHeaders() {
+        // Always set x-forwarded-* headers
+        // to make sure they are all in place and in sync with req properties
+        this.setHeader(HEADERS.Host, this.host);
+        this.setHeader(HEADERS.XForwardedHost, this.getHeader(HEADERS.XForwardedHost) || this.host);
+        this.setHeader(HEADERS.XForwardedProto, this.getHeader(HEADERS.XForwardedProto) || this.protocol);
+        this.setHeader(HEADERS.XForwardedPort, this.getHeader(HEADERS.XForwardedPort) || this.port.toString());
+        this.setHeader(HEADERS.XForwardedFor, this.getHeader(HEADERS.XForwardedFor) || this.remoteAddress || '127.0.0.1');
+
+        // Always set recursion counter header
+        this.setHeader(HEADERS.XOwnRecursions, this.getHeader(HEADERS.XOwnRecursions) || '0');
+
+        // Set x-request-id header if not set (for example locally)
+        this.setHeader(HEADERS.XRequestId, this.getHeader(HEADERS.XRequestId) || randomUUID());
     }
 }

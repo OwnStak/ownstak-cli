@@ -32,6 +32,7 @@ export async function start() {
     process.env.PERMANENT_ASSETS_PORT = freepermanentAssetsPort.toString();
     process.env.APP_PORT = freeAppPort.toString();
     process.env.NODE_ENV = 'production';
+    process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'info'; // set INFO log level by default locally
 
     // Normalize the OS and architecture to match the proxy binary names
     const currentOs = process.platform.replace('win32', 'windows');

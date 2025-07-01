@@ -387,24 +387,32 @@ export class Config {
      * @private
      */
     async startApp() {
-        if (!this.app.entrypoint) {
-            logger.debug('No app entrypoint was specified, skipping');
-            return;
-        }
         // Remove AWS credentials.
         // Not for our security but just so customers have less things to worry about.
         delete process.env.AWS_ACCESS_KEY_ID;
         delete process.env.AWS_SECRET_ACCESS_KEY;
         delete process.env.AWS_SESSION_TOKEN;
+        // Set defaults for the app in cloud. Locally these are overriden by the start command.
+        process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
+        process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
+        // Set the port to listen on for the app.
         process.env.PORT = APP_PORT.toString();
+        // Change the working directory to the app folder,
+        // so the relative imports are same as in the project root.
         process.chdir('app');
 
-        logger.debug(`Starting app's entrypoint: ${this.app.entrypoint}`);
         if (!this.app.entrypoint) {
-            throw new Error('Entrypoint is not defined in the app configuration.');
+            logger.debug('No app entrypoint was specified, skipping');
+            return;
         }
-        const entrypointPath = resolve(process.cwd(), this.app.entrypoint);
+
+        logger.debug(`Starting app's entrypoint: ${this.app.entrypoint}`);
+        const entrypointPath = resolve(this.app.entrypoint);
+        if (!existsSync(entrypointPath)) {
+            throw new Error(`App entrypoint '${entrypointPath}' does not exist.`);
+        }
+
         const mod = await import(`file://${entrypointPath}`);
         const start = mod?.default?.default || mod?.default || (() => {});
         // The entrypoint should be a function that starts the HTTP server

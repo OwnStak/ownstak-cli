@@ -77,7 +77,7 @@ export async function waitForSocket(
         timeout?: number;
     } = {},
 ) {
-    const { retries = 10, delay = 50, timeout = 10000 } = options;
+    const { retries = 10, delay = 10, timeout = 20000 } = options;
     for (let i = 0; i < retries; i++) {
         const success = await new Promise((resolve) => {
             const socket = new net.Socket();

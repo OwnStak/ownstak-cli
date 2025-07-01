@@ -2,6 +2,16 @@ import chalk from 'chalk';
 import { BRAND, NAME } from './constants.js';
 import { CliConfig } from './cliConfig.js';
 
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+const originalConsoleDebug = console.debug;
+const originalConsoleLog = console.log;
+const originalConsoleInfo = console.info;
+const originalConsoleTrace = console.trace;
+
+const originalStdoutWrite = process.stdout.write;
+const originalStderrWrite = process.stderr.write;
+
 /**
  * Log levels in increasing order of severity
  */
@@ -41,6 +51,15 @@ class Logger {
     private spinnerIndex = 0;
     private spinnerInterval: NodeJS.Timeout | null = null;
     private spinnerMessage: string | null = null;
+
+    constructor() {
+        // Override original console methods and stdout/stderr
+        // with our custom implementation that respects set log level from LOG_LEVEL env variable.
+        // This ensures that even user's code will output only errors in production.
+        // NOTE: process.stdout is treated as info level, process.stderr is treated as error level.
+        this.overrideConsole();
+        this.overrideStdStreams();
+    }
 
     get level(): LogLevel {
         const envLevel = process.env.LOG_LEVEL?.toLowerCase();
@@ -150,45 +169,35 @@ class Logger {
      * Debug level logging (lowest level)
      */
     public debug(message: string, ...args: any[]): void {
-        if (this.level <= LogLevel.DEBUG) {
-            this.logInternal(LogLevel.DEBUG, message, ...args);
-        }
+        this.logInternal(LogLevel.DEBUG, message, ...args);
     }
 
     /**
      * Info level logging
      */
     public info(message: string, ...args: any[]): void {
-        if (this.level <= LogLevel.INFO) {
-            this.logInternal(LogLevel.INFO, message, ...args);
-        }
+        this.logInternal(LogLevel.INFO, message, ...args);
     }
 
     /**
      * Warning level logging
      */
     public warn(message: string, ...args: any[]): void {
-        if (this.level <= LogLevel.WARN) {
-            this.logInternal(LogLevel.WARN, message, ...args);
-        }
+        this.logInternal(LogLevel.WARN, message, ...args);
     }
 
     /**
      * Error level logging (highest level)
      */
     public error(message: string, ...args: any[]): void {
-        if (this.level <= LogLevel.ERROR) {
-            this.logInternal(LogLevel.ERROR, message, ...args);
-        }
+        this.logInternal(LogLevel.ERROR, message, ...args);
     }
 
     /**
      * Success level logging for successful operations
      */
     public success(message: string, ...args: any[]): void {
-        if (this.level <= LogLevel.SUCCESS) {
-            this.logInternal(LogLevel.SUCCESS, message, ...args);
-        }
+        this.logInternal(LogLevel.SUCCESS, message, ...args);
     }
 
     /**
@@ -495,6 +504,90 @@ class Logger {
         }
 
         this.logInternal(logLevel, coloredTable);
+    }
+
+    /**
+     * Override console methods to respect log levels
+     */
+    public overrideConsole(): void {
+        const logLevel = this.level;
+
+        // Override console.log -> info level
+        globalThis.console.log = (...args: any[]) => {
+            if (logLevel <= LogLevel.INFO) {
+                originalConsoleLog(...args);
+            }
+        };
+
+        // Override console.info -> info level
+        globalThis.console.info = (...args: any[]) => {
+            if (logLevel <= LogLevel.INFO) {
+                originalConsoleInfo(...args);
+            }
+        };
+
+        // Override console.warn -> warn level
+        globalThis.console.warn = (...args: any[]) => {
+            if (logLevel <= LogLevel.WARN) {
+                originalConsoleWarn(...args);
+            }
+        };
+
+        // Override console.error -> error level
+        globalThis.console.error = (...args: any[]) => {
+            if (logLevel <= LogLevel.ERROR) {
+                originalConsoleError(...args);
+            }
+        };
+
+        // Override console.debug -> debug level
+        globalThis.console.debug = (...args: any[]) => {
+            if (logLevel <= LogLevel.DEBUG) {
+                originalConsoleDebug(...args);
+            }
+        };
+
+        // Override console.trace -> debug level
+        globalThis.console.trace = (...args: any[]) => {
+            if (logLevel <= LogLevel.DEBUG) {
+                originalConsoleTrace(...args);
+            }
+        };
+    }
+
+    /**
+     * Override stdout/stderr to respect log levels
+     */
+    public overrideStdStreams(): void {
+        const logLevel = this.level;
+
+        // Override stdout.write - treat as info level
+        process.stdout.write = function (chunk: any, encoding?: any, callback?: any): boolean {
+            if (logLevel <= LogLevel.INFO) {
+                return originalStdoutWrite.call(this, chunk, encoding, callback);
+            }
+            // If logging is disabled, still call callback if provided
+            if (typeof encoding === 'function') {
+                encoding(); // encoding is actually the callback
+            } else if (typeof callback === 'function') {
+                callback();
+            }
+            return true;
+        };
+
+        // Override stderr.write - treat as error level
+        process.stderr.write = function (chunk: any, encoding?: any, callback?: any): boolean {
+            if (logLevel <= LogLevel.ERROR) {
+                return originalStderrWrite.call(this, chunk, encoding, callback);
+            }
+            // If logging is disabled, still call callback if provided
+            if (typeof encoding === 'function') {
+                encoding(); // encoding is actually the callback
+            } else if (typeof callback === 'function') {
+                callback();
+            }
+            return true;
+        };
     }
 }
 

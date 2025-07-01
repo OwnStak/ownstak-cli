@@ -103,11 +103,16 @@ export const DEFAULT_ENVIRONMENT = 'default';
 // This needs to be in sync with ownstak-proxy
 export const INTERNAL_PATH_PREFIX = '/__ownstak__';
 
+// Maximum number of requests that can be made to the same or another project on OwnStak platform.
+// We need to limit this to prevent infinite loops and generate huge traffic/bill.
+export const MAX_RECURSIONS = 5;
+
 // Header keys for quick access
 // All needs to be normalized to lowercase here
 export const HEADERS = {
     Host: 'host',
     Cookie: 'cookie',
+    Accept: 'accept',
     SetCookie: 'set-cookie',
     UserAgent: 'user-agent',
     Location: 'location',
@@ -118,6 +123,7 @@ export const HEADERS = {
     XForwardedProto: 'x-forwarded-proto',
     XForwardedPort: 'x-forwarded-port',
     XForwardedFor: 'x-forwarded-for',
+    XRequestId: 'x-request-id',
     CacheControl: 'cache-control',
     Authorization: 'authorization',
 
@@ -134,6 +140,7 @@ export const HEADERS = {
     XOwnActions: 'x-own-actions',
     XOwnImageOptimizer: 'x-own-image-optimizer',
     XOwnImageOptimizerError: 'x-own-image-optimizer-error',
+    XOwnRecursions: 'x-own-recursions',
 };
 
 export const CACHE_CONTROL_CONFIG = {

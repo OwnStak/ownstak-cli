@@ -1,40 +1,34 @@
 import { Request } from '../router/request.js';
-import { Response } from '../router/response.js';
 import { Config } from '../../config.js';
-import { PORT, BRAND, HOST, NAME } from '../../constants.js';
-import http from 'http';
+import { PORT, BRAND, HEADERS } from '../../constants.js';
 import { logger, LogLevel } from '../../logger.js';
+import { ComputeProjectError } from '../errors/index.js';
+import http from 'http';
 import chalk from 'chalk';
 
 (async () => {
-    const configPromise = Config.loadFromBuild();
-    const config = await configPromise;
-    await config.startApp();
+    const config = await Config.loadFromBuild();
+    const appPromise = config.startApp();
 
     const server = http.createServer(async (nodeRequest, nodeResponse) => {
+        let request: Request | undefined;
+
         try {
-            const config = await configPromise;
-            const request = await Request.fromNodeRequest(nodeRequest);
+            await appPromise;
+            request = await Request.fromNodeRequest(nodeRequest);
             logger.debug(`[Server][Request]: ${request.method} ${request.url}`);
 
-            const response = await config.router.execute(request);
+            const response = await config.router.execute(request as Request);
             logger.debug(`[Server][Response]: ${response.statusCode}`);
             return response.toNodeResponse(nodeResponse);
         } catch (e: any) {
-            logger.error(e.stack);
-            const response = new Response(
-                JSON.stringify({
-                    error: e.message,
-                    stack: e.stack.split('\n').map((line: string) => line.trim()),
-                }),
-                {
-                    statusCode: 500,
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                },
-            );
-            return response.toNodeResponse(nodeResponse);
+            // Wrap all non-ComputeError errors into ComputeError
+            const computeError = ComputeProjectError.fromError(e);
+            computeError.version = config?.cliVersion;
+            computeError.requestId = request?.getHeader(HEADERS.XRequestId);
+            const acceptContentType = request?.getHeader(HEADERS.Accept);
+            console.error(computeError);
+            return computeError.toResponse(acceptContentType).toNodeResponse(nodeResponse);
         }
     });
 

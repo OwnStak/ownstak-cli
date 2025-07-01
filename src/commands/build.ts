@@ -168,6 +168,19 @@ export async function build(options: BuildCommandOptions = {}) {
     logger.info(`Copying debug assets to ${DEBUG_DIR} directory...`);
     await copyFiles(config.debugAssets, DEBUG_DIR_PATH);
 
+    // If app entrypoint is specified, verify that it exists
+    if (config.app.entrypoint && !existsSync(resolve(APP_DIR_PATH, config.app.entrypoint))) {
+        throw new CliError(
+            `The specified app entrypoint '${config.app.entrypoint}' does not exist.` +
+                `Did you forget to create the file or include it in the build?\r\n` +
+                `Please include it in your ownstak.config.js file. For example:\r\n\r\n` +
+                `import { Config } from 'ownstak';\r\n` +
+                `export default new Config()\r\n` +
+                `    .includeApp('./src/server.mjs', 'server.mjs')\r\n` +
+                `    .setAppEntrypoint('server.mjs')`,
+        );
+    }
+
     // Convert .HTML files to folders with index.html if htmlToFolders is true
     // For example:
     // .ownstak/assets/products/3.html -> .ownstak/assets/products/3/index.html

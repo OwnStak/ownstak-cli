@@ -1,6 +1,7 @@
 import { Request } from '../../../src/compute/router/request.js';
 import { EventEmitter } from 'events';
 import { ProxyRequestEvent } from '../../../src/compute/router/proxyRequestEvent.js';
+import { HEADERS } from '../../../src/constants.js';
 import http from 'http';
 
 class MockSocket extends EventEmitter {
@@ -773,6 +774,7 @@ describe('Request', () => {
             expect(request.getHeader('x-forwarded-for')).toBe('203.0.113.195, 70.41.3.18, 150.172.238.178');
             expect(request.getHeader('X-Forwarded-For')).toBe('203.0.113.195, 70.41.3.18, 150.172.238.178');
             expect(request.getHeader('X-FORWARDED-FOR')).toBe('203.0.113.195, 70.41.3.18, 150.172.238.178');
+            expect(request.getHeader('x-Forwarded-For')).toBe('203.0.113.195, 70.41.3.18, 150.172.238.178');
         });
 
         it('should handle mixed case headers in proxy event consistently', () => {
@@ -920,6 +922,66 @@ describe('Request', () => {
             expect(request.getHeader('X-Forwarded-For')).toBe('203.0.113.1, 192.168.1.1');
             expect(request.getHeader('X-FORWARDED-FOR')).toBe('203.0.113.1, 192.168.1.1');
             expect(request.getHeader('x-Forwarded-For')).toBe('203.0.113.1, 192.168.1.1');
+        });
+
+        it('should auto-populate missing x-own-recursion header to 0 in proxy event', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                    // Missing x-own-recursion header
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Test that recursion counter is set to 0 when missing
+            expect(request.getHeader(HEADERS.XOwnRecursions)).toBe('0');
+        });
+
+        it('should preserve existing x-own-recursion header in proxy event', () => {
+            const event: ProxyRequestEvent = {
+                version: '2.0',
+                headers: {
+                    host: 'api.example.com',
+                    [HEADERS.XOwnRecursions]: '7',
+                },
+                rawPath: '/api/test',
+                rawQueryString: '',
+                requestContext: {
+                    domainName: 'api.example.com',
+                    domainPrefix: 'api',
+                    http: {
+                        method: 'GET',
+                        path: '/api/test',
+                        protocol: 'https',
+                        sourceIp: '192.168.1.1',
+                        userAgent: 'test-agent',
+                    },
+                },
+                body: undefined,
+                isBase64Encoded: false,
+            };
+
+            const request = Request.fromEvent(event);
+
+            // Test that existing recursion counter is preserved
+            expect(request.getHeader(HEADERS.XOwnRecursions)).toBe('7');
         });
     });
 
@@ -1417,9 +1479,53 @@ describe('Request', () => {
             expect(request.getHeader('X-FORWARDED-FOR')).toBe('203.0.113.1, 192.168.1.1');
             expect(request.getHeader('x-Forwarded-For')).toBe('203.0.113.1, 192.168.1.1');
         });
+
+        it('should auto-populate missing x-own-recursion header to 0 in node request', async () => {
+            const socket = new MockSocket();
+            socket.remoteAddress = '10.0.0.1';
+            const mockReq = {
+                url: '/api/test',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                    // Missing x-own-recursion header
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test that recursion counter is set to 0 when missing
+            expect(request.getHeader(HEADERS.XOwnRecursions)).toBe('0');
+        });
+
+        it('should preserve existing x-own-recursion header in node request', async () => {
+            const socket = new MockSocket();
+            socket.remoteAddress = '10.0.0.1';
+            const mockReq = {
+                url: '/api/test',
+                method: 'GET',
+                headers: {
+                    host: 'api.example.com',
+                    [HEADERS.XOwnRecursions]: '5',
+                },
+                socket: socket,
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from('');
+                },
+            };
+
+            const request = await Request.fromNodeRequest(mockReq as unknown as http.IncomingMessage);
+
+            // Test that existing recursion counter is preserved
+            expect(request.getHeader(HEADERS.XOwnRecursions)).toBe('5');
+        });
     });
 
-    describe('AWS headers handling', () => {
+    describe('deleteAmznHeaders', () => {
         it('should delete AWS headers', () => {
             const request = new Request('http://example.com', {
                 headers: {
