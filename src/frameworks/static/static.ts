@@ -1,6 +1,6 @@
 import { logger } from '../../logger.js';
 import { FrameworkAdapter } from '../../config.js';
-import { ASSETS_DIR_PATH, BRAND, FRAMEWORKS, INPUT_CONFIG_FILE, NAME, PERMANENT_ASSETS_DIR_PATH } from '../../constants.js';
+import { ASSETS_DIR_PATH, FRAMEWORKS, INPUT_CONFIG_FILE, NAME, PERMANENT_ASSETS_DIR_PATH, ARCHS } from '../../constants.js';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import { spawn } from 'child_process';
@@ -30,9 +30,12 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
                 );
             }
 
-            // Lower the default memory for static projects.
+            // Lower the default memory for static projects to save costs.
             // The Node.js itself usually needs around 70MiB.
             config.memory = config.memory == Config.getDefaultMemory() ? 128 : config.memory;
+            // Set the CPU arch for static projects to arm64 to save costs (up to 20% cheaper).
+            // Our own JS code can run on any arch. We don't use any native libs/dependencies.
+            config.arch = config.arch == Config.getDefaultArch() ? ARCHS.ARM64 : config.arch;
 
             logger.info('Static project built successfully!');
         },
