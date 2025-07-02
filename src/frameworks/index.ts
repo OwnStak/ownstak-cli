@@ -1,5 +1,5 @@
 import { Framework, FrameworkAdapter } from '../config.js';
-import { logger } from '../logger.js';
+import { logger, LogLevel } from '../logger.js';
 
 // Import available framework adapters
 import { nextjsFrameworkAdapter } from './nextjs/nextjs.js';
@@ -17,11 +17,14 @@ export function getFrameworkAdapters(): FrameworkAdapter[] {
 }
 
 export async function detectFramework(): Promise<Framework | undefined> {
-    logger.info(`Detecting framework...`);
+    logger.startSpinner('Detecting framework...');
     for (const frameworkAdapter of FRAMEWORK_ADAPTERS) {
         if (await frameworkAdapter.isPresent()) {
-            return frameworkAdapter.name;
+            const detectedFramework = frameworkAdapter.name;
+            logger.stopSpinner(`Detected framework: ${detectedFramework}`, LogLevel.SUCCESS);
+            return detectedFramework;
         }
     }
+    logger.stopSpinner(`No framework was detected`, LogLevel.WARN);
     return undefined;
 }

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { readFile, copyFile, rename, rm, writeFile, appendFile } from 'fs/promises';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, relative } from 'path';
 import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
 import { findMonorepoRoot } from '../../utils/pathUtils.js';
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import { getPrerenderManifest, getRoutesManifest, Has } from './manifests.js';
 import { RouteCondition } from '../../compute/router/route.js';
 import { CliError } from '../../cliError.js';
+import { findModuleLocation } from '../../utils/moduleUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,9 +34,16 @@ export type NextJsConfig = {
     redirects?: Array<any> | (() => Promise<Array<any>>);
     rewrites?: Array<any> | (() => Promise<Array<any>>);
     trailingSlash?: boolean;
+    outputFileTracingRoot?: string;
+    experimental?: {
+        outputFileTracingRoot?: string;
+    };
 };
 
 let nextConfig: NextJsConfig;
+let tracingRoot: string;
+let tracingRootRelative: string;
+
 let distDir: string;
 let basePath: string;
 let buildId: string;
@@ -44,18 +52,19 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.NextJs,
     hooks: {
         'build:start': async ({ config }: HookArgs): Promise<void> => {
-            const monorepoRoot = (await findMonorepoRoot()) || process.cwd();
-            const packageJsonPath = resolve('package.json');
-            const monorepoPackageJsonPath = resolve(monorepoRoot, 'package.json');
-            const nextVersion = getNextVersion(packageJsonPath) || getNextVersion(monorepoPackageJsonPath);
+            const projectRoot = process.cwd();
+            const monorepoRoot = (await findMonorepoRoot()) || projectRoot;
+
+            // Get the actual used next version from node_modules/next/package.json
+            const nextVersion = await getNextVersion();
             if (!nextVersion) {
                 throw new CliError(`Failed to detect installed Next.js version. Please install Next.js first.`);
             }
 
-            // Extract only the version number from canary, etc... otherwise semver will fail
+            // Extract only the version number from 'canary-15.4.5', etc... otherwise semver will fail
             const cleanedNextVersion = nextVersion.match(/(\d+\.\d+\.\d+)/)?.[1];
             if (!cleanedNextVersion) {
-                throw new CliError(`Failed to extract Next.js version from '${nextVersion}'.`);
+                throw new CliError(`Failed to extract Next.js version from '${nextVersion}'. Please try to install Next.js first.`);
             }
 
             const minSupportedVersion = '13.4.0';
@@ -63,24 +72,38 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                 throw new CliError(`Next.js version ${nextVersion} is not supported by ${BRAND}. Please upgrade to ${minSupportedVersion} or newer.`);
             }
 
-            if (config.skipFrameworkBuild) {
-                logger.info(`Skipping Next.js framework build and using existing output...`);
-            } else {
-                process.env.NEXT_PRIVATE_MINIMAL_MODE = 'true';
-                process.env.NEXT_PRIVATE_STANDALONE = 'true';
-                process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT = monorepoRoot;
-                await buildNextApp();
-            }
-
-            // Load built Next.js config with defaults from the Next.js server
-            // and our ownstakNextConfig.
+            // Add our next.config wrapper and load next config together with defaults from the Next.js server.
+            const { cleanupNextConfigWrapper } = await addNextConfigWrapper();
             nextConfig = await loadNextConfig();
             nextConfig.images ??= {};
             nextConfig.images.loader ??= 'default';
             distDir = nextConfig.distDir || '.next';
             basePath = nextConfig.basePath || '/';
-            // Load buildId from the build output
-            buildId = await readFile(resolve(distDir, 'BUILD_ID'), 'utf-8');
+
+            // Get the outputFileTracingRoot for cases where the project is built inside a monorepo.
+            // The standalone build folder then has completely different structure and starts from the monorepo root.
+            // But not always. Only when Next.js detects imports from outside of the project root.
+            // Simple project standalone server location: /projects/my-nextjs-app/.next/standalone/server.js
+            // Monorepo project standalone server location: /projects/my-monorepo/packages/my-nextjs-app/.next/standalone/packages/my-nextjs-app/server.js
+            // Simple project outputFileTracingRootRelative: /projects/my-nextjs-app/ => ./
+            // Monorepo project outputFileTracingRootRelative: /projects/my-monorepo/packages/my-nextjs-app/ => ./packages/my-nextjs-app/
+            tracingRoot = nextConfig.outputFileTracingRoot || nextConfig.experimental?.outputFileTracingRoot || monorepoRoot;
+            tracingRootRelative = relative(tracingRoot, projectRoot) || './'; // Relative returns empty string if both from and to args are the same.
+
+            try {
+                if (config.skipFrameworkBuild) {
+                    logger.info(`Skipping Next.js framework build and using existing output...`);
+                } else {
+                    logger.info(`Building Next.js application...`);
+                    process.env.NEXT_PRIVATE_STANDALONE = 'true';
+                    process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT = tracingRoot;
+                    await buildNextApp();
+                }
+                await cleanupNextConfigWrapper();
+            } catch (error) {
+                await cleanupNextConfigWrapper();
+                throw error;
+            }
 
             if (nextConfig.images.loader === 'custom') {
                 logger.info(`Next.js was built with custom image loader: ${nextConfig.images.loaderFile}`);
@@ -109,14 +132,14 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             // For example: /favicon.ico -> /docs/favicon.ico
             // For example: /docs/index.html -> /docs/index.html
             config.assets.include[`./public`] = `.${basePath}/`;
-            config.assets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.{html,htm}`] = `.${basePath}/**`;
-            config.assets.include[`${distDir}/standalone/${distDir}/server/app/**/*.{html,htm}`] = `.${basePath}/**`;
+            config.assets.include[`${distDir}/server/pages/**/*.html`] = `.${basePath}/**`;
+            config.assets.include[`${distDir}/server/app/**/*.html`] = `.${basePath}/**`;
 
             // Include props of pre-rendered pages
             // For example: /_next/data/{buildId}/products/123.json
-            config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.json`] = `.${basePath}/_next/data/${buildId}/**`;
+            config.permanentAssets.include[`${distDir}/server/pages/**/*.json`] = `.${basePath}/_next/data/${buildId}/**`;
             // Exclude trace json files from permanent assets to save space, we don't need them
-            config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/**/*.nft.json`] = false;
+            config.permanentAssets.include[`${distDir}/server/pages/**/*.nft.json`] = false;
 
             // Edge case: If i18n is enabled, we need to also copy default locale pre-rendered pages to the base path.
             // Usually, this is handled by the Next.js server, but because we moved the pre-rendered pages to S3, we need to handle it here.
@@ -124,37 +147,38 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             // For example: /en/index.html -> /docs/index.html
             // For example: /_next/data/{buildId}/en/products/123.json -> /_next/data/{buildId}/products/123.json
             if (nextConfig.i18n?.defaultLocale) {
-                config.assets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.{html,htm}`] = `.${basePath}/**`;
-                config.assets.include[`${distDir}/standalone/${distDir}/server/app/${nextConfig.i18n.defaultLocale}/**/*.{html,htm}`] = `.${basePath}/**`;
+                config.assets.include[`${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.html`] = `.${basePath}/**`;
+                config.assets.include[`${distDir}/server/app/${nextConfig.i18n.defaultLocale}/**/*.html`] = `.${basePath}/**`;
 
                 // Include props of pre-rendered pages with with default locale
-                config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.json`] =
-                    `.${basePath}/_next/data/${buildId}/**`;
+                config.permanentAssets.include[`${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.json`] = `.${basePath}/_next/data/${buildId}/**`;
                 // Exclude trace json files from permanent assets to save space, we don't need them
-                config.permanentAssets.include[`${distDir}/standalone/${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.nft.json`] = false;
+                config.permanentAssets.include[`${distDir}/server/pages/${nextConfig.i18n.defaultLocale}/**/*.nft.json`] = false;
             }
 
             // Include static assets with file hash
             config.permanentAssets.include[`${distDir}/static/**`] = `.${basePath}/_next/static/**`;
 
-            // Includes all required JS files to run the Next.js server in compute.
-            config.app.include[`${distDir}/standalone/`] = `./`;
+            // Include all required JS files to run the Next.js server in compute.
+            // DON'T put ${tracingRootRelative} here, we want to also include all traced imports from the monorepo root.
+            config.app.include[`${distDir}/standalone/**`] = `./**`;
 
             // Exclude @img and sharp binaries to save up space if our custom image loader is used
             if (nextConfig.images.loader == 'custom') {
-                config.app.include[`node_modules/@img`] = false;
-                config.app.include[`node_modules/sharp`] = false;
+                config.app.include[`${distDir}/standalone/node_modules/@img/**`] = false;
+                config.app.include[`${distDir}/standalone/node_modules/sharp/**`] = false;
             }
 
             // Exclude prerendered pages from compute folder to save space
-            config.app.include[`${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = false;
-            config.app.include[`${distDir}/server/app/**/*.{html,htm,json,rsc}`] = false;
+            config.app.include[`${distDir}/standalone/${tracingRootRelative}/${distDir}/server/pages/**/*.{html,htm,json,rsc}`] = false;
+            config.app.include[`${distDir}/standalone/${tracingRootRelative}/${distDir}/server/app/**/*.{html,htm,json,rsc}`] = false;
 
             // Keep only 404.html,500.html files in the compute folder, otherwise Next.js server throws an error
-            config.app.include[`${distDir}/standalone/${distDir}/server/pages/**/{404,500}.html`] = `${distDir}/server/pages/**`;
+            config.app.include[`${distDir}/standalone/${tracingRootRelative}/${distDir}/server/pages/**/{404,500}.html`] =
+                `${tracingRootRelative}/${distDir}/server/pages/**`;
 
             // Start the Next.js server from the server.js file
-            config.app.entrypoint = `./server.js`;
+            config.app.entrypoint = `${tracingRootRelative}/server.js`;
 
             // If project uses Next's Image Optimizer,
             // we need to transform all relative URLs poting to /_next/image to absolute URLs on the fly,
@@ -328,9 +352,56 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
  * Builds the Next.js app.
  */
 export async function buildNextApp() {
+    const buildArgs = ['next', 'build'];
+    logger.debug(`Running: npx ${buildArgs.join(' ')}`);
+    const buildProcess = spawn('npx', buildArgs, {
+        stdio: 'inherit',
+        shell: true,
+    });
+
+    const buildResult = await new Promise<number>((resolve) => {
+        buildProcess.on('close', (code) => resolve(code ?? 1));
+        buildProcess.on('error', () => resolve(1));
+    });
+
+    if (buildResult !== 0) {
+        throw new CliError(
+            `Next.js build failed with exit code ${buildResult}. Please check the build logs for error details. You might also try to first build the Next.js without ${BRAND} CLI using \`npx next build\`.` +
+                `\n\nIf you want see more details and used config from ownstak, you can run: \`npx ${NAME} build --debug\`.`,
+        );
+    }
+
+    logger.info('Next.js build completed successfully!');
+}
+
+/**
+ * Load the Next.js config with defaults from the Next.js server.
+ * This methods works with all types of Next.js configs (js, ts, mjs, cjs).
+ * @returns The Next.js config
+ */
+async function loadNextConfig() {
+    try {
+        const loadConfigModuleUrl = await getModuleFileUrl('next', 'dist/server/config.js');
+        const loadConfigModule = await import(loadConfigModuleUrl);
+        const loadConfig = loadConfigModule.default?.default || loadConfigModule.default;
+        const nextConfig = await loadConfig('phase-production-server', process.cwd());
+        return nextConfig;
+    } catch (error) {
+        throw new CliError(`Failed to load Next.js config: ${error}`);
+    }
+}
+
+/**
+ * Adds our Next.js config wrapper to the project
+ * that injects our image loader and build output.
+ */
+export async function addNextConfigWrapper() {
     const nextConfigPath = [resolve('next.config.js'), resolve('next.config.mjs'), resolve('next.config.ts'), resolve('next.config.cjs')].find(existsSync);
     if (!nextConfigPath) {
-        throw new Error('Next.js config file was not found');
+        throw new CliError(
+            `The Next.js config file was not found. Please make sure this command is run from the root of your project. ` +
+                `If you don't have a next.config.js file, please create a new one and try again.`,
+        );
     }
 
     // Maintain original extension, so next.js correctly compiles TS files for us
@@ -365,16 +436,18 @@ export async function buildNextApp() {
         await copyFile(imageLoaderTemplatePath, imageLoaderPath);
     }
 
-    // Properly cleanup after build on SIGINT
-    let cleanupAfterBuild = () => {};
-    process.on('SIGINT', cleanupAfterBuild);
-    cleanupAfterBuild = async () => {
-        // Prevent multiple calls between async operations
-        process.removeListener('SIGINT', cleanupAfterBuild);
+    // Properly cleanup after build on SIGINT/exit/uncaughtException
+    let cleanupNextConfigWrapper = () => {};
+    process.on('SIGINT', cleanupNextConfigWrapper);
+    cleanupNextConfigWrapper = async () => {
+        // Prevent multiple calls between async operations or multiple CTRL+C presses
+        process.removeListener('SIGINT', cleanupNextConfigWrapper);
+
         if (process.env.LOG_LEVEL === 'debug') {
-            logger.info(`Keeping used config files for debugging purposes...`);
+            logger.info(`Keeping used Next.js config files for debugging purposes...`);
             return;
         }
+
         logger.info(`Cleaning up after Next.js build...`);
         await rm(imageLoaderPath);
         await rm(nextConfigPath);
@@ -383,56 +456,29 @@ export async function buildNextApp() {
         }
     };
 
-    logger.info('Building Next.js application...');
-    const buildArgs = ['next', 'build'];
-    logger.debug(`Running: npx ${buildArgs.join(' ')}`);
-    const buildProcess = spawn('npx', buildArgs, {
-        stdio: 'inherit',
-        shell: true,
-    });
-
-    const buildResult = await new Promise<number>((resolve) => {
-        buildProcess.on('close', (code) => resolve(code ?? 1));
-        buildProcess.on('error', () => resolve(1));
-    });
-
-    await cleanupAfterBuild();
-    if (buildResult !== 0) {
-        throw new CliError(
-            `Next.js build failed with exit code ${buildResult}. Please check the build logs for error details. You might also try to first build the Next.js without ${BRAND} CLI using \`npx next build\`.` +
-                `\n\nIf you want see more details and used config from ownstak, you can run: \`npx ${NAME} build --debug\`.`,
-        );
-    }
-
-    logger.info('Next.js build completed successfully!');
+    return {
+        cleanupNextConfigWrapper,
+        nextConfigPath,
+        nextConfigOriginalPath,
+        imageLoaderPath,
+    };
 }
 
 /**
  * Get the version of Next.js from the package.json file
- * @param packageJsonPath - The path to the package.json file
  * @returns The version of Next.js
  */
-export function getNextVersion(packageJsonPath: string) {
-    if (!existsSync(packageJsonPath)) {
-        return undefined;
-    }
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    return packageJson.dependencies.next || packageJson.devDependencies.next;
-}
-
-/**
- * Load the Next.js config with defaults from the Next.js server.
- * This methods works with all types of Next.js configs (js, ts, mjs, cjs).
- * @returns The Next.js config
- */
-async function loadNextConfig() {
+export async function getNextVersion(): Promise<string | undefined> {
     try {
-        const configUrl = await getModuleFileUrl('next', 'dist/server/config.js');
-        const mod = await import(configUrl);
-        const loadConfig = mod.default?.default || mod.default;
-        const nextConfig = await loadConfig('phase-production-server', process.cwd());
-        return nextConfig;
+        // Get the actual next version from node_modules/next/package.json
+        // and not project's package.json where it can be specified as latest tag etc...
+        const nextModulePath = await findModuleLocation('next');
+        const nextPackageJsonPath = resolve(nextModulePath, 'package.json');
+
+        const packageJson = JSON.parse(readFileSync(nextPackageJsonPath, 'utf-8'));
+        return packageJson.version;
     } catch (error) {
-        throw new CliError(`Failed to load Next.js config: ${error}`);
+        logger.debug(`Failed to get Next.js version: ${error}`);
+        return undefined;
     }
 }

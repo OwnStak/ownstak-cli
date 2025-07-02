@@ -108,7 +108,7 @@ class Logger {
     }
 
     private logInternal(logLevel: LogLevel, message: string, ...args: any[]): void {
-        if (this.spinnerInterval) {
+        if (this.spinnerInterval && logLevel >= this.level) {
             this.stopSpinner();
         }
 
@@ -160,7 +160,7 @@ class Logger {
         logFunction?.(logMessage, ...args);
 
         // Restart spinner if it was active
-        if (this.spinnerMessage) {
+        if (this.spinnerMessage && logLevel >= this.level) {
             this.startSpinner(this.spinnerMessage);
         }
     }
@@ -510,46 +510,44 @@ class Logger {
      * Override console methods to respect log levels
      */
     public overrideConsole(): void {
-        const logLevel = this.level;
-
         // Override console.log -> info level
         globalThis.console.log = (...args: any[]) => {
-            if (logLevel <= LogLevel.INFO) {
+            if (this.level <= LogLevel.INFO) {
                 originalConsoleLog(...args);
             }
         };
 
         // Override console.info -> info level
         globalThis.console.info = (...args: any[]) => {
-            if (logLevel <= LogLevel.INFO) {
+            if (this.level <= LogLevel.INFO) {
                 originalConsoleInfo(...args);
             }
         };
 
         // Override console.warn -> warn level
         globalThis.console.warn = (...args: any[]) => {
-            if (logLevel <= LogLevel.WARN) {
+            if (this.level <= LogLevel.WARN) {
                 originalConsoleWarn(...args);
             }
         };
 
         // Override console.error -> error level
         globalThis.console.error = (...args: any[]) => {
-            if (logLevel <= LogLevel.ERROR) {
+            if (this.level <= LogLevel.ERROR) {
                 originalConsoleError(...args);
             }
         };
 
         // Override console.debug -> debug level
         globalThis.console.debug = (...args: any[]) => {
-            if (logLevel <= LogLevel.DEBUG) {
+            if (this.level <= LogLevel.DEBUG) {
                 originalConsoleDebug(...args);
             }
         };
 
         // Override console.trace -> debug level
         globalThis.console.trace = (...args: any[]) => {
-            if (logLevel <= LogLevel.DEBUG) {
+            if (this.level <= LogLevel.DEBUG) {
                 originalConsoleTrace(...args);
             }
         };
@@ -559,11 +557,11 @@ class Logger {
      * Override stdout/stderr to respect log levels
      */
     public overrideStdStreams(): void {
-        const logLevel = this.level;
+        const logger = this;
 
         // Override stdout.write - treat as info level
         process.stdout.write = function (chunk: any, encoding?: any, callback?: any): boolean {
-            if (logLevel <= LogLevel.INFO) {
+            if (logger.level <= LogLevel.INFO) {
                 return originalStdoutWrite.call(this, chunk, encoding, callback);
             }
             // If logging is disabled, still call callback if provided
@@ -577,7 +575,7 @@ class Logger {
 
         // Override stderr.write - treat as error level
         process.stderr.write = function (chunk: any, encoding?: any, callback?: any): boolean {
-            if (logLevel <= LogLevel.ERROR) {
+            if (logger.level <= LogLevel.ERROR) {
                 return originalStderrWrite.call(this, chunk, encoding, callback);
             }
             // If logging is disabled, still call callback if provided

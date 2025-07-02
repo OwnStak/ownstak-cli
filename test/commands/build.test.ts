@@ -31,7 +31,7 @@ describe('copyFiles', () => {
         jest.restoreAllMocks();
     });
 
-    describe('source: single file', () => {
+    describe('include: single file', () => {
         beforeEach(async () => {
             await mkdir('src', { recursive: true });
             await writeFile('src/app.js', 'console.log("app");');
@@ -52,7 +52,7 @@ describe('copyFiles', () => {
             expect(content).toBe('console.log("app");');
         });
 
-        it('should copy file to string destination as file', async () => {
+        it('should copy file to string destination with just file name', async () => {
             const filesConfig: FilesConfig = {
                 include: {
                     'src/app.js': 'main.js',
@@ -67,7 +67,7 @@ describe('copyFiles', () => {
             expect(content).toBe('console.log("app");');
         });
 
-        it('should copy file to string destination as folder', async () => {
+        it('should copy file to string destination with folder', async () => {
             const filesConfig: FilesConfig = {
                 include: {
                     'src/app.js': 'js/app.js',
@@ -81,7 +81,7 @@ describe('copyFiles', () => {
             expect(content).toBe('console.log("app");');
         });
 
-        it('should copy file with wildcard destination', async () => {
+        it('should copy file to wildcard destination', async () => {
             const filesConfig: FilesConfig = {
                 include: {
                     'src/app.js': 'js/*',
@@ -94,27 +94,9 @@ describe('copyFiles', () => {
             const content = await readFile('build/js/app.js', 'utf-8');
             expect(content).toBe('console.log("app");');
         });
-
-        it('should remove file when destination is false', async () => {
-            // First copy the file to build directory (simulating it was there before)
-            await mkdir('build/src', { recursive: true });
-            await writeFile('build/src/app.js', 'old content');
-
-            const filesConfig: FilesConfig = {
-                include: {
-                    'src/app.js': false,
-                },
-            };
-
-            await copyFiles(filesConfig, 'build');
-
-            // File should still exist because rm is not awaited in the implementation
-            // and the file is not inside .ownstak folder
-            expect(existsSync('build/src/app.js')).toBe(true);
-        });
     });
 
-    describe('source: directory', () => {
+    describe('include: directory', () => {
         beforeEach(async () => {
             await mkdir('src/components', { recursive: true });
             await writeFile('src/components/Button.js', 'export const Button = () => {};');
@@ -151,27 +133,9 @@ describe('copyFiles', () => {
             expect(existsSync('build/lib/ui/Header.js')).toBe(true);
             expect(existsSync('build/lib/ui/forms/Input.js')).toBe(true);
         });
-
-        it('should remove directory when destination is false', async () => {
-            // First create the directory in build
-            await mkdir('build/src/components', { recursive: true });
-            await writeFile('build/src/components/OldButton.js', 'old content');
-
-            const filesConfig: FilesConfig = {
-                include: {
-                    'src/components': false,
-                },
-            };
-
-            await copyFiles(filesConfig, 'build');
-
-            // Directory should still exist because rm is not awaited
-            // and the directory is not inside .ownstak folder
-            expect(existsSync('build/src/components')).toBe(true);
-        });
     });
 
-    describe('source: glob pattern with *', () => {
+    describe('include: glob pattern with *', () => {
         beforeEach(async () => {
             await mkdir('src', { recursive: true });
             await writeFile('src/app.js', 'console.log("app");');
@@ -222,7 +186,7 @@ describe('copyFiles', () => {
         });
     });
 
-    describe('source: glob pattern with **/*', () => {
+    describe('include: glob pattern with **/*', () => {
         beforeEach(async () => {
             await mkdir('src/components/ui', { recursive: true });
             await mkdir('src/utils', { recursive: true });
@@ -276,6 +240,158 @@ describe('copyFiles', () => {
         });
     });
 
+    describe('exclude: single file', () => {
+        beforeEach(async () => {
+            await mkdir('src', { recursive: true });
+            await writeFile('src/app.js', 'console.log("app");');
+            await writeFile('src/utils.js', 'export const utils = {};');
+        });
+
+        it('should exclude single file with same destination', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    src: true,
+                    'src/utils.js': false,
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/src/app.js')).toBe(true);
+            expect(existsSync('build/src/utils.js')).toBe(false);
+        });
+
+        it('should exclude single file with different destination', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    src: './custom-dest',
+                    'src/utils.js': false,
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/custom-dest/app.js')).toBe(true);
+            expect(existsSync('build/custom-dest/utils.js')).toBe(false);
+            expect(existsSync('build/src/app.js')).toBe(false);
+            expect(existsSync('build/src/utils.js')).toBe(false);
+        });
+
+        it('should exclude file even with glob pattern', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    'src/**': './custom-dest/**',
+                    'src/utils.js': false,
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/custom-dest/app.js')).toBe(true);
+            expect(existsSync('build/custom-dest/utils.js')).toBe(false);
+            expect(existsSync('build/src/app.js')).toBe(false);
+            expect(existsSync('build/src/utils.js')).toBe(false);
+        });
+
+        it('should not exclude file if exclude pattern comes before include pattern', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    'src/utils.js': false,
+                    src: './custom-dest',
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/custom-dest/app.js')).toBe(true);
+            expect(existsSync('build/custom-dest/utils.js')).toBe(true);
+            expect(existsSync('build/src/app.js')).toBe(false);
+            expect(existsSync('build/src/utils.js')).toBe(false);
+        });
+    });
+
+    describe('exclude: glob pattern', () => {
+        beforeEach(async () => {
+            await mkdir('src', { recursive: true });
+            await writeFile('src/app.js', 'console.log("app");');
+            await writeFile('src/utils.js', 'export const utils = {};');
+            await writeFile('src/config.json', '{"name": "test"}');
+            await writeFile('src/middlewares.json', '[]');
+            await writeFile('src/README.md', '# Project');
+        });
+
+        it('should exclude all files in directory', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    src: true,
+                    'src/**': false,
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/src/app.js')).toBe(false);
+            expect(existsSync('build/src/utils.js')).toBe(false);
+            expect(existsSync('build/src/config.json')).toBe(false);
+            expect(existsSync('build/src/middlewares.json')).toBe(false);
+            expect(existsSync('build/src/README.md')).toBe(false);
+        });
+
+        it('should exclude all json files in directory', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    src: true,
+                    'src/**/*.json': false,
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/src/app.js')).toBe(true);
+            expect(existsSync('build/src/utils.js')).toBe(true);
+            expect(existsSync('build/src/config.json')).toBe(false);
+            expect(existsSync('build/src/middlewares.json')).toBe(false);
+            expect(existsSync('build/src/README.md')).toBe(true);
+        });
+
+        it('should exclude all json files and then include single config.json file', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    src: true,
+                    'src/**/*.json': false,
+                    'src/config.json': true,
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/src/app.js')).toBe(true);
+            expect(existsSync('build/src/utils.js')).toBe(true);
+            expect(existsSync('build/src/config.json')).toBe(true);
+            expect(existsSync('build/src/middlewares.json')).toBe(false);
+            expect(existsSync('build/src/README.md')).toBe(true);
+        });
+
+        it('should exclude all json files in directory in multiple iterations', async () => {
+            const filesConfig: FilesConfig = {
+                include: {
+                    src: true,
+                    'src/**/*.json': false,
+                    'src/config.json': true,
+                    'src/**/*.{json,html}': false,
+                },
+            };
+
+            await copyFiles(filesConfig, 'build');
+
+            expect(existsSync('build/src/app.js')).toBe(true);
+            expect(existsSync('build/src/utils.js')).toBe(true);
+            expect(existsSync('build/src/config.json')).toBe(false);
+            expect(existsSync('build/src/middlewares.json')).toBe(false);
+            expect(existsSync('build/src/README.md')).toBe(true);
+        });
+    });
+
     describe('edge cases', () => {
         describe('symlinks', () => {
             beforeEach(async () => {
@@ -304,8 +420,48 @@ describe('copyFiles', () => {
             });
         });
 
+        describe('dot files', () => {
+            beforeEach(async () => {
+                await mkdir('src', { recursive: true });
+                await writeFile('src/.hidden.js', 'hidden file');
+            });
+
+            it('should copy dot files', async () => {
+                const filesConfig: FilesConfig = {
+                    include: {
+                        'src/.hidden.js': true,
+                    },
+                };
+
+                await copyFiles(filesConfig, 'build');
+
+                expect(existsSync('build/src/.hidden.js')).toBe(true);
+            });
+        });
+
+        describe('dot folders', () => {
+            beforeEach(async () => {
+                await mkdir('src', { recursive: true });
+                await mkdir('src/.next', { recursive: true });
+                await writeFile('src/.next/file.js', 'hidden file');
+            });
+
+            it('should copy dot folders', async () => {
+                const filesConfig: FilesConfig = {
+                    include: {
+                        'src/.next': true,
+                    },
+                };
+
+                await copyFiles(filesConfig, 'build');
+
+                expect(existsSync('build/src/.next/file.js')).toBe(true);
+                expect(existsSync('build/src/.next')).toBe(true);
+            });
+        });
+
         describe('empty folders', () => {
-            it('should copy empty directories', async () => {
+            it('should not copy empty directories', async () => {
                 await mkdir('src/empty', { recursive: true });
                 await mkdir('src/parent/empty-child', { recursive: true });
 
@@ -318,11 +474,8 @@ describe('copyFiles', () => {
 
                 await copyFiles(filesConfig, 'build');
 
-                expect(existsSync('build/src/empty')).toBe(true);
-                expect(existsSync('build/src/parent/empty-child')).toBe(true);
-
-                const emptyContents = await readdir('build/src/empty');
-                expect(emptyContents).toHaveLength(0);
+                expect(existsSync('build/src/empty')).toBe(false);
+                expect(existsSync('build/src/parent/empty-child')).toBe(false);
             });
         });
 

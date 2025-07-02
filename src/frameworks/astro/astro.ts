@@ -139,7 +139,7 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
             config.assets.htmlToFolders = true;
             config.assets.include[publicDir] = `./`; // public assets are without base path
             config.assets.include[clientOutputDir] = `.${basePath}`;
-            config.assets.include[`./_astro`] = false;
+            config.assets.include[join(clientOutputDir, '_astro')] = false;
 
             // Configure permanent assets
             config.permanentAssets.include[join(clientOutputDir, '_astro')] = `.${basePath}_astro`;

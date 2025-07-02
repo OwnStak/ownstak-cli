@@ -141,6 +141,7 @@ export const HEADERS = {
     XOwnImageOptimizer: 'x-own-image-optimizer',
     XOwnImageOptimizerError: 'x-own-image-optimizer-error',
     XOwnRecursions: 'x-own-recursions',
+    XOwnDebug: 'x-own-debug',
 };
 
 export const CACHE_CONTROL_CONFIG = {

@@ -270,7 +270,9 @@ export class Router {
      */
     async executeRouteAction(action: RouteAction, request: Request, response: Response): Promise<void> {
         // Append executed action type to x-own-actions header for debugging
-        response.addHeader(HEADERS.XOwnActions, action.type);
+        if (request.getHeader(HEADERS.XOwnDebug)) {
+            response.addHeader(HEADERS.XOwnActions, action.type);
+        }
 
         if (isSetResponseHeaderAction(action)) {
             return this.executeSetResponseHeader(action, response);
