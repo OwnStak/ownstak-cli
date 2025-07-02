@@ -29,7 +29,7 @@
         "prepare": "husky || true"
     },
     "dependencies": {
-        "@inquirer/prompts": "7.5.3",
+        "@inquirer/prompts": "7.6.0",
         "@vercel/nft": "0.29.4",
         "archiver": "7.0.1",
         "bundle-require": "5.1.0",
