@@ -21,6 +21,7 @@ import {
     ASSETS_MANIFEST_FILE_PATH,
     PERMANENT_ASSETS_MANIFEST_FILE_PATH,
     INTERNAL_PATH_PREFIX,
+    INPUT_CONFIG_FILE,
 } from '../constants.js';
 import { logger, LogLevel } from '../logger.js';
 import { BRAND } from '../constants.js';
@@ -32,6 +33,8 @@ import { CliError } from '../cliError.js';
 import { CliConfig } from '../cliConfig.js';
 import chalk from 'chalk';
 import { nodeFileTrace } from '@vercel/nft';
+import esbuild from 'esbuild';
+import { getFileModuleType } from '../utils/moduleUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -90,61 +93,61 @@ export async function build(options: BuildCommandOptions = {}) {
         config.assets.defaultStatus = options.defaultStatus;
     }
 
-    // Check if framework is supported
-    if (config.framework && !config.frameworkAdapter) {
-        throw new CliError(
-            `The specified framework '${config.framework}' is not supported. \r\n` +
-                `The ${NAME} supports the following frameworks: \r\n` +
-                getFrameworkAdapters()
-                    .map((adapter) => `- ${adapter.name}`)
-                    .join('\r\n') +
-                `\r\n\r\n` +
-                `Please try the following steps to resolve this issue:\r\n` +
-                `- Check the framework name first\r\n` +
-                `- If you don't know which framework to use, just run 'npx ${NAME} build' and let ${BRAND} detect the framework for you.\r\n` +
-                `- If don't see your framework in the list, try to upgrade ${BRAND} CLI to the latest version first by running 'npx ${NAME} upgrade'.`,
-        );
-    }
-
-    // If no framework adapter is found, throw an error
-    if (!config.frameworkAdapter) {
-        throw new CliError(
-            `No supported framework was detected. \r\n` +
-                `The ${NAME} supports the following frameworks: \r\n` +
-                getFrameworkAdapters()
-                    .map((adapter) => `- ${adapter.name}`)
-                    .join('\r\n') +
-                `\r\n\r\n` +
-                `If you would like to deploy just folder with static assets, please run 'npx ${NAME} build static'.`,
-        );
-    }
-
     // Run build:start hook
     await config.frameworkAdapter?.hooks['build:start']?.({ config });
 
     // Add project's package.json to debugAssets folder,
     // so we can see the project's dependencies version.
     config.debugAssets.include[`./package.json`] = true;
-
     // Always put the project's package.json in the app directory,
     // so app runs with correct module type either commonjs or module (ESM).
     config.app.include[`./package.json`] = true;
 
     // If app entrypoint is absolute, convert it to relative path
-    // e.g: /Users/user/project/src/server.js -> src/server.js
-    if (config.app.entrypoint && resolve(config.app.entrypoint) === config.app.entrypoint) {
-        config.app.entrypoint = relative(process.cwd(), config.app.entrypoint);
+    // e.g: { entrypoint: '/Users/user/project/src/server.js' } => { entrypoint: 'src/server.js' }
+    if (config.app.entrypoint) {
+        config.app.entrypoint =
+            resolve(config.app.entrypoint) === config.app.entrypoint ? relative(process.cwd(), config.app.entrypoint) : config.app.entrypoint;
     }
 
-    // Trace and copy app entrypoint dependencies
-    // if copyDependencies is true
-    if (config.app.copyDependencies && config.app.entrypoint) {
-        const entrypointAbsolute = resolve(config.app.entrypoint);
-        const { fileList } = await nodeFileTrace([entrypointAbsolute]);
-        for (const file of fileList) {
-            // Skip files that are already in the output directory
-            if (file.startsWith(BUILD_DIR_PATH)) continue;
-            config.app.include[file] = true;
+    // Trace and copy all app entrypoint dependencies if copyDependencies is true
+    if (config.app.entrypoint && config.app.copyDependencies) {
+        try {
+            logger.info(`Copying app entrypoint ('${config.app.entrypoint}') dependencies...`);
+            const entrypointAbsolute = resolve(config.app.entrypoint);
+            const { fileList } = await nodeFileTrace([entrypointAbsolute]);
+            for (const file of fileList) {
+                // Skip files that are already in the output directory
+                if (file.startsWith(BUILD_DIR_PATH)) continue;
+                config.app.include[file] = true;
+            }
+        } catch (e) {
+            throw new CliError(`Failed to copy app entrypoint ('${config.app.entrypoint}') dependencies during the ${BRAND} build:\r\n\r\n${e}`);
+        }
+    }
+
+    // Bundle all app entrypoint dependencies if bundleDependencies is true
+    if (config.app.entrypoint && config.app.bundleDependencies) {
+        try {
+            const format = getFileModuleType(config.app.entrypoint) === 'commonjs' ? 'cjs' : 'esm';
+            const srcfile = normalizePath(config.app.entrypoint);
+            const outfile = normalizePath(config.app.entrypoint).replace(/\.(.+)$/, '.bundled.$1');
+            logger.info(`Bundling app entrypoint ('${config.app.entrypoint}') dependencies (format: ${format})...`);
+            await esbuild.build({
+                entryPoints: [srcfile],
+                outfile: resolve(APP_DIR_PATH, outfile),
+                bundle: true,
+                write: true,
+                sourcemap: true,
+                minify: true,
+                format: format,
+                platform: 'node',
+                target: 'node18',
+            });
+            // Change original entrypoint to the bundled one
+            config.app.entrypoint = outfile;
+        } catch (e) {
+            throw new CliError(`Failed to bundle app entrypoint ('${config.app.entrypoint}') dependencies during the ${BRAND} build:\r\n\r\n${e}`);
         }
     }
 
@@ -169,7 +172,20 @@ export async function build(options: BuildCommandOptions = {}) {
     logger.info(`Copying debug assets to ${DEBUG_DIR} directory...`);
     await copyFiles(config.debugAssets, DEBUG_DIR_PATH);
 
+    // Convert .HTML files to folders with index.html if convertHtmlToFolders is true
+    // For example:
+    // .ownstak/assets/products/3.html -> .ownstak/assets/products/3/index.html
+    if (config.assets.convertHtmlToFolders) {
+        logger.debug(`Converting HTML files to folders in ${ASSETS_DIR_PATH}`);
+        await convertHtmlToFolders(ASSETS_DIR_PATH);
+    }
+    if (config.permanentAssets.convertHtmlToFolders) {
+        logger.debug(`Converting HTML files to folders in ${PERMANENT_ASSETS_DIR_PATH}`);
+        await convertHtmlToFolders(PERMANENT_ASSETS_DIR_PATH);
+    }
+
     // If app entrypoint is specified, verify that it exists after all files are copied to the build directory
+    // NOTE: This can happen only if user specified destination for the entrypoint different from the src one.
     if (config.app.entrypoint && !existsSync(resolve(APP_DIR_PATH, config.app.entrypoint))) {
         throw new CliError(
             `The specified app entrypoint '${config.app.entrypoint}' does not exist. ` +
@@ -180,18 +196,6 @@ export async function build(options: BuildCommandOptions = {}) {
                 `    .includeApp('./src/server.mjs', 'server.mjs')\r\n` +
                 `    .setAppEntrypoint('server.mjs')`,
         );
-    }
-
-    // Convert .HTML files to folders with index.html if htmlToFolders is true
-    // For example:
-    // .ownstak/assets/products/3.html -> .ownstak/assets/products/3/index.html
-    if (config.assets.htmlToFolders) {
-        logger.debug(`Converting HTML files to folders in ${ASSETS_DIR_PATH}`);
-        await convertHtmlToFolders(ASSETS_DIR_PATH);
-    }
-    if (config.permanentAssets.htmlToFolders) {
-        logger.debug(`Converting HTML files to folders in ${PERMANENT_ASSETS_DIR_PATH}`);
-        await convertHtmlToFolders(PERMANENT_ASSETS_DIR_PATH);
     }
 
     // Run build:routes:start hook before we start creating default routes
@@ -296,11 +300,17 @@ export async function build(options: BuildCommandOptions = {}) {
         {
             path: `${INTERNAL_PATH_PREFIX}/image`,
         },
-        [
-            {
-                type: 'imageOptimizer',
-            },
-        ],
+        [{ type: 'imageOptimizer' }],
+        true,
+    );
+
+    // Project health check route that returns 200 OK status
+    // when app starts successfully.
+    config.router.match(
+        {
+            path: `${INTERNAL_PATH_PREFIX}/project/health`,
+        },
+        [{ type: 'healthCheck' }],
         true,
     );
 

@@ -24,6 +24,7 @@ import {
     ServeAsset,
     ServePermanentAsset,
     NodeFunction,
+    HealthCheck,
     isEchoAction,
     isImageOptimizerAction,
     isAddResponseHeaderAction,
@@ -42,6 +43,7 @@ import {
     isSetDefaultRequestHeaderAction,
     isSetDefaultResponseHeaderAction,
     isNodeFunctionAction,
+    isHealthCheckAction,
 } from './routeAction.js';
 
 export class Router {
@@ -327,6 +329,9 @@ export class Router {
         }
         if (isNodeFunctionAction(action)) {
             return this.executeNodeFunction(action, request, response);
+        }
+        if (isHealthCheckAction(action)) {
+            return this.executeHealthCheck(response);
         }
     }
 
@@ -765,6 +770,7 @@ export class Router {
             // Tell the ownstak-proxy to merge headers from this response with the headers from the S3 responses.
             // Conflicting headers are overridden by the headers from the S3 responses.
             response.setHeader(HEADERS.XOwnMergeHeaders, 'true');
+            response.setHeader(HEADERS.XOwnMergeStatusCode, 'true');
             response.statusCode = 301;
             return;
         }
@@ -953,5 +959,16 @@ export class Router {
             throw new Error(`Default export of '${path}' is not a function`);
         }
         await fn(request, response);
+    }
+
+    /**
+     * Executes a health check action.
+     * @param request The request to execute the action on.
+     * @param response The response to execute the action on.
+     * @private
+     */
+    async executeHealthCheck(response: Response): Promise<void> {
+        response.statusCode = 200;
+        response.body = 'OK';
     }
 }

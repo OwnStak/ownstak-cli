@@ -1,13 +1,12 @@
 import { logger } from '../../logger.js';
 import { FrameworkAdapter } from '../../config.js';
 import { ASSETS_DIR_PATH, FRAMEWORKS, INPUT_CONFIG_FILE, NAME, PERMANENT_ASSETS_DIR_PATH, ARCHS } from '../../constants.js';
-import { readFile } from 'fs/promises';
 import { resolve } from 'path';
-import { spawn } from 'child_process';
 import { CliError } from '../../cliError.js';
 import { normalizePath } from '../../utils/pathUtils.js';
 import { existsSync } from 'fs';
 import { Config } from '../../config.js';
+import { runCommand } from '../../utils/processUtils.js';
 
 export const staticFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Static,
@@ -36,6 +35,12 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             // Set the CPU arch for static projects to arm64 to save costs (up to 20% cheaper).
             // Our own JS code can run on any arch. We don't use any native libs/dependencies.
             config.arch = config.arch == Config.getDefaultArch() ? ARCHS.ARM64 : config.arch;
+
+            if (config.buildCommand) {
+                await runCommand(config.buildCommand);
+            } else {
+                logger.debug(`No build command specified in ${INPUT_CONFIG_FILE}`);
+            }
 
             logger.info('Static project built successfully!');
         },
@@ -81,39 +86,17 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             logger.debug(`Default action: ${actionType}`);
         },
 
-        'dev:start': async () => {
-            const packageJson = await readFile(resolve('package.json'), 'utf8');
-            const packageJsonObject = JSON.parse(packageJson);
-            const scripts = packageJsonObject.scripts || {};
-            if (!scripts.dev) {
-                const devScriptExample = JSON.stringify(
-                    {
-                        name: 'my-static-project',
-                        version: '1.0.0',
-                        scripts: {
-                            dev: 'npx vite dev',
-                        },
-                    },
-                    null,
-                    2,
-                );
-
-                throw new CliError(
-                    `No dev script found in package.json. Please add a dev script if you want to run the project in development mode. \r\n` +
-                        `For example: ${devScriptExample}`,
-                );
-            }
-
-            const [programName, ...programArgs] = scripts.dev.split(' ');
-            logger.debug(`Running: ${programName} ${programArgs.join(' ')}`);
-            const child = spawn(programName, programArgs, {
-                stdio: 'inherit',
-                cwd: process.cwd(),
-                env: process.env,
-            });
-            child.on('close', (code) => {
-                process.exit(code);
-            });
+        'dev:start': async ({ config }) => {
+            if (config.devCommand) return runCommand(config.devCommand);
+            throw new CliError(
+                `No dev command was specified in the project config. \r\n` +
+                    `Please specify the dev command in your ${INPUT_CONFIG_FILE}. \r\n` +
+                    `For example: \r\n` +
+                    `import { Config } from '${NAME}';\r\n` +
+                    `export default new Config(\r\n` +
+                    `    devCommand: 'npx vite dev',\r\n` +
+                    `);`,
+            );
         },
     },
 

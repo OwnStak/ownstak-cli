@@ -57,19 +57,19 @@ export interface ConfigOptions {
 
     /**
      * The runtime to use for the app.
-     * @default RUNTIMES.Nodejs20
+     * @default same node.js version as on the machine used to build the app (e.g. 'nodejs20')
      */
     runtime?: Runtime;
 
     /**
      * The amount of RAM to use for the app.
-     * @default 1024
+     * @default 1024 MB
      */
     memory?: number;
 
     /**
      * The architecture to use for the app.
-     * @default ARCHS.X86_64
+     * @default same architecture as on the machine used to build the app (e.g. 'x86_64' or 'arm64')
      */
     arch?: Architecture;
 
@@ -87,13 +87,13 @@ export interface ConfigOptions {
 
     /**
      * The framework name to use for the app.
-     * @default undefined
+     * @default auto-detected based on the project folder (e.g. 'astro')
      */
     framework?: Framework;
 
     /**
      * The framework adapter to use for the app.
-     * @default undefined
+     * @default auto-selected based on the framework name
      */
     frameworkAdapter?: FrameworkAdapter;
 
@@ -164,8 +164,22 @@ export interface ConfigOptions {
      * }
      */
     app?: AppConfig;
-}
 
+    /**
+     * The command to build the app
+     * for the static or custom framework.
+     * @example 'npx vite build'
+     * @default undefined
+     */
+    buildCommand?: string;
+
+    /**
+     * The command to run the app in development mode.
+     * @example 'npx vite dev'
+     * @default undefined
+     */
+    devCommand?: string;
+}
 export class Config {
     cliVersion: string;
     organization?: string;
@@ -183,6 +197,8 @@ export class Config {
     permanentAssets: AssetsConfig;
     debugAssets: DebugAssetsConfig;
     app: AppConfig;
+    buildCommand?: string;
+    devCommand?: string;
 
     constructor(options: ConfigOptions = {}) {
         Object.assign(this, options);
@@ -206,6 +222,8 @@ export class Config {
 
     /**
      * Sets the organization name.
+     * @example setOrganization('my-organization')
+     * @default undefined
      */
     setOrganization(organization: string) {
         this.organization = organization;
@@ -214,6 +232,8 @@ export class Config {
 
     /**
      * Sets the project name.
+     * @example setProject('my-project')
+     * @default undefined
      */
     setProject(project: string) {
         this.project = project;
@@ -222,6 +242,8 @@ export class Config {
 
     /**
      * Sets the environment name.
+     * @example setEnvironment('production')
+     * @default 'default'
      */
     setEnvironment(environment: string) {
         this.environment = environment;
@@ -230,6 +252,8 @@ export class Config {
 
     /**
      * Sets the runtime.
+     * @example setRuntime('nodejs20')
+     * @default same node.js version as on the machine used to build the app (e.g. 'nodejs20')
      */
     setRuntime(runtime: Runtime) {
         this.runtime = runtime;
@@ -238,6 +262,8 @@ export class Config {
 
     /**
      * Sets the memory.
+     * @example setMemory(1024) // 1024 MB
+     * @default 1024 MB
      */
     setMemory(memory: number) {
         this.memory = memory;
@@ -246,6 +272,8 @@ export class Config {
 
     /**
      * Sets the architecture.
+     * @example setArch('arm64')
+     * @default same architecture as on the machine used to build the app (e.g. 'x86_64' or 'arm64')
      */
     setArch(arch: Architecture) {
         this.arch = arch;
@@ -253,7 +281,9 @@ export class Config {
     }
 
     /**
-     * Sets the timeout.
+     * Sets the timeout for the response/execution of the app in seconds.
+     * @example setTimeout(60) // 60 seconds
+     * @default 20 seconds
      */
     setTimeout(timeout: number) {
         this.timeout = timeout;
@@ -261,7 +291,9 @@ export class Config {
     }
 
     /**
-     * Sets the framework.
+     * Sets the framework. When not specified, the framework will be detected automatically.
+     * @example setFramework('astro')
+     * @default auto-detected based on the project folder (e.g. 'astro')
      */
     setFramework(framework: Framework) {
         this.framework = framework;
@@ -269,7 +301,22 @@ export class Config {
     }
 
     /**
-     * Sets the framework adapter.
+     * Sets the framework adapter that defines how to build and run the specified framework.
+     * @example setFrameworkAdapter({
+     *     name: 'astro',
+     *     hooks: {
+     *         'build:start': async ({ config }) => {
+     *             await runCommand('npx astro build');
+     *             config.includeAsset('dist/client/');
+     *             config.includeApp('dist/server/');
+     *             config.setAppEntrypoint('dist/server/index.mjs');
+     *         },
+     *         'dev:start': async ({ config }) => {
+     *             await spawnAsync(`npx astro dev --port ${process.env.PORT}`);
+     *         },
+     *     },
+     * })
+     * @default auto-selected based on the framework name
      */
     setFrameworkAdapter(frameworkAdapter: FrameworkAdapter) {
         this.frameworkAdapter = frameworkAdapter;
@@ -277,12 +324,14 @@ export class Config {
     }
 
     /**
-     * Includes an asset.
+     * Includes a static asset into the build.
      * By default, the asset will be served from the project root folder.
      * e.g. includeAsset('./public/image.png') will be served at /public/image.png
      * If you want to serve the asset from a different path, you can specify the destination path.
      * e.g. includeAsset('./public/image.png', './image.png') will be served at /image.png
      * e.g. includeAsset('./public', './') will serve files from ./public folder at /
+     * If you want to include all JS files from a folder, you can use a glob pattern.
+     * e.g. includeAsset('src/*.{js,mjs}')
      */
     includeAsset(path: string, destination?: string) {
         this.assets.include[path] = destination ?? true;
@@ -290,11 +339,13 @@ export class Config {
     }
 
     /**
-     * Includes a permanent asset.
+     * Includes a permanent static asset into the build.
      * By default, the asset will be served from the project root folder.
      * e.g. includePermanentAsset('./public/image.png') will be served at /public/image.png
      * If you want to serve the asset from a different path, you can specify the destination path.
      * e.g. includePermanentAsset('./public/image.png', './image.png') will be served at /image.png
+     * If you want to include all JS files from a folder, you can use a glob pattern.
+     * e.g. includePermanentAsset('src/*.{js,mjs}')
      */
     includePermanentAsset(path: string, destination?: string) {
         this.permanentAssets.include[path] = destination ?? true;
@@ -302,7 +353,9 @@ export class Config {
     }
 
     /**
-     * Includes a debug asset.
+     * Includes a debug asset into the debug build folder.
+     * @example includeDebugAsset('src/package.json')
+     * @example includeDebugAsset('src/*.{js,mjs}')
      */
     includeDebugAsset(path: string, destination?: string) {
         this.debugAssets.include[path] = destination ?? true;
@@ -310,7 +363,9 @@ export class Config {
     }
 
     /**
-     * Includes source code files of your app.
+     * Includes JS source code file/s of your app into the build.
+     * @example includeApp('src/server.mjs')
+     * @example includeApp('src/*.{js,mjs}')
      */
     includeApp(path: string, destination?: string) {
         this.app.include[path] = destination ?? true;
@@ -318,7 +373,8 @@ export class Config {
     }
 
     /**
-     * Sets the entrypoint of your app.
+     * Sets the entrypoint of your app. This should be a file with your application code that starts the HTTP server.
+     * @example setAppEntrypoint('src/server.mjs')
      */
     setAppEntrypoint(entrypoint: string) {
         this.app.entrypoint = entrypoint;
@@ -327,27 +383,131 @@ export class Config {
 
     /**
      * Sets the default file to serve if no other route matches.
+     * This config is applied to both assets and permanentAssets.
+     * @example setDefaultFile('index.html')
      */
-    setDefaultFile(defaultFile: string) {
-        this.assets.defaultFile = defaultFile;
-        this.permanentAssets.defaultFile = defaultFile;
+    setDefaultFile(assetsDefaultFile: string, permanentAssetsDefaultFile = assetsDefaultFile) {
+        this.assets.defaultFile = assetsDefaultFile;
+        this.permanentAssets.defaultFile = permanentAssetsDefaultFile;
         return this;
     }
 
     /**
      * Sets the default status code to serve if no other route matches.
+     * This config is applied to both assets and permanentAssets.
+     * @example setDefaultStatus(404)
      */
-    setDefaultStatus(defaultStatus: number) {
-        this.assets.defaultStatus = defaultStatus;
-        this.permanentAssets.defaultStatus = defaultStatus;
+    setDefaultStatus(assetsDefaultStatus: number, permanentAssetsDefaultStatus = assetsDefaultStatus) {
+        this.assets.defaultStatus = assetsDefaultStatus;
+        this.permanentAssets.defaultStatus = permanentAssetsDefaultStatus;
         return this;
     }
 
     /**
      * Sets whether to skip the framework build.
+     * @default false
      */
     setSkipFrameworkBuild(value = true) {
         this.skipFrameworkBuild = value;
+        return this;
+    }
+
+    /**
+     * Sets whether to copy
+     * all app dependencies traced from the specified app entrypoint.
+     * For example imported express node_module will be copied to the build output.
+     * @default true
+     */
+    setCopyAppDependencies(value = true) {
+        this.app.copyDependencies = value;
+        return this;
+    }
+
+    /**
+     * Sets whether to bundle
+     * all app dependencies into the specified app entrypoint.
+     * For example imported express node_module will be bundled into resulting entrypoint file.
+     * @default true
+     */
+    setBundleAppDependencies(value = true) {
+        this.app.bundleDependencies = value;
+        return this;
+    }
+
+    /**
+     * Sets the command to build the app.
+     * Use this option to override the default build command
+     * for your framework or specify it for the static/custom framework.
+     * @example setBuildCommand('npx vite build')
+     */
+    setBuildCommand(command: string) {
+        this.buildCommand = command;
+        return this;
+    }
+
+    /**
+     * Sets the command to run the app in development mode.
+     * Use this option to override the default dev command
+     * for your framework or specify it for the static/custom framework.
+     * @example setDevCommand('npx vite dev')
+     */
+    setDevCommand(command: string) {
+        this.devCommand = command;
+        return this;
+    }
+
+    /**
+     * Sets whether to convert HTML assets to folders with index.html file.
+     * The config is applied to both assets and permanentAssets.
+     * @default true
+     */
+    setConvertHtmlToFolders(assetsValue = true, permanentAssetsValue = assetsValue) {
+        this.assets.convertHtmlToFolders = assetsValue;
+        this.permanentAssets.convertHtmlToFolders = permanentAssetsValue;
+        return this;
+    }
+
+    /**
+     * Sets the response headers for all requests pointing to the assets, permanentAssets or app.
+     * @example setResponseHeaders({ 'X-Frame-Options': 'DENY' }) // for all requests
+     * @example setResponseHeaders({ 'X-Api-Version': '1.0.0' }, "/api/:path*") // for requests to any path under /api
+     * @example setResponseHeaders({ 'X-Api-Version': '1.0.0' }, { // for POST requests to any path under /api
+     *     path: '/api/:path*',
+     *     method: 'POST',
+     * })
+     */
+    setResponseHeaders(headers: Record<string, string>, condition: RouteCondition | string = {}) {
+        if (Object.keys(headers).length === 0) return this;
+        this.router.match(
+            condition,
+            Object.entries(headers).map(([key, value]) => ({
+                type: 'setResponseHeader',
+                key,
+                value,
+            })),
+        );
+        return this;
+    }
+
+    /**
+     * Sets the request headers for all requests pointing to the assets, permanentAssets or app.
+     * @example setRequestHeaders({ 'X-Frame-Options': 'DENY' }) // for all requests
+     * @example setRequestHeaders({ 'X-Api-Version': '1.0.0' }, "/api/:path*") // for requests to any path under /api
+     * @example setRequestHeaders({ 'X-Api-Version': '1.0.0' }, { // for POST requests to any path under /api
+     *     path: '/api/:path*',
+     *     method: 'POST',
+     * })
+     */
+    setRequestHeaders(headers: Record<string, string>, condition: RouteCondition | string = {}) {
+        if (Object.keys(headers).length === 0) return this;
+        this.router.match(
+            condition,
+            Object.entries(headers).map(([key, value]) => ({
+                type: 'setRequestHeader',
+                key,
+                value,
+            })),
+        );
         return this;
     }
 
@@ -383,6 +543,24 @@ export class Config {
     }
 
     /**
+     * Sets the custom router config for the Ownstak project.
+     * @param router - The router to use for the app.
+     * @example import { Router } from 'ownstak';
+     * setRouter(new Router()
+     *     .get('/', [
+     *         {
+     *             type: 'serveAsset',
+     *             path: '/public/my-page.html',
+     *         },
+     *     ])
+     * );
+     */
+    setRouter(router: Router) {
+        this.router = router;
+        return this;
+    }
+
+    /**
      * Starts the user's app if defined.
      * @private
      */
@@ -392,6 +570,7 @@ export class Config {
         delete process.env.AWS_ACCESS_KEY_ID;
         delete process.env.AWS_SECRET_ACCESS_KEY;
         delete process.env.AWS_SESSION_TOKEN;
+
         // Set defaults for the app in cloud. Locally these are overriden by the start command.
         process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
         process.env.NODE_ENV = process.env.NODE_ENV || 'production';
@@ -430,7 +609,7 @@ export class Config {
      * @private
      */
     serialize() {
-        const replacer = (key: string, value: any) => {
+        const replacer = (_key: string, value: any) => {
             if (value instanceof RegExp) {
                 return `regexp:${value.source}`;
             }
@@ -470,7 +649,16 @@ export class Config {
     async validate() {
         const supportedFrameworks: string[] = Object.values(FRAMEWORKS);
         if (this.framework && !supportedFrameworks.includes(this.framework)) {
-            throw new CliError(`Invalid framework '${this.framework}' in ${BRAND} project config. Supported frameworks are: ${supportedFrameworks.join(', ')}`);
+            throw new CliError(
+                `The specified framework '${this.framework}' is not supported.\r\n` +
+                    `The ${NAME} supports the following frameworks: ${supportedFrameworks.join(', ')}\r\n` +
+                    `\r\n\r\n` +
+                    `Please try the following steps to resolve this issue:\r\n` +
+                    `- Check the framework name first\r\n` +
+                    `- If you don't know which framework to use, just run 'npx ${NAME} build' and let ${BRAND} detect the framework for you.\r\n` +
+                    `- If don't see your framework in the list, try to upgrade ${BRAND} CLI to the latest version first by running 'npx ${NAME} upgrade'.\r\n` +
+                    `- If you want to deploy framework that is not yet supported by the ${BRAND}, set the framework to 'custom' and implement your own 'frameworkAdapter' inside '${INPUT_CONFIG_FILE}' file.`,
+            );
         }
         const supportedRuntimes: string[] = Object.values(RUNTIMES);
         if (this.runtime && !supportedRuntimes.includes(this.runtime)) {
@@ -715,7 +903,7 @@ export interface AssetsConfig extends FilesConfig {
      * .ownstak/assets/products/3.html -> .ownstak/assets/products/3/index.html
      * @default false
      */
-    htmlToFolders?: boolean;
+    convertHtmlToFolders?: boolean;
 
     /**
      * The default file to serve if no other route matches.
@@ -742,9 +930,17 @@ export interface AppConfig extends FilesConfig {
 
     /**
      * Set to true to trace and copy all dependencies of specified entrypoint.
+     * For example imported express node_modules will be copied to the build output.
      * @default false
      */
     copyDependencies?: boolean;
+
+    /**
+     * Set to true to bundle the dependencies of the entrypoint.
+     * For example all imported express node_modules will be bundled into resulting entrypoint file.
+     * @default false
+     */
+    bundleDependencies?: boolean;
 }
 
 export interface DebugAssetsConfig extends FilesConfig {}

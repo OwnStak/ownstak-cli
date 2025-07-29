@@ -1,7 +1,6 @@
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { join, resolve } from 'path';
-import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
 import { FrameworkAdapter, HookArgs } from '../../config.js';
 import { BRAND, FRAMEWORKS } from '../../constants.js';
@@ -9,6 +8,7 @@ import { bundleRequire } from 'bundle-require';
 import { CliError } from '../../cliError.js';
 import chalk from 'chalk';
 import { filenameToPath } from '../../utils/pathUtils.js';
+import { runCommand } from '../../utils/processUtils.js';
 
 export type AstroConfig = {
     adapter?: {
@@ -57,50 +57,24 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
             if (outputMode === 'server') {
                 // Check if @astrojs/node adapter is installed
                 if (!(await hasAstroNodeAdapter())) {
-                    logger.info('The @astrojs/node adapter was not found. Installing...');
-                    await new Promise<void>((resolve, reject) => {
-                        const child = spawn('npx', ['astro', 'add', 'node', '--yes'], {
-                            stdio: 'inherit',
-                            cwd: process.cwd(),
-                        });
-                        child.on('close', (code) => {
-                            if (code === 0) {
-                                resolve();
-                            } else {
-                                reject(new Error(`Failed to install @astrojs/node adapter: ${code}`));
-                            }
-                        });
-                    });
+                    try {
+                        logger.info('The @astrojs/node adapter was not found. Installing...');
+                        await runCommand('npx astro add node --yes');
+                    } catch (e) {
+                        throw new CliError(`Failed to install @astrojs/node adapter: ${e}`);
+                    }
                 }
             }
 
             if (config.skipFrameworkBuild) {
                 logger.info(`Skipping Astro build and using existing build output...`);
             } else {
-                logger.info('Building Astro project...');
-                const buildArgs = ['astro', 'build'];
-                logger.debug(`Running: npx ${buildArgs.join(' ')}`);
-
-                // Run Astro build
-                await new Promise<void>((resolve, reject) => {
-                    const buildProcess = spawn('npx', buildArgs, {
-                        stdio: 'inherit',
-                        shell: true,
-                    });
-
-                    buildProcess.on('close', (code) => {
-                        if (code === 0) {
-                            logger.info('Astro build completed successfully!');
-                            resolve();
-                        } else {
-                            reject(new Error(`Astro build failed with exit code ${code}`));
-                        }
-                    });
-
-                    buildProcess.on('error', (err) => {
-                        reject(new Error(`Failed to start Astro build: ${err.message}`));
-                    });
-                });
+                try {
+                    logger.info('Building Astro project...');
+                    await runCommand(config.buildCommand || 'npx astro build');
+                } catch (e) {
+                    throw new CliError(`Failed to build Astro project: ${e}`);
+                }
             }
 
             // Astro in server mode with server-side rendered pages
@@ -136,7 +110,7 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
             config.debugAssets.include[`./astro.config.{js,ts,mjs,cjs}`] = true;
 
             // Configure assets
-            config.assets.htmlToFolders = true;
+            config.assets.convertHtmlToFolders = true;
             config.assets.include[publicDir] = `./`; // public assets are without base path
             config.assets.include[clientOutputDir] = `.${basePath}`;
             config.assets.include[join(clientOutputDir, '_astro')] = false;
@@ -181,20 +155,13 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
             }
         },
 
-        'dev:start': async () => {
-            logger.info('Starting Astro development server...');
-            const devArgs = ['astro', 'dev', '--port', process.env.PORT || '3000'];
-            logger.debug(`Running: npx ${devArgs.join(' ')}`);
-
-            const devProcess = spawn('npx', devArgs, {
-                stdio: 'inherit',
-                shell: true,
-                env: process.env,
-            });
-
-            devProcess.on('close', (code) => {
-                process.exit(code || 0);
-            });
+        'dev:start': async ({ config }) => {
+            try {
+                logger.info('Starting Astro development server...');
+                await runCommand(config.devCommand || `astro dev --port ${process.env.PORT || '3000'}`);
+            } catch (e) {
+                throw new CliError(`Failed to start Astro development server: ${e}`);
+            }
         },
     },
 

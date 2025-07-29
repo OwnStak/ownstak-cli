@@ -5,8 +5,9 @@ import { logger, LogLevel } from '../logger.js';
 import { nextjsFrameworkAdapter } from './nextjs/nextjs.js';
 import { astroFrameworkAdapter } from './astro/astro.js';
 import { staticFrameworkAdapter } from './static/static.js';
+import { customFrameworkAdapter } from './custom/custom.js';
 
-const FRAMEWORK_ADAPTERS = [nextjsFrameworkAdapter, astroFrameworkAdapter, staticFrameworkAdapter];
+const FRAMEWORK_ADAPTERS = [nextjsFrameworkAdapter, astroFrameworkAdapter, staticFrameworkAdapter, customFrameworkAdapter];
 
 export function getFrameworkAdapter(framework?: Framework): FrameworkAdapter | undefined {
     return framework ? FRAMEWORK_ADAPTERS.find((adapter) => adapter.name === framework) : undefined;

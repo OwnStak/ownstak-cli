@@ -104,6 +104,10 @@ export interface NodeFunction extends BaseRouteAction {
     path: string;
 }
 
+export interface HealthCheck extends BaseRouteAction {
+    type: 'healthCheck';
+}
+
 export type RouteAction = BaseRouteAction &
     (
         | Proxy
@@ -124,6 +128,7 @@ export type RouteAction = BaseRouteAction &
         | DeleteResponseHeader
         | DeleteRequestHeader
         | NodeFunction
+        | HealthCheck
     );
 
 export function isRouteAction(action: any): action is RouteAction {
@@ -200,4 +205,8 @@ export function isImageOptimizerAction(action: RouteAction): action is ImageOpti
 
 export function isNodeFunctionAction(action: RouteAction): action is NodeFunction {
     return action.type === 'nodeFunction';
+}
+
+export function isHealthCheckAction(action: RouteAction): action is HealthCheck {
+    return action.type === 'healthCheck';
 }

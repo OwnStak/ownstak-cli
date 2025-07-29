@@ -525,6 +525,8 @@ describe('Router - Route Actions', () => {
         expect(response.statusCode).toBe(301);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3003/permanent/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatusCode)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
     });
 
     it('should execute serveAsset action with follow-redirect behind proxy', async () => {
@@ -545,6 +547,8 @@ describe('Router - Route Actions', () => {
         expect(response.statusCode).toBe(301);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatusCode)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
     });
 
     it('should execute serveAsset action and remove double slashes locally', async () => {
@@ -580,6 +584,8 @@ describe('Router - Route Actions', () => {
         expect(response.statusCode).toBe(301);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/asset/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatusCode)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
     });
 
     it('should execute serveAsset action and add index.html for paths without file extension', async () => {
@@ -651,5 +657,17 @@ describe('Router - Route Actions', () => {
         const request = new Request(`${mockServerUrl}/__ownstak__/image?url=/assets/image.png`);
         await router.execute(request, response);
         expect(response.getHeader(HEADERS.XOwnImageOptimizer)).toBeDefined();
+    });
+
+    it('should execute healthCheck action', async () => {
+        router.match('/__ownstak__/project/health', [
+            {
+                type: 'healthCheck',
+            },
+        ]);
+        const request = new Request(`${mockServerUrl}/__ownstak__/project/health`);
+        await router.execute(request, response);
+        expect(response.statusCode).toBe(200);
+        expect(response.body?.toString()).toBe('OK');
     });
 });

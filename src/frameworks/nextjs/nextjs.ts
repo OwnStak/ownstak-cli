@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from 'fs';
 import { readFile, copyFile, rename, rm, writeFile, appendFile } from 'fs/promises';
 import { resolve, dirname, relative } from 'path';
-import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
 import { findMonorepoRoot } from '../../utils/pathUtils.js';
 import semver from 'semver';
-import { BuildHookArgs, Config, FrameworkAdapter, HookArgs } from '../../config.js';
-import { getFileModuleType, getModuleFileUrl, getProjectType } from '../../utils/moduleUtils.js';
+import { BuildHookArgs, FrameworkAdapter, HookArgs } from '../../config.js';
+import { getFileModuleType, getModuleFileUrl } from '../../utils/moduleUtils.js';
+import { runCommand } from '../../utils/processUtils.js';
 import { BRAND, FRAMEWORKS, NAME } from '../../constants.js';
 import { fileURLToPath } from 'url';
 import { getPrerenderManifest, getRoutesManifest, Has } from './manifests.js';
@@ -90,34 +90,31 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             tracingRoot = nextConfig.outputFileTracingRoot || nextConfig.experimental?.outputFileTracingRoot || monorepoRoot;
             tracingRootRelative = relative(tracingRoot, projectRoot) || './'; // Relative returns empty string if both from and to args are the same.
 
-            try {
-                if (config.skipFrameworkBuild) {
-                    logger.info(`Skipping Next.js framework build and using existing output...`);
-                } else {
+            if (config.skipFrameworkBuild) {
+                logger.info(`Skipping Next.js framework build and using existing output...`);
+            } else {
+                try {
                     logger.info(`Building Next.js application...`);
                     process.env.NEXT_PRIVATE_STANDALONE = 'true';
                     process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT = tracingRoot;
-                    await buildNextApp();
+                    await runCommand(config.buildCommand || 'npx next build');
+                    await cleanupNextConfigWrapper();
+                } catch (e) {
+                    await cleanupNextConfigWrapper();
+                    throw new CliError(
+                        `Next.js build failed. Please check the build logs for error details. You might also try to first build the Next.js without ${BRAND} CLI using \`npx next build\`.` +
+                            `\n\nIf you want see more details and used config from ownstak, you can run: \`npx ${NAME} build --debug\`.`,
+                    );
                 }
-                await cleanupNextConfigWrapper();
-            } catch (error) {
-                await cleanupNextConfigWrapper();
-                throw error;
             }
 
-            if (nextConfig.images.loader === 'custom') {
-                logger.info(`Next.js was built with custom image loader: ${nextConfig.images.loaderFile}`);
-            } else {
-                logger.info(`Next.js was built with image loader: ${nextConfig.images.loader}`);
-            }
+            // Load buildId from the build output
+            buildId = await readFile(resolve(distDir, 'BUILD_ID'), 'utf-8');
 
             // Append env vars to .env.production file or create a new one if it doesn't exist
             const envProductionPath = resolve(distDir, 'standalone', '.env.production');
             if (!existsSync(envProductionPath)) await writeFile(envProductionPath, '');
             await appendFile(envProductionPath, `\r\n__NEXT_PRIVATE_PREBUNDLED_REACT=next`);
-
-            // Load buildId from the build output
-            buildId = await readFile(resolve(distDir, 'BUILD_ID'), 'utf-8');
 
             // Include next.config.js in debugAssets,
             // so we can debug customer's issues with their next.config.js file.
@@ -126,7 +123,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             // Next.js outputs prerendered pages into [page-name].html files.
             // The below config transforms such a file into normalized format with a folder as path and index.html file in it, that can be served directly.
             // For example: /products/123.html -> /products/123/index.html
-            config.assets.htmlToFolders = true;
+            config.assets.convertHtmlToFolders = true;
 
             // Include static assets and prerendered pages and serve them from the base path.
             // For example: /favicon.ico -> /docs/favicon.ico
@@ -320,20 +317,9 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                 },
             ]);
         },
-        'dev:start': async (): Promise<void> => {
+        'dev:start': async ({ config }: HookArgs): Promise<void> => {
             logger.info('Starting Next.js development server...');
-            const devProcess = spawn('npx', ['next', 'dev'], {
-                stdio: 'inherit',
-                shell: true,
-                env: process.env,
-            });
-            devProcess.on('close', (code) => {
-                logger.info(`Next.js development server closed with code ${code}`);
-            });
-
-            devProcess.on('error', (err) => {
-                logger.error(`Failed to start Next.js development server: ${err}`);
-            });
+            await runCommand(config.devCommand || `next dev --port ${process.env.PORT || '3000'}`);
         },
     },
 
@@ -347,32 +333,6 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
         return hasNextDep;
     },
 };
-
-/**
- * Builds the Next.js app.
- */
-export async function buildNextApp() {
-    const buildArgs = ['next', 'build'];
-    logger.debug(`Running: npx ${buildArgs.join(' ')}`);
-    const buildProcess = spawn('npx', buildArgs, {
-        stdio: 'inherit',
-        shell: true,
-    });
-
-    const buildResult = await new Promise<number>((resolve) => {
-        buildProcess.on('close', (code) => resolve(code ?? 1));
-        buildProcess.on('error', () => resolve(1));
-    });
-
-    if (buildResult !== 0) {
-        throw new CliError(
-            `Next.js build failed with exit code ${buildResult}. Please check the build logs for error details. You might also try to first build the Next.js without ${BRAND} CLI using \`npx next build\`.` +
-                `\n\nIf you want see more details and used config from ownstak, you can run: \`npx ${NAME} build --debug\`.`,
-        );
-    }
-
-    logger.info('Next.js build completed successfully!');
-}
 
 /**
  * Load the Next.js config with defaults from the Next.js server.
@@ -407,14 +367,13 @@ export async function addNextConfigWrapper() {
     // Maintain original extension, so next.js correctly compiles TS files for us
     const nextConfigExtension = nextConfigPath?.split('.').pop();
     const nextConfigOriginalPath = nextConfigPath.replace(`.${nextConfigExtension}`, `.original.${nextConfigExtension}`);
+    const imageLoaderPath = resolve('ownstak.image.loader.js');
 
     if (!existsSync(nextConfigOriginalPath)) {
         // Backup original next.config.js file
         await rename(nextConfigPath, nextConfigOriginalPath);
 
         // Load proper template based on extension and project type
-        // next.config.ts => ownstak.next.config.ts
-        // next.config.mjs => ownstak.next.config.mjs
         const nextConfigModuleType = getFileModuleType(nextConfigOriginalPath);
         const nextConfigTemplateExtension = {
             module: 'mjs',
@@ -424,37 +383,33 @@ export async function addNextConfigWrapper() {
         const nextConfigTemplatePath = resolve(__dirname, '..', '..', 'templates', 'nextjs', `ownstak.next.config.${nextConfigTemplateExtension}`);
 
         logger.info(`Adding ${BRAND} Next.js config (${nextConfigModuleType})...`);
-        // We need to use static import, so next.js can correctly transpile TS
         const nextConfigTemplate = (await readFile(nextConfigTemplatePath, 'utf-8')).replace('{{ nextConfigOriginalPath }}', nextConfigOriginalPath);
         await writeFile(nextConfigPath, nextConfigTemplate);
     }
 
     const imageLoaderTemplatePath = resolve(__dirname, '..', '..', 'templates', 'nextjs', 'ownstak.image.loader.js');
-    const imageLoaderPath = resolve('ownstak.image.loader.js');
     if (!existsSync(imageLoaderPath)) {
-        // Copy our image loader to the project
         await copyFile(imageLoaderTemplatePath, imageLoaderPath);
     }
 
-    // Properly cleanup after build on SIGINT/exit/uncaughtException
-    let cleanupNextConfigWrapper = () => {};
-    process.on('SIGINT', cleanupNextConfigWrapper);
-    cleanupNextConfigWrapper = async () => {
-        // Prevent multiple calls between async operations or multiple CTRL+C presses
-        process.removeListener('SIGINT', cleanupNextConfigWrapper);
-
+    const cleanupNextConfigWrapper = async () => {
         if (process.env.LOG_LEVEL === 'debug') {
             logger.info(`Keeping used Next.js config files for debugging purposes...`);
             return;
         }
 
         logger.info(`Cleaning up after Next.js build...`);
-        await rm(imageLoaderPath);
-        await rm(nextConfigPath);
-        if (existsSync(nextConfigOriginalPath)) {
-            await rename(nextConfigOriginalPath, nextConfigPath);
-        }
+        if (existsSync(imageLoaderPath)) await rm(imageLoaderPath);
+        if (existsSync(nextConfigPath)) await rm(nextConfigPath);
+        if (existsSync(nextConfigOriginalPath)) await rename(nextConfigOriginalPath, nextConfigPath);
     };
+
+    // Handle CTRL+C
+    const handleSigint = async () => {
+        await cleanupNextConfigWrapper();
+        process.exit(1);
+    };
+    process.on('SIGINT', handleSigint);
 
     return {
         cleanupNextConfigWrapper,

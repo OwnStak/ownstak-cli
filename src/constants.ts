@@ -74,6 +74,7 @@ export const FRAMEWORKS = {
     NextJs: 'nextjs',
     Astro: 'astro',
     Static: 'static',
+    Custom: 'custom',
 } as const;
 
 // Supported runtimes
@@ -133,10 +134,8 @@ export const HEADERS = {
     XOwnProxy: 'x-own-proxy',
     XOwnProxyVersion: 'x-own-proxy-version',
     XOwnFollowRedirect: 'x-own-follow-redirect',
-    XOwnLambdaName: 'x-own-lambda-name',
-    XOwnLambdaRegion: 'x-own-lambda-region',
-    XOwnLambdaDuration: 'x-own-lambda-duration',
     XOwnMergeHeaders: 'x-own-merge-headers',
+    XOwnMergeStatusCode: 'x-own-merge-status-code',
     XOwnActions: 'x-own-actions',
     XOwnImageOptimizer: 'x-own-image-optimizer',
     XOwnImageOptimizerError: 'x-own-image-optimizer-error',
