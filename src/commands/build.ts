@@ -28,7 +28,7 @@ import { BRAND } from '../constants.js';
 import { normalizePath } from '../utils/pathUtils.js';
 import { glob } from 'glob';
 import { Config, FilesConfig, Framework } from '../config.js';
-import { detectFramework, getFrameworkAdapter, getFrameworkAdapters } from '../frameworks/index.js';
+import { detectFramework, getFrameworkAdapter } from '../frameworks/index.js';
 import { CliError } from '../cliError.js';
 import { CliConfig } from '../cliConfig.js';
 import chalk from 'chalk';
@@ -190,8 +190,8 @@ export async function build(options: BuildCommandOptions = {}) {
         throw new CliError(
             `The specified app entrypoint '${config.app.entrypoint}' does not exist. ` +
                 `Did you forget to create the file or include it in the build?\r\n` +
-                `Please include it in your ownstak.config.js file. For example:\r\n\r\n` +
-                `import { Config } from 'ownstak';\r\n` +
+                `Please include it in your '${INPUT_CONFIG_FILE}' file. For example:\r\n\r\n` +
+                `import { Config } from '${NAME}';\r\n` +
                 `export default new Config()\r\n` +
                 `    .includeApp('./src/server.mjs', 'server.mjs')\r\n` +
                 `    .setAppEntrypoint('server.mjs')`,
@@ -448,7 +448,7 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
                         `Be careful, this can lead to unexpected side effects, such as:`,
                         `- Silently including all node_modules`,
                         `- Accidentally including hidden or sensitive files`,
-                        `- And other unintended behavior\n`,
+                        `- And other unintended behaviors\n`,
                         `It's recommended to move your build target files into a dedicated directory (e.g. src/, static/, public/, etc...), ` +
                             `and then include that directory in your build. This gives you full control over what gets included. ` +
                             `For example: npx ${NAME} build static --assets-dir=./static`,

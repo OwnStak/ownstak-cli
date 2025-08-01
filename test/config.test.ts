@@ -250,6 +250,119 @@ describe('Config', () => {
         });
     });
 
+    // Redirect and response status tests
+    describe('redirect and response status', () => {
+        it('should set redirect with default status code', () => {
+            const config = new Config();
+            const result = config.setRedirect('/old-page', '/new-page');
+
+            expect(result).toBe(config);
+            expect(config.router.routes.length).toBe(1);
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'redirect',
+                statusCode: 302,
+                to: '/new-page',
+            });
+        });
+
+        it('should set redirect with custom status code', () => {
+            const config = new Config();
+            const result = config.setRedirect('/old-page', '/new-page', 301);
+
+            expect(result).toBe(config);
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'redirect',
+                statusCode: 301,
+                to: '/new-page',
+            });
+        });
+
+        it('should set redirect with route condition object', () => {
+            const config = new Config();
+            const result = config.setRedirect({ path: '/api/:path*', method: 'GET' }, '/new-api', 308);
+
+            expect(result).toBe(config);
+            expect(config.router.routes[0]?.condition?.path).toBe('path-to-regex:/api/:path*');
+            expect(config.router.routes[0]?.condition?.method).toBe('GET');
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'redirect',
+                statusCode: 308,
+                to: '/new-api',
+            });
+        });
+
+        it('should set redirect with path pattern', () => {
+            const config = new Config();
+            const result = config.setRedirect('/blog/:slug', '/new-blog/:slug', 301);
+
+            expect(result).toBe(config);
+            expect(config.router.routes[0]?.condition?.path).toBe('path-to-regex:/blog/:slug');
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'redirect',
+                statusCode: 301,
+                to: '/new-blog/:slug',
+            });
+        });
+
+        it('should set response status code', () => {
+            const config = new Config();
+            const result = config.setResponseStatus(404);
+
+            expect(result).toBe(config);
+            expect(config.router.routes.length).toBe(1);
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'setResponseStatus',
+                statusCode: 404,
+            });
+        });
+
+        it('should set response status code with route condition', () => {
+            const config = new Config();
+            const result = config.setResponseStatus(403, '/admin');
+
+            expect(result).toBe(config);
+            expect(config.router.routes[0]?.condition?.path).toBe('/admin');
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'setResponseStatus',
+                statusCode: 403,
+            });
+        });
+
+        it('should set response status code with complex route condition', () => {
+            const config = new Config();
+            const result = config.setResponseStatus(500, { path: '/api/:path*', method: 'POST' });
+
+            expect(result).toBe(config);
+            expect(config.router.routes[0]?.condition?.path).toBe('path-to-regex:/api/:path*');
+            expect(config.router.routes[0]?.condition?.method).toBe('POST');
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'setResponseStatus',
+                statusCode: 500,
+            });
+        });
+
+        it('should chain redirect and response status methods', () => {
+            const config = new Config();
+            const result = config.setRedirect('/old-page', '/new-page', 301).setResponseStatus(404, '/not-found');
+
+            expect(result).toBe(config);
+            expect(config.router.routes.length).toBe(2);
+
+            // Check redirect route
+            expect(config.router.routes[0]?.actions?.[0]).toEqual({
+                type: 'redirect',
+                statusCode: 301,
+                to: '/new-page',
+            });
+
+            // Check response status route
+            expect(config.router.routes[1]?.actions?.[0]).toEqual({
+                type: 'setResponseStatus',
+                statusCode: 404,
+            });
+        });
+    });
+
     // Node function tests
     describe('node function management', () => {
         it('should add node function', () => {

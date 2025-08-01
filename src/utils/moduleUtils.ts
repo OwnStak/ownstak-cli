@@ -1,4 +1,4 @@
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { createRequire } from 'module';
 import { existsSync, readFileSync } from 'fs';
 import { writeFile, readFile } from 'fs/promises';
@@ -22,6 +22,44 @@ export async function findModuleLocation(moduleName: string): Promise<string> {
         return dirname(packageJsonPath);
     } catch (error: any) {
         throw new Error(`Module ${moduleName} not found in project's node_modules: ${error.message}`);
+    }
+}
+
+/**
+ * Checks if the given module is present in the project's package.json of the current project.
+ * NOTE: Unlike `findModuleLocation`, this function returns false if the module is installed in the parent folder.
+ * @returns `true` if the module is present, `false` otherwise
+ */
+export async function isModulePresent(moduleName: string): Promise<boolean> {
+    const packageJsonPath = resolve('package.json');
+    if (!existsSync(packageJsonPath)) return false;
+    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+
+    if (packageJson.dependencies && packageJson.dependencies[moduleName]) {
+        return true;
+    }
+    if (packageJson.devDependencies && packageJson.devDependencies[moduleName]) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Gets the version of the given module
+ * @param moduleName The name of the module
+ * @returns The version of the module
+ */
+export async function getModuleVersion(moduleName: string): Promise<string | undefined> {
+    try {
+        // Get the actual next version from node_modules/next/package.json
+        // and not project's package.json where it can be specified as latest tag etc...
+        const modulePath = await findModuleLocation(moduleName);
+        const packageJsonPath = resolve(modulePath, 'package.json');
+
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+        return packageJson.version;
+    } catch (error) {
+        return undefined;
     }
 }
 

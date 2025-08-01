@@ -73,6 +73,9 @@ export const PERMANENT_ASSETS_URL = process.env.OWNSTAK_PERMANENT_ASSETS_HOST
 export const FRAMEWORKS = {
     NextJs: 'nextjs',
     Astro: 'astro',
+    ReactRouter: 'react-router',
+    TanstackStart: 'tanstack-start',
+    Remix: 'remix',
     Static: 'static',
     Custom: 'custom',
 } as const;

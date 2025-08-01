@@ -1,18 +1,17 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { readFile, copyFile, rename, rm, writeFile, appendFile } from 'fs/promises';
 import { resolve, dirname, relative } from 'path';
-import { logger } from '../../logger.js';
+import { logger, LogLevel } from '../../logger.js';
 import { findMonorepoRoot } from '../../utils/pathUtils.js';
 import semver from 'semver';
 import { BuildHookArgs, FrameworkAdapter, HookArgs } from '../../config.js';
-import { getFileModuleType, getModuleFileUrl } from '../../utils/moduleUtils.js';
+import { getFileModuleType, getModuleFileUrl, getModuleVersion, isModulePresent } from '../../utils/moduleUtils.js';
 import { runCommand } from '../../utils/processUtils.js';
 import { BRAND, FRAMEWORKS, NAME } from '../../constants.js';
 import { fileURLToPath } from 'url';
 import { getPrerenderManifest, getRoutesManifest, Has } from './manifests.js';
 import { RouteCondition } from '../../compute/router/route.js';
 import { CliError } from '../../cliError.js';
-import { findModuleLocation } from '../../utils/moduleUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -48,6 +47,11 @@ let distDir: string;
 let basePath: string;
 let buildId: string;
 
+/**
+ * The framework adapter for the Next.js framework (both pages and app router).
+ * Doesn't support build output produced by the `npx next export` command.
+ * For that, use the static framework adapter instead.
+ */
 export const nextjsFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.NextJs,
     hooks: {
@@ -56,7 +60,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             const monorepoRoot = (await findMonorepoRoot()) || projectRoot;
 
             // Get the actual used next version from node_modules/next/package.json
-            const nextVersion = await getNextVersion();
+            const nextVersion = await getModuleVersion('next');
             if (!nextVersion) {
                 throw new CliError(`Failed to detect installed Next.js version. Please install Next.js first.`);
             }
@@ -67,7 +71,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                 throw new CliError(`Failed to extract Next.js version from '${nextVersion}'. Please try to install Next.js first.`);
             }
 
-            const minSupportedVersion = '13.4.0';
+            const minSupportedVersion = '13.0.0';
             if (semver.lt(cleanedNextVersion, minSupportedVersion)) {
                 throw new CliError(`Next.js version ${nextVersion} is not supported by ${BRAND}. Please upgrade to ${minSupportedVersion} or newer.`);
             }
@@ -90,6 +94,11 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             tracingRoot = nextConfig.outputFileTracingRoot || nextConfig.experimental?.outputFileTracingRoot || monorepoRoot;
             tracingRootRelative = relative(tracingRoot, projectRoot) || './'; // Relative returns empty string if both from and to args are the same.
 
+            logger.debug(`Next.js config: ${JSON.stringify(nextConfig, null, 2)}`);
+            logger.debug(`Dist dir: ${distDir}`);
+            logger.debug(`Base path: ${basePath}`);
+            logger.debug(`Tracing root: ${tracingRoot}`);
+
             if (config.skipFrameworkBuild) {
                 logger.info(`Skipping Next.js framework build and using existing output...`);
             } else {
@@ -106,6 +115,15 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                             `\n\nIf you want see more details and used config from ownstak, you can run: \`npx ${NAME} build --debug\`.`,
                     );
                 }
+            }
+
+            if (!existsSync(distDir)) {
+                throw new CliError(
+                    `The ${BRAND} failed to find '${distDir}' directory with the Next.js build output. ` +
+                        `Please try the following steps to fix the issue:\r\n` +
+                        `- Make sure that '${distDir}' directory exists and the build was successful.\r\n` +
+                        `- Create 'next.config.js' file first and define 'distDir' option or change the 'distDir' back to default '.next' name, so ${BRAND} can find it.\r\n`,
+                );
             }
 
             // Load buildId from the build output
@@ -175,7 +193,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                 `${tracingRootRelative}/${distDir}/server/pages/**`;
 
             // Start the Next.js server from the server.js file
-            config.app.entrypoint = `${tracingRootRelative}/server.js`;
+            config.app.entrypoint = config.app.entrypoint || `${tracingRootRelative}/server.js`;
 
             // If project uses Next's Image Optimizer,
             // we need to transform all relative URLs poting to /_next/image to absolute URLs on the fly,
@@ -324,13 +342,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
     },
 
     async isPresent() {
-        const packageJsonPath = resolve('package.json');
-        if (!existsSync(packageJsonPath)) {
-            return false;
-        }
-        const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-        const hasNextDep = (packageJson.dependencies && packageJson.dependencies.next) || (packageJson.devDependencies && packageJson.devDependencies.next);
-        return hasNextDep;
+        return isModulePresent('next');
     },
 };
 
@@ -346,9 +358,24 @@ async function loadNextConfig() {
         const loadConfig = loadConfigModule.default?.default || loadConfigModule.default;
         const nextConfig = await loadConfig('phase-production-server', process.cwd());
         return nextConfig;
-    } catch (error) {
-        throw new CliError(`Failed to load Next.js config: ${error}`);
+    } catch (e: any) {
+        logger.drawTable(
+            [
+                `${BRAND} failed to load the Next.js config.`,
+                `The customized 'distDir', 'basePath', 'output' options won't work.`,
+                `The ${BRAND} will look for the Next.js build output in the default '.next' directory.`,
+                `Please run the build command again with the --debug flag to see more details.`,
+            ],
+            {
+                logLevel: LogLevel.WARN,
+                title: 'Warning',
+                maxWidth: 65,
+            },
+        );
+        logger.debug(`Next.js config error: ${e.message}`);
+        logger.debug(`Stack: ${e.stack}`);
     }
+    return {};
 }
 
 /**
@@ -417,23 +444,4 @@ export async function addNextConfigWrapper() {
         nextConfigOriginalPath,
         imageLoaderPath,
     };
-}
-
-/**
- * Get the version of Next.js from the package.json file
- * @returns The version of Next.js
- */
-export async function getNextVersion(): Promise<string | undefined> {
-    try {
-        // Get the actual next version from node_modules/next/package.json
-        // and not project's package.json where it can be specified as latest tag etc...
-        const nextModulePath = await findModuleLocation('next');
-        const nextPackageJsonPath = resolve(nextModulePath, 'package.json');
-
-        const packageJson = JSON.parse(readFileSync(nextPackageJsonPath, 'utf-8'));
-        return packageJson.version;
-    } catch (error) {
-        logger.debug(`Failed to get Next.js version: ${error}`);
-        return undefined;
-    }
 }

@@ -1,14 +1,14 @@
 import { existsSync } from 'fs';
-import { readFile } from 'fs/promises';
 import { join, resolve } from 'path';
-import { logger } from '../../logger.js';
+import { logger, LogLevel } from '../../logger.js';
 import { FrameworkAdapter, HookArgs } from '../../config.js';
 import { BRAND, FRAMEWORKS } from '../../constants.js';
 import { bundleRequire } from 'bundle-require';
 import { CliError } from '../../cliError.js';
 import chalk from 'chalk';
-import { filenameToPath } from '../../utils/pathUtils.js';
+import { filenameToPath, normalizePath } from '../../utils/pathUtils.js';
 import { runCommand } from '../../utils/processUtils.js';
+import { isModulePresent } from '../../utils/moduleUtils.js';
 
 export type AstroConfig = {
     adapter?: {
@@ -30,20 +30,36 @@ export type AstroRedirect =
           destination: string;
       };
 
+let outputMode: 'server' | 'static' = 'static';
+let basePath: string = '/';
+
+/**
+ * The framework adapter for the Astro framework (both SSR and Static output modes)
+ */
 export const astroFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Astro,
     hooks: {
         'build:start': async ({ config }: HookArgs): Promise<void> => {
             const astroConfig = await loadAstroConfig();
             const adapterName = astroConfig.adapter?.name;
-            const outputMode = adapterName === '@astrojs/node' ? 'server' : 'static';
+
+            // Construct normalized base path: docs => /docs/, /docs => /docs/, '' => '/'
+            basePath = normalizePath(`/${astroConfig.base ?? ''}/`);
+            outputMode = adapterName === '@astrojs/node' ? 'server' : 'static';
+
             const outputDir: string = astroConfig.outputDir || 'dist';
             const publicDir: string = astroConfig.publicDir || 'public';
             const clientOutputDir: string = outputMode === 'server' ? `${outputDir}/client` : outputDir;
             const serverOutputDir: string = outputMode === 'server' ? `${outputDir}/server` : outputDir;
-            // Construct normalized base path: docs => /docs/, /docs => /docs/, '' => '/'
-            const basePath = `/${astroConfig.base ?? ''}/`.replace(/\/\//g, '/');
             const redirects = astroConfig.redirects || {};
+
+            logger.debug(`Astro config: ${JSON.stringify(astroConfig, null, 2)}`);
+            logger.debug(`Base path: ${basePath}`);
+            logger.debug(`Output mode: ${outputMode}`);
+            logger.debug(`Output directory: ${outputDir}`);
+            logger.debug(`Public directory: ${publicDir}`);
+            logger.debug(`Client output directory: ${clientOutputDir}`);
+            logger.debug(`Server output directory: ${serverOutputDir}`);
 
             logger.info(`Astro adapter: ${adapterName ?? 'None'}`);
             if (adapterName && adapterName !== '@astrojs/node') {
@@ -56,7 +72,7 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
 
             if (outputMode === 'server') {
                 // Check if @astrojs/node adapter is installed
-                if (!(await hasAstroNodeAdapter())) {
+                if (!(await isModulePresent('@astrojs/node'))) {
                     try {
                         logger.info('The @astrojs/node adapter was not found. Installing...');
                         await runCommand('npx astro add node --yes');
@@ -77,33 +93,22 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
                 }
             }
 
+            if (!existsSync(outputDir)) {
+                throw new CliError(
+                    `The ${BRAND} failed to find '${outputDir}' directory with the Astro build output. ` +
+                        `Please try the following steps to fix the issue:\r\n` +
+                        `- Make sure that '${outputDir}' directory exists and the build was successful.\r\n` +
+                        `- Create 'astro.config.mjs' file and define 'outputDir' option or change the 'outputDir' back to default 'dist' name, so ${BRAND} can find it.\r\n`,
+                );
+            }
+
             // Astro in server mode with server-side rendered pages
             if (outputMode === 'server') {
                 // Configure app
                 config.app.include[serverOutputDir] = true;
                 config.app.include[clientOutputDir] = false;
-                config.app.entrypoint = join(serverOutputDir, 'entry.mjs');
+                config.app.entrypoint = config.app.entrypoint || join(serverOutputDir, 'entry.mjs');
                 config.app.copyDependencies = true;
-
-                // Proxy all other requests to the Astro server
-                config.router.any([
-                    {
-                        type: 'serveApp',
-                        description: 'Serve Astro server by default',
-                    },
-                ]);
-            }
-
-            // Astro in static mode with just prerendered pages
-            if (outputMode === 'static') {
-                // Return static 404.html page for all requests that are not handled by the router
-                config.router.any([
-                    {
-                        type: 'serveAsset',
-                        path: `${basePath}404.html`,
-                        description: 'Serve 404.html page by default',
-                    },
-                ]);
             }
 
             // Include astro.config.mjs in debugAssets for debugging
@@ -151,10 +156,31 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
                             statusCode,
                         },
                     ],
+                    true,
                 );
             }
         },
 
+        'build:routes:finish': async ({ config }: HookArgs) => {
+            if (outputMode === 'server') {
+                // Proxy all other requests to the Astro server
+                config.router.any([
+                    {
+                        type: 'serveApp',
+                        description: 'Serve Astro server by default',
+                    },
+                ]);
+            } else {
+                // Return static 404.html page for all requests that are not handled by the router
+                config.router.any([
+                    {
+                        type: 'serveAsset',
+                        path: `${basePath}404.html`,
+                        description: 'Serve 404.html page by default',
+                    },
+                ]);
+            }
+        },
         'dev:start': async ({ config }) => {
             try {
                 logger.info('Starting Astro development server...');
@@ -166,36 +192,41 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
     },
 
     async isPresent() {
-        const packageJsonPath = resolve('package.json');
-        if (!existsSync(packageJsonPath)) {
-            return false;
-        }
-        const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-        const hasAstroDep = (packageJson.dependencies && packageJson.dependencies.astro) || (packageJson.devDependencies && packageJson.devDependencies.astro);
-        return hasAstroDep;
+        return isModulePresent('astro');
     },
 };
 
-async function hasAstroNodeAdapter() {
-    const packageJsonPath = resolve('package.json');
-    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-    const hasAstroNodeAdapter =
-        (packageJson.dependencies && packageJson.dependencies['@astrojs/node']) ||
-        (packageJson.devDependencies && packageJson.devDependencies['@astrojs/node']);
-    return hasAstroNodeAdapter;
-}
-
 async function loadAstroConfig(): Promise<AstroConfig> {
-    const astroConfigPath = [resolve('astro.config.mjs'), resolve('astro.config.ts'), resolve('astro.config.js'), resolve('astro.config.cjs')].find(existsSync);
+    const astroConfigPath = [resolve('astro.config.ts'), resolve('astro.config.mjs'), resolve('astro.config.cjs'), resolve('astro.config.js')].find(existsSync);
     if (!astroConfigPath) {
         throw new CliError('Astro config file was not found. Please create an astro.config.mjs file.');
     }
-    const { mod } = await bundleRequire({
-        filepath: astroConfigPath,
-    });
-    const astroConfig = mod.default?.default || mod.default || mod;
-    if (typeof astroConfig === 'function') {
-        return astroConfig();
+
+    try {
+        const { mod } = await bundleRequire({
+            filepath: astroConfigPath,
+            externalNodeModules: true,
+        });
+        const astroConfig = mod.default?.default || mod.default || mod;
+        if (typeof astroConfig === 'function') {
+            return astroConfig();
+        }
+        return astroConfig;
+    } catch (e: any) {
+        logger.drawTable(
+            [
+                `${BRAND} failed to load the Astro config from '${astroConfigPath}' file.`,
+                `The customized 'outputDir', 'base', 'redirects' options won't work.`,
+                `The ${BRAND} will look for the Astro build output in the default 'dist' directory.`,
+                `Please run the build command again with the --debug flag to see more details.`,
+            ],
+            {
+                logLevel: LogLevel.WARN,
+                title: 'Warning',
+            },
+        );
+        logger.debug(`Astro config error: ${e.message}`);
+        logger.debug(`Stack: ${e.stack}`);
     }
-    return astroConfig;
+    return {};
 }

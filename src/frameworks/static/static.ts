@@ -8,6 +8,12 @@ import { existsSync } from 'fs';
 import { Config } from '../../config.js';
 import { runCommand } from '../../utils/processUtils.js';
 
+/**
+ * The framework adapter for any static SPA/MPA projects
+ * such as: Docusaurus, Vitepress, Vite React SPA, Preact SPA, Vue SPA, Solid SPA, plain HTML+CSS+JS, etc...
+ *
+ * NOTE: This adapter is the default one and will be used if no other framework is detected.
+ */
 export const staticFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Static,
     hooks: {

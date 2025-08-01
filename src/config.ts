@@ -468,6 +468,51 @@ export class Config {
     }
 
     /**
+     * Sets a redirect for the specified route condition.
+     * @param from - The route condition to match.
+     * @param to - The URL to redirect to.
+     * @param statusCode - The status code to use for the redirect (default is 302)
+     * @example setRedirect('/old-page', '/new-page')
+     * @example setRedirect('/:path*', '/new-page', 308)
+     * @example setRedirect('/blog/:slug', '/new-blog/:slug', 301)
+     */
+    setRedirect(from: RouteCondition | string = {}, to: string, statusCode = 302) {
+        this.router.match(
+            from,
+            [
+                {
+                    type: 'redirect',
+                    statusCode,
+                    to,
+                },
+            ],
+            true,
+        );
+        return this;
+    }
+
+    /**
+     * Sets the response status code for the specified route condition.
+     * @param statusCode - The status code to set.
+     * @param condition - The route condition to match.
+     * @example setResponseStatusCode(404)
+     * @example setResponseStatusCode(404, '/old-page')
+     */
+    setResponseStatus(statusCode: number, condition: RouteCondition | string = {}) {
+        this.router.match(
+            condition,
+            [
+                {
+                    type: 'setResponseStatus',
+                    statusCode,
+                },
+            ],
+            false,
+        );
+        return this;
+    }
+
+    /**
      * Sets the response headers for all requests pointing to the assets, permanentAssets or app.
      * @example setResponseHeaders({ 'X-Frame-Options': 'DENY' }) // for all requests
      * @example setResponseHeaders({ 'X-Api-Version': '1.0.0' }, "/api/:path*") // for requests to any path under /api
@@ -863,7 +908,7 @@ export interface BuildHookArgs extends HookArgs {}
 
 export interface FrameworkAdapter {
     name: string;
-    isPresent: () => Promise<boolean> | boolean;
+    isPresent?: () => Promise<boolean> | boolean;
     hooks: {
         'build:start'?: (args: HookArgs) => Promise<void> | void;
         'build:routes:start'?: (args: BuildHookArgs) => Promise<void> | void;

@@ -5,6 +5,15 @@ import { runCommand } from '../../utils/processUtils.js';
 import { INPUT_CONFIG_FILE } from '../../constants.js';
 import { CliError } from '../../cliError.js';
 
+/**
+ * The framework adapter for any custom Node.js project
+ * such as: Express, Koa, Hapi, plain HTTP server, etc...
+ * Unlike static framework, this adapter gives complete freedom to the user
+ * and proxies to SSR by default.
+ *
+ * NOTE: This adapter is never auto-detected.
+ * User needs to specify it as under framework: 'custom' explicitly in the project config.
+ */
 export const customFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Custom,
     hooks: {
