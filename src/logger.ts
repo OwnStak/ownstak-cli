@@ -241,13 +241,20 @@ class Logger {
 
             this.spinnerInterval = setInterval(() => {
                 const frame = this.spinnerFrames[this.spinnerIndex];
-                process.stdout.write(`\r${chalk.blueBright(frame)} ${timePrefix}${message}`);
+                process.stdout.write(`\r${chalk.blueBright(frame)} ${timePrefix}${this.spinnerMessage}`);
                 this.spinnerIndex = (this.spinnerIndex + 1) % this.spinnerFrames.length;
             }, 80);
         } else {
             // If not a TTY, just log the message once
             console.log(`${chalk.blueBright('⟳')} ${message}`);
         }
+    }
+
+    /**
+     * Update the spinner message without stopping the spinner
+     */
+    public updateSpinner(message: string): void {
+        if (this.spinnerInterval) this.spinnerMessage = message;
     }
 
     /**

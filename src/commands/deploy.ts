@@ -169,7 +169,9 @@ export async function deploy(options: DeployCommandOptions) {
         const zipFilePath = `${dirName}.zip`;
         logger.startSpinner(`Zipping ${dirName}...`);
 
-        await zipFolder(dirName, zipFilePath);
+        await zipFolder(dirName, zipFilePath, {
+            onProgress: (percentage) => logger.updateSpinner(`Zipping ${dirName}... (${percentage}%)`),
+        });
         const fileSize = (await stat(zipFilePath)).size;
         const fileSizeFormatted = formatBytes(fileSize);
         logger.stopSpinner(`Zipped ${dirName} (${fileSizeFormatted})`, LogLevel.SUCCESS);
@@ -186,8 +188,10 @@ export async function deploy(options: DeployCommandOptions) {
         const [zipFilePath, presignedUrl] = uploadObject;
 
         logger.startSpinner(`Uploading ${zipFilePath}...`);
-        await uploadToPresignedUrl(presignedUrl, zipFilePath);
-        logger.stopSpinner(`Uploaded ${zipFilePath}`, LogLevel.SUCCESS);
+        await uploadToPresignedUrl(presignedUrl, zipFilePath, {
+            onProgress: (percentage) => logger.updateSpinner(`Uploading ${zipFilePath}... (${percentage}%)`),
+        });
+        logger.stopSpinner(`Uploaded ${zipFilePath} (100%)`, LogLevel.SUCCESS);
 
         // Clean up the zip file
         await unlink(zipFilePath);
@@ -212,19 +216,13 @@ export async function deploy(options: DeployCommandOptions) {
     logger.info('');
     logger.drawSubtitle(`Step 4/4`, 'Deployment');
     let deployment = await api.deployDeployment(draftDeployment.id);
-
-    // TODO: may need refinement when we have better status.
-    //       could also be useful to have a finished boolean flag.
     logger.startSpinner(`Deploying to cloud backends...`);
     while (deployment.status === 'pending' || deployment.status === 'in_progress') {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         deployment = await api.getDeployment(deployment.id);
     }
-    if (['partially_completed', 'failed', 'canceled'].includes(deployment.status)) {
+    if (['failed', 'canceled'].includes(deployment.status)) {
         let message = 'Deployment failed';
-        if (deployment.status === 'partially_completed') {
-            message = 'Deployment failed on some backends';
-        }
         if (deployment.status === 'canceled') {
             message = 'Deployment canceled';
         }

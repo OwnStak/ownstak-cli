@@ -92,7 +92,14 @@ export class Client {
         try {
             logger.debug(`HTTP ${opts.method || HttpMethod.GET} ${url}`);
 
-            const response = await fetch(url, { method: opts.method || HttpMethod.GET, body, headers });
+            const requestInit: RequestInit = {
+                method: opts.method || HttpMethod.GET,
+                body,
+                headers,
+                duplex: 'half',
+            } as RequestInit;
+
+            const response = await fetch(url, requestInit);
             logger.debug(`Response ${response.status}`);
             if (!response.ok) {
                 await this.handleError(response);
@@ -107,7 +114,7 @@ export class Client {
                 case 'ENOTFOUND':
                     throw new ClientError('The API server was not found', this);
                 default:
-                    throw error;
+                    throw new ClientError(`${error.message}${error.cause ? `: ${error.cause}` : ''}`, this);
             }
         }
     }

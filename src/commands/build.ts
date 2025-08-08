@@ -565,6 +565,12 @@ export async function copy(src: string, dest: string) {
         // For files: create destPattern directory recursively and copy file
         const destDir = dirname(dest);
         await mkdir(destDir, { recursive: true });
+
+        // If the destination exists and is a directory, append the filename
+        if (existsSync(dest) && lstatSync(dest).isDirectory()) {
+            dest = join(dest, basename(src));
+        }
+
         await copyFile(src, dest);
         return;
     }
