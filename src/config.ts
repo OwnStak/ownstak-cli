@@ -25,9 +25,15 @@ import { normalizePath } from './utils/pathUtils.js';
 import { findModuleLocation, installDependency } from './utils/moduleUtils.js';
 import { CliError } from './cliError.js';
 import { CliConfig } from './cliConfig.js';
+import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Cache loadSourceConfig and loadBuildConfig results,
+// so they always return the same instance within the same process.
+let cachedBuildConfig: Config | undefined;
+let cachedSourceConfig: Config | undefined;
 
 export interface ConfigOptions {
     /**
@@ -724,9 +730,14 @@ export class Config {
     /**
      * Loads the built JSON config file from the .ownstak folder.
      * This should be called in lambda and when running build locally.
+     * @param cache - Whether to cache and load the config from the cache if it exists.
      * @private
      */
-    static async loadFromBuild() {
+    static async loadFromBuild(cache: boolean = true) {
+        if (cache && cachedBuildConfig) {
+            return cachedBuildConfig;
+        }
+
         const configFilePath = [resolve(__dirname, OUTPUT_CONFIG_FILE), resolve(OUTPUT_CONFIG_FILE), resolve(COMPUTE_DIR_PATH, OUTPUT_CONFIG_FILE)].find(
             existsSync,
         );
@@ -735,7 +746,8 @@ export class Config {
         }
 
         logger.debug(`Loading ${BRAND} project config from: ${configFilePath}`);
-        return this.deserialize(await readFile(configFilePath, 'utf8'));
+        cachedBuildConfig = this.deserialize(await readFile(configFilePath, 'utf8'));
+        return cachedBuildConfig;
     }
 
     /**
@@ -743,20 +755,23 @@ export class Config {
      * This requires the bundle-require module with esbuild to be installed,
      * so we can correctly load mjs/cjs/ts files.
      * This should not be called in lambda.
+     * @param cache - Whether to cache and load the config from the cache if it exists.
      * @private
      */
-    static async loadFromSource() {
+    static async loadFromSource(cache: boolean = true) {
+        if (cache && cachedSourceConfig) {
+            return cachedSourceConfig;
+        }
+
         // Load the config from ownstak.config.json if it exists.
         // This allows users to have pure .json config without any dependencies.
         const jsonConfigFilePath = resolve(OUTPUT_CONFIG_FILE);
         if (existsSync(jsonConfigFilePath)) {
             logger.debug(`Loading ${BRAND} project config from: ${jsonConfigFilePath}`);
-            return this.deserialize(await readFile(jsonConfigFilePath, 'utf8'));
+            cachedSourceConfig = this.deserialize(await readFile(jsonConfigFilePath, 'utf8'));
+            return cachedSourceConfig;
         }
 
-        // Load the config from ownstak.config.js/mjs/cjs/ts if it exists.
-        // We use dynamic import here to avoid bundling the bundle-require module.
-        const { bundleRequire } = await import('bundle-require');
         const configFilePath = [
             resolve(INPUT_CONFIG_FILE),
             resolve(INPUT_CONFIG_FILE).replace('.js', '.mjs'),
@@ -778,28 +793,46 @@ export class Config {
             const cliVersion = CliConfig.getCurrentVersion();
             logger.info(`Installing ${NAME} CLI v${cliVersion} into your project...`);
             await installDependency(NAME, cliVersion);
+            logger.success(`${NAME} CLI v${cliVersion} installed successfully!`);
         }
 
         const relativeConfigFilePath = relative(process.cwd(), configFilePath);
         logger.debug(`Loading ${BRAND} project config: ${relativeConfigFilePath}`);
         try {
+            // Load the config from ownstak.config.js/mjs/cjs/ts if it exists.
+            // We use dynamic import here to avoid bundling the bundle-require module.
+            const bundleStartTime = performance.now();
+            const { bundleRequire } = await import('bundle-require');
+
+            // We use bundleRequire with esbuild, so we are able to read also .ts config file.
+            // We always bundle all imports into the project config (notExternal: [/(.+)/] option),
+            // so import won't fail on the first run where ownstak package is not installed in the project yet when process started,
+            // we dynamically install it from the current process and dynamically load the project config that depends on it.
+            // This happens because Node's ESM modules resolution cache is not updated after we install ownstak package from the current process
+            // and there's no way for us to update it without restarting the process.
             const { mod } = await bundleRequire({
                 filepath: normalizePath(configFilePath),
+                notExternal: [/(.+)/],
+                format: 'esm',
             });
+            logger.debug(`Project config loaded in ${performance.now() - bundleStartTime}ms`);
 
-            // Check if the config file is in the correct format.
-            // Do not use instanceof Config here, because it doesn't work with bundled files.
-            const configModule = mod?.default?.default || mod?.default || new Config();
-            if (configModule.toString() != new Config().toString()) {
+            // Check if the exported config is in the correct format.
+            const importedConfig = mod?.default?.default || mod?.default || new Config();
+            if (importedConfig.toString() != new Config().toString()) {
                 const exampleConfigFilePath = resolve(__dirname, 'templates', 'config', 'ownstak.config.js');
                 const exampleConfig = await readFile(exampleConfigFilePath, 'utf8');
                 throw new CliError(
-                    `The ${BRAND} project config file format was not recognized. Make sure the '${relativeConfigFilePath}' file exports instance of the Config class as default.` +
-                        `Example config file: \r\n${exampleConfig}`,
+                    `The ${BRAND} project config file format was not recognized. Make sure the '${relativeConfigFilePath}' file exports instance of the Config class as default export. For example: \r\n\r\n${chalk.cyanBright(exampleConfig)}\r\n`,
                 );
             }
 
-            return configModule as Config;
+            // Create a new Config instance with class from this package.
+            // The Config class from the configModule was bundled, so this.constructor.name might be different, etc...
+            // It will save us hours of debugging weird issues where ¨Config is not instance of Config¨.
+            cachedSourceConfig = new Config();
+            Object.assign(cachedSourceConfig, importedConfig);
+            return cachedSourceConfig;
         } catch (e: any) {
             throw new CliError(`Failed to load ${BRAND} project config from '${relativeConfigFilePath}':\r\n${e.stack}`);
         }
@@ -810,7 +843,7 @@ export class Config {
      * @private
      */
     async reloadFromBuild() {
-        const config = await Config.loadFromBuild();
+        const config = await Config.loadFromBuild(false);
         Object.assign(this, config);
         return this;
     }
@@ -820,7 +853,7 @@ export class Config {
      * @private
      */
     async reloadFromSource() {
-        const config = await Config.loadFromSource();
+        const config = await Config.loadFromSource(false);
         Object.assign(this, config);
         return this;
     }
@@ -892,11 +925,12 @@ export class Config {
         const packageJsonPath = resolve('package.json');
         if (!existsSync(packageJsonPath)) return 'default';
         const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-        return packageJson.name || 'default';
+        return packageJson.name?.split('/')?.pop() || 'default';
     }
 
     toString() {
-        return this.constructor.name;
+        // NOTE: The this.constructor.name can change after bundling, minification, etc...
+        return 'Config';
     }
 }
 

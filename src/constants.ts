@@ -132,7 +132,7 @@ export const HEADERS = {
     Authorization: 'authorization',
 
     // Custom headers
-    // Below headers needs to be in sync with ownstak-proxy
+    // Below headers need to be in sync with ownstak-proxy
     // See: https://github.com/OwnStak/ownstak-proxy/blob/main/src/server/headers.go
     XOwnProxy: 'x-own-proxy',
     XOwnProxyVersion: 'x-own-proxy-version',
