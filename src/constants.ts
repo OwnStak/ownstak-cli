@@ -138,7 +138,7 @@ export const HEADERS = {
     XOwnProxyVersion: 'x-own-proxy-version',
     XOwnFollowRedirect: 'x-own-follow-redirect',
     XOwnMergeHeaders: 'x-own-merge-headers',
-    XOwnMergeStatusCode: 'x-own-merge-status-code',
+    XOwnMergeStatus: 'x-own-merge-status',
     XOwnActions: 'x-own-actions',
     XOwnImageOptimizer: 'x-own-image-optimizer',
     XOwnImageOptimizerError: 'x-own-image-optimizer-error',

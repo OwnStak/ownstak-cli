@@ -113,6 +113,38 @@ describe('Router - Route Actions', () => {
         expect(response.statusCode).toBe(418);
     });
 
+    it('should execute setResponseBody action', async () => {
+        router.get('/test', [
+            {
+                type: 'setResponseBody',
+                body: 'Custom response body content',
+            },
+        ]);
+
+        await router.execute(request, response);
+        expect(response.body?.toString()).toBe('Custom response body content');
+        expect(response.getHeader('content-length')).toBe('28');
+        expect(response.getHeader('content-encoding')).toBeUndefined();
+    });
+
+    it('should execute setResponseBody action and override existing body', async () => {
+        response.body = 'Existing body content';
+        response.setHeader('content-length', '23');
+        response.setHeader('content-encoding', 'gzip');
+
+        router.get('/test', [
+            {
+                type: 'setResponseBody',
+                body: 'Custom response body content',
+            },
+        ]);
+
+        await router.execute(request, response);
+        expect(response.body?.toString()).toBe('Custom response body content');
+        expect(response.getHeader('content-length')).toBe('28');
+        expect(response.getHeader('content-encoding')).toBeUndefined();
+    });
+
     it('should execute addResponseHeader action', async () => {
         response.setHeader('x-existing', 'value1');
 
@@ -507,7 +539,7 @@ describe('Router - Route Actions', () => {
         expect(response.body?.toString()).toBe('Permanent image content');
     });
 
-    it('should execute serveAsset action with follow-redirect behind proxy', async () => {
+    it('should execute servePermanentAsset action with follow-redirect behind proxy', async () => {
         router.get('/test', [
             {
                 type: 'servePermanentAsset',
@@ -522,10 +554,10 @@ describe('Router - Route Actions', () => {
         });
         const response = new Response();
         await router.execute(request, response);
-        expect(response.statusCode).toBe(301);
+        expect(response.statusCode).toBe(200);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3003/permanent/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
-        expect(response.getHeader(HEADERS.XOwnMergeStatusCode)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatus)).toBe('true');
         expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
     });
 
@@ -544,10 +576,66 @@ describe('Router - Route Actions', () => {
         });
         const response = new Response();
         await router.execute(request, response);
-        expect(response.statusCode).toBe(301);
+        expect(response.statusCode).toBe(200);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
-        expect(response.getHeader(HEADERS.XOwnMergeStatusCode)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatus)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
+    });
+
+    it('should execute serveAsset action behind proxy and preserve custom status code', async () => {
+        router.get('/test', [
+            {
+                type: 'setResponseStatus',
+                statusCode: 404,
+            },
+            {
+                type: 'serveAsset',
+                path: '/assets/404.html',
+            },
+        ]);
+        const request = new Request(`http://example.com/test`, {
+            headers: {
+                [HEADERS.XOwnProxy]: 'true',
+                [HEADERS.XOwnProxyVersion]: '0.1.1',
+            },
+        });
+        const response = new Response();
+        await router.execute(request, response);
+        expect(response.statusCode).toBe(404);
+        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/404.html`);
+        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatus)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
+    });
+
+    it('should execute serveAsset action behind proxy and and override status code', async () => {
+        router.get('/test', [
+            {
+                type: 'setResponseStatus',
+                statusCode: 404,
+            },
+            {
+                type: 'serveAsset',
+                path: '/assets/404.html',
+            },
+            {
+                type: 'setResponseStatus',
+                statusCode: 418,
+            },
+        ]);
+        const request = new Request(`http://example.com/test`, {
+            headers: {
+                [HEADERS.XOwnProxy]: 'true',
+                [HEADERS.XOwnProxyVersion]: '0.1.1',
+            },
+        });
+        const response = new Response();
+        await router.execute(request, response);
+        expect(response.statusCode).toBe(418);
+        expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/404.html`);
+        expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatus)).toBe('true');
         expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
     });
 
@@ -581,10 +669,10 @@ describe('Router - Route Actions', () => {
         });
         const response = new Response();
         await router.execute(request, response);
-        expect(response.statusCode).toBe(301);
+        expect(response.statusCode).toBe(200);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/asset/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
-        expect(response.getHeader(HEADERS.XOwnMergeStatusCode)).toBe('true');
+        expect(response.getHeader(HEADERS.XOwnMergeStatus)).toBe('true');
         expect(response.getHeader(HEADERS.XOwnMergeHeaders)).toBe('true');
     });
 

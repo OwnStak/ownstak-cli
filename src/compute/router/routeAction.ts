@@ -44,6 +44,11 @@ export interface SetResponseStatus extends BaseRouteAction {
     statusCode: number;
 }
 
+export interface SetResponseBody extends BaseRouteAction {
+    type: 'setResponseBody';
+    body: string;
+}
+
 export interface DeleteResponseHeader extends BaseRouteAction {
     type: 'deleteResponseHeader';
     key: string;
@@ -111,12 +116,16 @@ export interface HealthCheck extends BaseRouteAction {
 export type RouteAction = BaseRouteAction &
     (
         | Proxy
+        | DeleteResponseHeader
+        | DeleteRequestHeader
         | SetResponseHeader
         | SetDefaultResponseHeader
         | SetRequestHeader
         | SetDefaultRequestHeader
+        | SetResponseStatus
         | AddResponseHeader
         | AddRequestHeader
+        | SetResponseBody
         | ServeAsset
         | ServePermanentAsset
         | ServeApp
@@ -124,9 +133,6 @@ export type RouteAction = BaseRouteAction &
         | Rewrite
         | Echo
         | ImageOptimizer
-        | SetResponseStatus
-        | DeleteResponseHeader
-        | DeleteRequestHeader
         | NodeFunction
         | HealthCheck
     );
@@ -169,6 +175,10 @@ export function isAddRequestHeaderAction(action: RouteAction): action is AddRequ
 
 export function isSetResponseStatusAction(action: RouteAction): action is SetResponseStatus {
     return action.type === 'setResponseStatus';
+}
+
+export function isSetResponseBodyAction(action: RouteAction): action is SetResponseBody {
+    return action.type === 'setResponseBody';
 }
 
 export function isDeleteResponseHeaderAction(action: RouteAction): action is DeleteResponseHeader {

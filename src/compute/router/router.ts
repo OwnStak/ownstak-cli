@@ -14,6 +14,7 @@ import {
     AddResponseHeader,
     AddRequestHeader,
     SetResponseStatus,
+    SetResponseBody,
     SetDefaultResponseHeader,
     SetDefaultRequestHeader,
     DeleteResponseHeader,
@@ -24,7 +25,6 @@ import {
     ServeAsset,
     ServePermanentAsset,
     NodeFunction,
-    HealthCheck,
     isEchoAction,
     isImageOptimizerAction,
     isAddResponseHeaderAction,
@@ -44,6 +44,7 @@ import {
     isSetDefaultResponseHeaderAction,
     isNodeFunctionAction,
     isHealthCheckAction,
+    isSetResponseBodyAction,
 } from './routeAction.js';
 
 export class Router {
@@ -290,6 +291,9 @@ export class Router {
         }
         if (isSetResponseStatusAction(action)) {
             return this.executeSetResponseStatus(action, response);
+        }
+        if (isSetResponseBodyAction(action)) {
+            return this.executeSetResponseBody(action, response);
         }
         if (isDeleteResponseHeaderAction(action)) {
             return this.executeDeleteResponseHeader(action, response);
@@ -619,6 +623,18 @@ export class Router {
     }
 
     /**
+     * Executes a set response body action.
+     * @param action The action to execute.
+     * @param response The response to execute the action on.
+     * @private
+     */
+    async executeSetResponseBody(action: SetResponseBody, response: Response): Promise<void> {
+        response.body = action.body;
+        response.setHeader(HEADERS.ContentLength, action.body.length.toString());
+        response.deleteHeader(HEADERS.ContentEncoding);
+    }
+
+    /**
      * Executes a delete response header action.
      * @param action The action to execute.
      * @param response The response to execute the action on.
@@ -670,7 +686,7 @@ export class Router {
      * @private
      */
     async executeProxy(action: Proxy, request: Request, response: Response): Promise<void> {
-        const proxyReqUrl = new URL(action.url);
+        const proxyReqUrl = new URL(action.url, `${request.protocol}://${request.host}`);
 
         // Preserve host header from original request by default, otherwise use host from proxyUrl
         const proxyHostHeader = action.preserveHostHeader !== false ? request.host.toString() : proxyReqUrl.hostname;
@@ -770,8 +786,9 @@ export class Router {
             // Tell the ownstak-proxy to merge headers from this response with the headers from the S3 responses.
             // Conflicting headers are overridden by the headers from the S3 responses.
             response.setHeader(HEADERS.XOwnMergeHeaders, 'true');
-            response.setHeader(HEADERS.XOwnMergeStatusCode, 'true');
-            response.statusCode = 301;
+            // Preserve any custom status codes (proxy doesn't require redirect status codes, just the location header)
+            // This allows to serve static 404.html not found page from S3 with 404 status code
+            response.setHeader(HEADERS.XOwnMergeStatus, 'true');
             return;
         }
 
@@ -963,7 +980,6 @@ export class Router {
 
     /**
      * Executes a health check action.
-     * @param request The request to execute the action on.
      * @param response The response to execute the action on.
      * @private
      */
