@@ -11,6 +11,7 @@ import { start } from './start.js';
 import { deploy } from './deploy.js';
 import { login } from './login.js';
 import { logout } from './logout.js';
+import { proxyLogs, computeLogs } from './logs.js';
 import { upgrade, displayUpgradeNotice } from './upgrade.js';
 import { configInit } from './config/init.js';
 import { configPrint } from './config/print.js';
@@ -79,6 +80,29 @@ withEnvironmentSlugsOptions(withApiOptions(program.command('deploy')))
 
 withApiOptions(program.command('login')).description('Log in to the platform').action(login);
 withApiUrl(program.command('logout')).description('Log out of the platform').action(logout);
+
+const logsCommand = program.command('logs').description('Fetch and tail runtime logs from cloud backends');
+
+withApiOptions(logsCommand.command('proxy'))
+    .description('Fetch proxy logs from cloud backends')
+    .action(proxyLogs)
+    .addOption(new Option('--organization <slug>', 'The organization slug'))
+    .addOption(new Option('--cloud-backend <slug>', 'The cloud backend slug to fetch logs from'))
+    .addOption(new Option('--start-time <ISO8601>', 'ISO8601 timestamp to start fetching logs from'))
+    .addOption(new Option('--end-time <ISO8601>', 'ISO8601 timestamp to fetch logs until'))
+    .addOption(new Option('--output <file>', 'Output logs to a file instead of console'))
+    .addOption(new Option('--tail', 'Continuously tail logs (default when no time range specified)'))
+    .addOption(new Option('--json', 'Output logs in JSON format'));
+
+withEnvironmentSlugsOptions(withApiOptions(logsCommand.command('compute')))
+    .description('Fetch compute logs from cloud backends')
+    .action(computeLogs)
+    .addOption(new Option('--cloud-backend <slug>', 'The cloud backend slug to fetch logs from'))
+    .addOption(new Option('--start-time <ISO8601>', 'ISO8601 timestamp to start fetching logs from'))
+    .addOption(new Option('--end-time <ISO8601>', 'ISO8601 timestamp to fetch logs until'))
+    .addOption(new Option('--output <file>', 'Output logs to a file instead of console'))
+    .addOption(new Option('--tail', 'Continuously tail logs (default when no time range specified)'))
+    .addOption(new Option('--json', 'Output logs in JSON format'));
 
 const configCommand = program.command('config').description(`Manage the ${BRAND} project config`);
 withEnvironmentSlugsOptions(withApiOptions(configCommand.command('init')))

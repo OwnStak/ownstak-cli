@@ -11,6 +11,7 @@ import { uploadToPresignedUrl } from '../utils/s3Upload.js';
 import { login } from './login.js';
 import { build } from './build.js';
 import { configInit } from './config/init.js';
+import { ensureAuthenticated } from '../utils/ensureApiKey.js';
 
 export interface DeployCommandOptions {
     apiUrl: string;
@@ -28,24 +29,7 @@ export async function deploy(options: DeployCommandOptions) {
     const cliConfig = CliConfig.load();
     const config = await Config.loadFromSource();
 
-    const apiUrl = options.apiUrl;
-    const initialApiKey = options.apiKey || cliConfig.getApiKey(apiUrl);
-
-    // If we don't have an API key, prompt the user to login
-    if (!initialApiKey) {
-        logger.info(`You'll need to login to ${BRAND} first.`);
-        await login({ apiUrl });
-        cliConfig.reload();
-        logger.info('');
-    }
-    const apiKey = initialApiKey || cliConfig.getApiKey(apiUrl);
-    if (!apiKey) {
-        throw new CliError(
-            `Oops! The API key is missing possibily because of an error in the interactive login process.  ` +
-                `Please create new API key at ${CONSOLE_URL}/settings and pass it to deploy command manually. ` +
-                `Example: npx ${NAME} deploy --api-key <key>`,
-        );
-    }
+    const apiConfig = await ensureAuthenticated(options);
 
     // Use org, project and environment from options and config if provided.
     const initialOrganizationSlug = (options.organization || config.organization)?.toLowerCase();
@@ -55,7 +39,7 @@ export async function deploy(options: DeployCommandOptions) {
     // that walks the user through the process of setting up the project config.
     if (!initialOrganizationSlug || !initialProjectSlug) {
         logger.info('Almost there! We just need to setup your project config.');
-        await configInit({ apiUrl, apiKey, requireOrgAndProject: true });
+        await configInit({ ...apiConfig, requireOrgAndProject: true });
         await config.reloadFromSource();
         logger.info('');
     }
@@ -74,7 +58,7 @@ export async function deploy(options: DeployCommandOptions) {
         );
     }
 
-    const api = new ConsoleClient({ apiUrl, apiKey });
+    const api = new ConsoleClient(apiConfig);
     const organizations = await api.getOrganizations();
     if (organizations.length === 0) {
         throw new CliError(`You're not a member of any organization. Please create new organization at ${CONSOLE_URL}/organizations and come back.`);
@@ -106,7 +90,7 @@ export async function deploy(options: DeployCommandOptions) {
     logger.info(`${chalk.blueBright('Organization:')} ${chalk.cyan(organization.slug)}`);
     logger.info(`${chalk.blueBright('Project:')} ${chalk.cyan(project.slug)}`);
     logger.info(`${chalk.blueBright('Environment:')} ${chalk.cyan(environment.slug)}`);
-    const maskedApiKey = `${apiKey.slice(0, 3)}******${apiKey.slice(-4)}`;
+    const maskedApiKey = `${apiConfig.apiKey.slice(0, 3)}******${apiConfig.apiKey.slice(-4)}`;
     logger.info(`${chalk.blueBright('API key:')} ${chalk.cyan(maskedApiKey)}`);
     if (options.apiUrl !== CONSOLE_API_URL) {
         // Display the API URL if it's not the default

@@ -54,3 +54,18 @@ export type ApiKeyRequest = {
 export type ApiKey = {
     token: string;
 };
+
+export type ApiRuntimeLogsResponse = {
+    logs: ApiRuntimeLogEntry[];
+    meta: {
+        log_count: number;
+        provider: string;
+        next_token?: string;
+    };
+};
+
+export type ApiRuntimeLogEntry = {
+    message: string;
+    timestamp: string;
+    provider_meta: Record<string, any>;
+};

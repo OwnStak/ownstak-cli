@@ -12,6 +12,14 @@ export interface ResolveEnvironmentSlugsResponse extends ResolveProjectSlugRespo
     };
 }
 
+export interface ResolveEnvironmentCloudBackendSlugsResponse extends ResolveEnvironmentSlugsResponse {
+    cloud_backend: {
+        id: string;
+        slug: string;
+        can: Permissions;
+    };
+}
+
 export interface ResolveProjectSlugResponse extends ResolveOrganizationSlugResponse {
     project: {
         id: string;
@@ -22,6 +30,14 @@ export interface ResolveProjectSlugResponse extends ResolveOrganizationSlugRespo
 
 export interface ResolveOrganizationSlugResponse {
     organization: {
+        id: string;
+        slug: string;
+        can: Permissions;
+    };
+}
+
+export interface ResolveOrganizationCloudBackendSlugsResponse extends ResolveOrganizationSlugResponse {
+    cloud_backend: {
         id: string;
         slug: string;
         can: Permissions;

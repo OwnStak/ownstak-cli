@@ -1,8 +1,13 @@
-import { ApiDeployment, ApiDeploymentOnCreate, ApiKeyRequest, ApiLogs, ApiKey } from './types/entities.js';
+import { ApiDeployment, ApiDeploymentOnCreate, ApiKeyRequest, ApiLogs, ApiKey, ApiRuntimeLogsResponse } from './types/entities.js';
 import { CreateDeploymentRequest } from './requests/CreateDeployment.js';
 import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
 import { ListProjectsResponse } from './requests/ListProjects.js';
-import { ResolveEnvironmentSlugsResponse, ResolveProjectSlugResponse } from './requests/ResolveSlugs.js';
+import {
+    ResolveEnvironmentCloudBackendSlugsResponse,
+    ResolveEnvironmentSlugsResponse,
+    ResolveProjectSlugResponse,
+    ResolveOrganizationCloudBackendSlugsResponse,
+} from './requests/ResolveSlugs.js';
 import { ListEnvironmentsResponse } from './requests/ListEnvironements.js';
 import {
     BaseConsoleError,
@@ -30,6 +35,14 @@ export default class ConsoleClient extends Client {
         }
     }
 
+    async resolveEnvironmentCloudBackendSlugs(organizationSlug: string, projectSlug: string, environmentSlug: string, cloudBackendSlug: string) {
+        return this.get({
+            path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}/environments/${environmentSlug}/cloud_backends/${cloudBackendSlug}`,
+        })
+            .then((res) => res.json())
+            .then((data) => data as ResolveEnvironmentCloudBackendSlugsResponse);
+    }
+
     async resolveEnvironmentSlugs(organizationSlug: string, projectSlug: string, environmentSlug: string) {
         return this.get({ path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}/environments/${environmentSlug}` })
             .then((res) => res.json())
@@ -40,6 +53,12 @@ export default class ConsoleClient extends Client {
         return this.get({ path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}` })
             .then((res) => res.json())
             .then((data) => data as ResolveProjectSlugResponse);
+    }
+
+    async resolveOrganizationCloudBackendSlugs(organizationSlug: string, cloudBackendSlug: string) {
+        return this.get({ path: `/api/slug/organizations/${organizationSlug}/cloud_backends/${cloudBackendSlug}` })
+            .then((res) => res.json())
+            .then((data) => data as ResolveOrganizationCloudBackendSlugsResponse);
     }
 
     async getOrganizations() {
@@ -158,6 +177,49 @@ export default class ConsoleClient extends Client {
             .then((data) => data as ApiKey);
     }
 
+    async getProxyLogs(
+        cloudBackendId: string,
+        params?: {
+            start_time?: string;
+            end_time?: string;
+            next_token?: string;
+        },
+    ) {
+        const searchParams = new URLSearchParams();
+        if (params?.start_time) searchParams.set('start_time', params.start_time);
+        if (params?.end_time) searchParams.set('end_time', params.end_time);
+        if (params?.next_token) searchParams.set('next_token', params.next_token);
+
+        const queryString = searchParams.toString();
+        const path = `/api/cloud_backends/${cloudBackendId}/runtime_logs/proxy${queryString ? `?${queryString}` : ''}`;
+
+        return this.get({ path })
+            .then((res) => res.json())
+            .then((data) => data as ApiRuntimeLogsResponse);
+    }
+
+    async getComputeLogs(
+        cloudBackendId: string,
+        environmentId: string,
+        params?: {
+            start_time?: string;
+            end_time?: string;
+            next_token?: string;
+        },
+    ) {
+        const searchParams = new URLSearchParams();
+        if (params?.start_time) searchParams.set('start_time', params.start_time);
+        if (params?.end_time) searchParams.set('end_time', params.end_time);
+        if (params?.next_token) searchParams.set('next_token', params.next_token);
+
+        const queryString = searchParams.toString();
+        const path = `/api/cloud_backends/${cloudBackendId}/runtime_logs/compute/${environmentId}${queryString ? `?${queryString}` : ''}`;
+
+        return this.get({ path })
+            .then((res) => res.json())
+            .then((data) => data as ApiRuntimeLogsResponse);
+    }
+
     protected async handleError(response: Response) {
         const result = await response.json();
         switch (response.status) {
@@ -179,6 +241,7 @@ export default class ConsoleClient extends Client {
                 });
             case 422:
                 let details = '';
+
                 try {
                     details = Object.entries(result.details as { [key: string]: string[] })
                         .map(([key, value]) => `- ${chalk.bold(key)}: ${value.join(', ')}`)
