@@ -111,6 +111,8 @@ export const INTERNAL_PATH_PREFIX = '/__ownstak__';
 // We need to limit this to prevent infinite loops and generate huge traffic/bill.
 export const MAX_RECURSIONS = 5;
 
+export const INTERNAL_HEADERS_PREFIX = 'x-own-';
+
 // Header keys for quick access
 // All needs to be normalized to lowercase here
 export const HEADERS = {
@@ -130,7 +132,8 @@ export const HEADERS = {
     XRequestId: 'x-request-id',
     CacheControl: 'cache-control',
     Authorization: 'authorization',
-
+    TransferEncoding: 'transfer-encoding',
+    AcceptEncoding: 'accept-encoding',
     // Custom headers
     // Below headers need to be in sync with ownstak-proxy
     // See: https://github.com/OwnStak/ownstak-proxy/blob/main/src/server/headers.go
@@ -139,12 +142,27 @@ export const HEADERS = {
     XOwnFollowRedirect: 'x-own-follow-redirect',
     XOwnMergeHeaders: 'x-own-merge-headers',
     XOwnMergeStatus: 'x-own-merge-status',
+    XOwnStreaming: 'x-own-streaming',
     XOwnActions: 'x-own-actions',
-    XOwnImageOptimizer: 'x-own-image-optimizer',
-    XOwnImageOptimizerError: 'x-own-image-optimizer-error',
     XOwnRecursions: 'x-own-recursions',
     XOwnDebug: 'x-own-debug',
 };
+
+export const STATUS_CODES = {
+    // Custom status codes
+    StatusServiceOverloaded: 529,
+    StatusInternalError: 530,
+
+    StatusProjectError: 540,
+    StatusProjectRequestInvalid: 541,
+    StatusProjectResponseInvalid: 542,
+    StatusProjectRequestTooLarge: 543,
+    StatusProjectResponseTooLarge: 544,
+    StatusProjectTimeout: 545,
+    StatusProjectThrottled: 546,
+    StatusProjectCrashed: 547,
+    StatusProjectRequestRecursionError: 548,
+} as const;
 
 export const CACHE_CONTROL_CONFIG = {
     prerenderedPages: `public, max-age=0, s-maxage=3600`, // cache pre-rendered pages for 1 hour by the CDN and never in the browser

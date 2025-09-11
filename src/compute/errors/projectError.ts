@@ -1,7 +1,7 @@
 import { Response } from '../router/response.js';
-import { BRAND, SUPPORT_URL, HEADERS } from '../../constants.js';
+import { BRAND, SUPPORT_URL, HEADERS, STATUS_CODES } from '../../constants.js';
 
-export interface ComputeErrorOptions {
+export interface ProjectErrorOptions {
     title?: string;
     statusCode?: number;
     stack?: string;
@@ -9,16 +9,16 @@ export interface ComputeErrorOptions {
     version?: string;
 }
 
-export class ComputeError extends Error {
+export class ProjectError extends Error {
     title: string;
     statusCode: number;
     requestId?: string;
     version?: string;
 
-    constructor(message?: string, options: ComputeErrorOptions = {}) {
+    constructor(message?: string, options: ProjectErrorOptions = {}) {
         super(message || `The unknown error occurred in one of the ${BRAND} components. Please see the stack trace in the logs for more details.`);
-        this.title = options.title || 'Internal Error';
-        this.statusCode = options.statusCode || 530;
+        this.title = options.title || 'Project Error';
+        this.statusCode = options.statusCode || STATUS_CODES.StatusProjectError;
         this.stack = options.stack || this.stack;
         this.requestId = options.requestId;
         this.version = options.version;
@@ -32,10 +32,13 @@ export class ComputeError extends Error {
         return process.env.LOG_LEVEL === 'debug' || !!process.env.LOCAL;
     }
 
-    static fromError(e: any): ComputeError {
+    static fromError(e: any): ProjectError {
         // If the error is already type of ComputeError, return it
         // Otherwise, create a new ComputeError with the error message and preserved stack trace
-        return e.toString() === new this().toString() ? e : new this(e.message, { stack: e.stack });
+        if ('errorType' in e && typeof e.errorType === 'function' && e.errorType() === new this().errorType()) {
+            return e;
+        }
+        return new this(e.message, { stack: e.stack });
     }
 
     toResponse(acceptContentType?: string) {
@@ -242,9 +245,9 @@ export class ComputeError extends Error {
         `;
     }
 
-    toString() {
+    errorType() {
         // Don't use `this.constructor.name`.
-        // We want to return same string for all child instances of ComputeError.
-        return `ComputeError`;
+        // We want to return same string for all child instances of ProjectError.
+        return `ProjectError`;
     }
 }

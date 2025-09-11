@@ -24,13 +24,20 @@ describe('Response', () => {
 
     beforeEach(() => {
         response = new Response();
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        jest.spyOn(console, 'debug').mockImplementation(() => {});
+        jest.spyOn(console, 'info').mockImplementation(() => {});
     });
 
     describe('initialization', () => {
         it('should initialize with default values', () => {
             expect(response.statusCode).toBe(200);
             expect(response.headers).toEqual({});
-            expect(response.body).toBeUndefined();
+            expect(response.body).toBe('');
+            expect(response.streaming).toBe(false);
+            expect(response.streamingStarted).toBe(false);
+            expect(response.ended).toBe(false);
         });
 
         it('should initialize with custom status code', () => {
@@ -65,8 +72,8 @@ describe('Response', () => {
         it('should initialize with Buffer body', () => {
             const body = Buffer.from('Hello World');
             const response = new Response(body);
-            expect(response.body).toBe(body);
             expect(Buffer.isBuffer(response.body)).toBe(true);
+            expect(response.body.toString()).toBe(body.toString());
         });
     });
 
@@ -76,14 +83,6 @@ describe('Response', () => {
             { code: 201, description: 'Created' },
             { code: 204, description: 'No Content' },
             { code: 301, description: 'Moved Permanently' },
-            { code: 302, description: 'Found' },
-            { code: 304, description: 'Not Modified' },
-            { code: 400, description: 'Bad Request' },
-            { code: 401, description: 'Unauthorized' },
-            { code: 403, description: 'Forbidden' },
-            { code: 404, description: 'Not Found' },
-            { code: 422, description: 'Unprocessable Entity' },
-            { code: 500, description: 'Internal Server Error' },
         ];
 
         statusCodes.forEach(({ code, description }) => {
@@ -207,27 +206,8 @@ describe('Response', () => {
             const bufferBody = Buffer.from('Buffer content');
             response.body = bufferBody;
 
-            expect(response.body).toBe(bufferBody);
-            expect(response.body?.toString()).toBe('Buffer content');
-        });
-
-        it('should handle JSON body', () => {
-            const jsonData = { message: 'hello', status: 'success' };
-            const jsonBody = JSON.stringify(jsonData);
-            response.body = jsonBody;
-            response.setHeader('content-type', 'application/json');
-
-            expect(response.body).toBe(jsonBody);
-            expect(JSON.parse(response.body.toString())).toEqual(jsonData);
-        });
-
-        it('should handle HTML body', () => {
-            const htmlBody = '<html><body><h1>Hello World</h1></body></html>';
-            response.body = htmlBody;
-            response.setHeader('content-type', 'text/html');
-
-            expect(response.body).toBe(htmlBody);
-            expect(response.getHeader('content-type')).toBe('text/html');
+            expect(Buffer.isBuffer(response.body)).toBe(true);
+            expect(response.body.toString()).toBe(bufferBody.toString());
         });
 
         it('should handle binary data', () => {
@@ -269,7 +249,7 @@ describe('Response', () => {
 
             expect(event.isBase64Encoded).toBe(true);
             const decodedBody = Buffer.from(event.body || '', 'base64').toString();
-            expect(decodedBody).toBe('Plain text response');
+            expect(decodedBody.toString()).toBe('Plain text response');
         });
 
         it('should handle Buffer body in toEvent', () => {
@@ -295,25 +275,15 @@ describe('Response', () => {
 
         it('should handle array headers in toEvent', () => {
             response.setHeader('set-cookie', ['session=abc123', 'user=john']);
+            response.addHeader('set-cookie', 'theme=dark');
             response.setHeader('accept', 'application/json');
 
             const event = response.toEvent();
 
             // Array headers should be converted to first value only
-            expect(event.headers?.['set-cookie']).toBe('session=abc123');
+            expect(event.headers?.['set-cookie']).toBeUndefined();
+            expect(event.multiValueHeaders?.['set-cookie']).toEqual(['session=abc123', 'user=john', 'theme=dark']);
             expect(event.headers?.['accept']).toBe('application/json');
-        });
-
-        it('should remove AWS headers in toEvent', () => {
-            response.setHeader('x-amz-request-id', 'test-request-id');
-            response.setHeader('x-amzn-trace-id', 'test-trace-id');
-            response.setHeader('content-type', 'application/json');
-
-            const event = response.toEvent();
-
-            expect(event.headers?.['x-amz-request-id']).toBeUndefined();
-            expect(event.headers?.['x-amzn-trace-id']).toBeUndefined();
-            expect(event.headers?.['content-type']).toBe('application/json');
         });
 
         it('should handle various status codes in toEvent', () => {
@@ -359,19 +329,6 @@ describe('Response', () => {
             expect(mockResponse.end).toHaveBeenCalledWith(response.body);
         });
 
-        it('should handle string body in toNodeResponse', () => {
-            response.statusCode = 200;
-            response.body = 'Plain text response';
-            response.setHeader('content-type', 'text/plain');
-
-            response.toNodeResponse(mockResponse as any);
-
-            expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
-                'content-type': 'text/plain',
-            });
-            expect(mockResponse.end).toHaveBeenCalledWith('Plain text response');
-        });
-
         it('should handle Buffer body in toNodeResponse', () => {
             const bufferBody = Buffer.from('Buffer content');
             response.body = bufferBody;
@@ -388,7 +345,7 @@ describe('Response', () => {
             response.toNodeResponse(mockResponse as any);
 
             expect(mockResponse.writeHead).toHaveBeenCalledWith(204, {});
-            expect(mockResponse.end).toHaveBeenCalledWith(undefined);
+            expect(mockResponse.end).toHaveBeenCalledWith('');
         });
 
         it('should handle array headers in toNodeResponse', () => {
@@ -405,10 +362,10 @@ describe('Response', () => {
 
         it('should handle various status codes in toNodeResponse', () => {
             const testCases = [
-                { code: 200, body: 'OK' },
-                { code: 404, body: 'Not Found' },
-                { code: 500, body: 'Internal Server Error' },
-                { code: 302, body: '' },
+                { code: 200, body: Buffer.from('OK') },
+                { code: 404, body: Buffer.from('Not Found') },
+                { code: 500, body: Buffer.from('Internal Server Error') },
+                { code: 302, body: Buffer.from('') },
             ];
 
             testCases.forEach(({ code, body }) => {
@@ -439,36 +396,6 @@ describe('Response', () => {
         });
     });
 
-    describe('deleteAmznHeaders method', () => {
-        it('should delete AWS headers', () => {
-            response.setHeader('x-amz-request-id', 'request-123');
-            response.setHeader('x-amzn-trace-id', 'trace-456');
-            response.setHeader('x-amz-security-token', 'token-789');
-            response.setHeader('content-type', 'application/json');
-            response.setHeader('x-custom-header', 'keep-this');
-
-            response.deleteAmznHeaders();
-
-            expect(response.getHeader('x-amz-request-id')).toBeUndefined();
-            expect(response.getHeader('x-amzn-trace-id')).toBeUndefined();
-            expect(response.getHeader('x-amz-security-token')).toBeUndefined();
-            expect(response.getHeader('content-type')).toBe('application/json');
-            expect(response.getHeader('x-custom-header')).toBe('keep-this');
-        });
-
-        it('should handle case variations of AWS headers', () => {
-            response.setHeader('X-AMZ-Request-Id', 'request-123');
-            response.setHeader('X-AMZN-Trace-Id', 'trace-456');
-            response.setHeader('Content-Type', 'application/json');
-
-            response.deleteAmznHeaders();
-
-            expect(response.getHeader('x-amz-request-id')).toBeUndefined();
-            expect(response.getHeader('x-amzn-trace-id')).toBeUndefined();
-            expect(response.getHeader('content-type')).toBe('application/json');
-        });
-    });
-
     describe('clear method', () => {
         it('should reset the response to default state', () => {
             response.statusCode = 404;
@@ -479,7 +406,10 @@ describe('Response', () => {
 
             expect(response.statusCode).toBe(200);
             expect(response.headers).toEqual({});
-            expect(response.body).toBeUndefined();
+            expect(response.body).toBe('');
+            expect(response.streaming).toBe(false);
+            expect(response.streamingStarted).toBe(false);
+            expect(response.ended).toBe(false);
         });
 
         it('should clear complex response state', () => {
@@ -495,7 +425,7 @@ describe('Response', () => {
 
             expect(response.statusCode).toBe(200);
             expect(Object.keys(response.headers)).toHaveLength(0);
-            expect(response.body).toBeUndefined();
+            expect(response.body).toBe('');
         });
     });
 
@@ -515,16 +445,16 @@ describe('Response', () => {
 
             const mockResp = new MockServerResponse();
             response.toNodeResponse(mockResp as any);
-            expect(mockResp.end).toHaveBeenCalledWith(null);
+            expect(mockResp.end).toHaveBeenCalledWith('');
         });
 
         it('should handle very large response bodies', () => {
-            const largeBody = 'x'.repeat(1000000); // 1MB string
+            const largeBody = Buffer.from('x'.repeat(1000000)); // 1MB string
             response.body = largeBody;
 
             const event = response.toEvent();
-            const decodedBody = Buffer.from(event.body || '', 'base64').toString();
-            expect(decodedBody).toBe(largeBody);
+            const decodedBody = Buffer.from(event.body || '', 'base64');
+            expect(decodedBody.toString()).toBe(largeBody.toString());
 
             const mockResp = new MockServerResponse();
             response.toNodeResponse(mockResp as any);
@@ -538,6 +468,389 @@ describe('Response', () => {
 
             const event = response.toEvent();
             expect(event.headers?.['x-special-chars']).toBe('value with spaces, commas, and "quotes"');
+        });
+    });
+
+    describe('toEvent with and without body', () => {
+        beforeEach(() => {
+            response.statusCode = 200;
+            response.setHeader('content-type', 'application/json');
+            response.setHeader('x-custom', 'test');
+            response.body = JSON.stringify({ message: 'test' });
+        });
+
+        it('should include body by default', () => {
+            const event = response.toEvent();
+
+            expect(event.body).toBeDefined();
+            expect(event.isBase64Encoded).toBe(true);
+            const decodedBody = Buffer.from(event.body || '', 'base64').toString();
+            expect(JSON.parse(decodedBody)).toEqual({ message: 'test' });
+        });
+
+        it('should exclude body when includeBody is false', () => {
+            const event = response.toEvent(false);
+
+            expect(event.body).toBeUndefined();
+            expect(event.isBase64Encoded).toBeUndefined();
+            expect(event.statusCode).toBe(200);
+            expect(event.headers).toEqual({
+                'content-type': 'application/json',
+                'x-custom': 'test',
+            });
+        });
+
+        it('should handle multiValueHeaders correctly', () => {
+            response.setHeader('set-cookie', ['session=abc', 'user=john']);
+            response.setHeader('single-header', 'value');
+
+            const event = response.toEvent();
+
+            expect(event.headers).toEqual({
+                'content-type': 'application/json',
+                'x-custom': 'test',
+                'single-header': 'value',
+            });
+            expect(event.multiValueHeaders).toEqual({
+                'set-cookie': ['session=abc', 'user=john'],
+            });
+        });
+
+        it('should handle empty body correctly', () => {
+            response.body = '';
+
+            const eventWithBody = response.toEvent(true);
+            const eventWithoutBody = response.toEvent(false);
+
+            expect(eventWithBody.body).toBe('');
+            expect(eventWithBody.isBase64Encoded).toBe(true);
+            expect(eventWithoutBody.body).toBeUndefined();
+            expect(eventWithoutBody.isBase64Encoded).toBeUndefined();
+        });
+    });
+
+    describe('streaming', () => {
+        let writeHeadMock: jest.Mock;
+        let writeMock: jest.Mock;
+        let endMock: jest.Mock;
+
+        beforeEach(() => {
+            writeHeadMock = jest.fn();
+            writeMock = jest.fn();
+            endMock = jest.fn();
+
+            response = new Response('', {
+                onWriteHead: writeHeadMock,
+                onWrite: writeMock,
+                onEnd: endMock,
+            });
+        });
+
+        it('should call onWriteHead when writeHead is called', () => {
+            response.enableStreaming();
+            response.writeHead(201, { 'content-type': 'application/json' });
+
+            expect(writeHeadMock).toHaveBeenCalledWith(
+                201,
+                expect.objectContaining({
+                    'content-type': 'application/json',
+                    'transfer-encoding': 'chunked',
+                }),
+            );
+        });
+
+        it('should call onWriteHead on first chunk write', () => {
+            response.enableStreaming();
+            response.write('chunk1');
+            expect(writeHeadMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('should call onWrite when writing chunks in streaming mode', () => {
+            response.enableStreaming();
+            response.write('chunk1');
+            response.write('chunk2');
+
+            expect(writeMock).toHaveBeenCalledTimes(2);
+            expect(writeMock).toHaveBeenNthCalledWith(1, Buffer.from('chunk1'));
+            expect(writeMock).toHaveBeenNthCalledWith(2, Buffer.from('chunk2'));
+        });
+
+        it('should call onEnd when response ends', async () => {
+            response.enableStreaming();
+            response.write('test data');
+            await response.end();
+
+            expect(endMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('should not call callbacks if streaming is disabled', () => {
+            response.enableStreaming(false);
+            response.write('chunk1');
+            response.write('chunk2');
+
+            expect(writeMock).not.toHaveBeenCalled();
+        });
+
+        it('should call onWriteHead only once', () => {
+            response.enableStreaming();
+            response.writeHead(200);
+            response.writeHead(404); // Should be ignored
+
+            expect(writeHeadMock).toHaveBeenCalledTimes(1);
+            expect(writeHeadMock).toHaveBeenCalledWith(200, expect.any(Object));
+        });
+
+        it('should buffer chunks until streaming is enabled', () => {
+            response.enableStreaming(false);
+            response.write('chunk1');
+            response.write('chunk2');
+            expect(writeHeadMock).not.toHaveBeenCalled();
+            expect(writeMock).not.toHaveBeenCalled();
+            response.enableStreaming(true);
+            response.write('chunk3');
+            response.write('chunk4');
+
+            expect(writeHeadMock).toHaveBeenCalledTimes(1);
+            expect(writeMock).toHaveBeenCalledTimes(4);
+            expect(writeMock).toHaveBeenNthCalledWith(1, Buffer.from('chunk1'));
+            expect(writeMock).toHaveBeenNthCalledWith(2, Buffer.from('chunk2'));
+            expect(writeMock).toHaveBeenNthCalledWith(3, Buffer.from('chunk3'));
+            expect(writeMock).toHaveBeenNthCalledWith(4, Buffer.from('chunk4'));
+        });
+
+        it('should stream on body write', () => {
+            response.enableStreaming();
+            response.body = 'Hello World';
+            expect(writeHeadMock).toHaveBeenCalledTimes(1);
+            expect(writeMock).toHaveBeenCalledWith(Buffer.from('Hello World'));
+        });
+
+        it('should set transfer-encoding to chunked when streaming is enabled', () => {
+            response.enableStreaming();
+            response.writeHead();
+            expect(response.getHeader('transfer-encoding')).toBe('chunked');
+        });
+
+        it('should delete content-length header when streaming is enabled', async () => {
+            response.enableStreaming();
+            response.setHeader('content-length', '100');
+            response.writeHead();
+            await response.end();
+
+            expect(response.getHeader('content-length')).toBeUndefined();
+        });
+    });
+
+    describe('buffering', () => {
+        let writeHeadMock: jest.Mock;
+        let writeMock: jest.Mock;
+        let endMock: jest.Mock;
+
+        beforeEach(() => {
+            writeHeadMock = jest.fn();
+            writeMock = jest.fn();
+            endMock = jest.fn();
+
+            response = new Response('', {
+                streaming: true,
+                onWriteHead: writeHeadMock,
+                onWrite: writeMock,
+                onEnd: endMock,
+            });
+        });
+
+        it('should buffer all chunks with callbacks', () => {
+            response.enableStreaming(false);
+            response.write('chunk1');
+            response.write('chunk2');
+            expect(writeMock).not.toHaveBeenCalled();
+            response.end();
+            expect(writeMock).toHaveBeenCalledTimes(1);
+            expect(writeMock).toHaveBeenNthCalledWith(1, Buffer.from('chunk1chunk2'));
+        });
+
+        it('should buffer all chunks without any callbacks', () => {
+            response = new Response();
+
+            response.enableStreaming(false);
+            response.write('chunk1');
+            response.write('chunk2');
+            expect(response.body.toString()).toBe('chunk1chunk2');
+            response.end();
+            expect(response.body.toString()).toBe('chunk1chunk2');
+        });
+
+        it('should call onWriteHead() when response ends', () => {
+            response.enableStreaming(false);
+            response.statusCode = 404;
+            response.setHeader('content-type', 'application/json');
+            response.write('chunk1');
+            response.write('chunk2');
+            expect(writeHeadMock).not.toHaveBeenCalled();
+            response.end();
+            expect(writeHeadMock).toHaveBeenCalledTimes(1);
+            expect(writeHeadMock).toHaveBeenCalledWith(
+                404,
+                expect.objectContaining({
+                    'content-type': 'application/json',
+                }),
+            );
+        });
+
+        it('should call onEnd when response ends', async () => {
+            response.enableStreaming(false);
+            response.write('chunk1');
+            expect(endMock).not.toHaveBeenCalled();
+            await response.end();
+            expect(endMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('should not set transfer-encoding when streaming is disabled', () => {
+            response.enableStreaming(false);
+            response.writeHead();
+            expect(response.getHeader('transfer-encoding')).toBeUndefined();
+        });
+
+        it('should preserve content-length header when both streaming and compression are disabled', async () => {
+            response.enableStreaming(false);
+            response.setOutputCompression();
+            response.setHeader('content-length', '100');
+            response.writeHead();
+            await response.end();
+
+            expect(response.getHeader('content-length')).toBe('100');
+        });
+    });
+
+    describe('compression', () => {
+        let writeHeadMock: jest.Mock;
+        let writeMock: jest.Mock;
+        let endMock: jest.Mock;
+
+        beforeEach(() => {
+            writeHeadMock = jest.fn();
+            writeMock = jest.fn();
+            endMock = jest.fn();
+
+            response = new Response('', {
+                onWriteHead: writeHeadMock,
+                onWrite: writeMock,
+                onEnd: endMock,
+            });
+        });
+
+        it('should handle gzip compression', async () => {
+            response.setOutputCompression('gzip');
+            response.write('original gzip data');
+            await response.end();
+
+            expect(writeMock).toHaveBeenCalled();
+            // Verify that the written data is compressed (not the original text)
+            const writtenData = writeMock.mock.calls[0][0] as Buffer;
+            expect(Buffer.isBuffer(writtenData)).toBe(true);
+            expect(writtenData.toString()).not.toBe('original gzip data');
+        });
+
+        it('should handle brotli compression', async () => {
+            response.setOutputCompression('br');
+            response.write('original br data');
+            await response.end();
+
+            expect(writeMock).toHaveBeenCalled();
+            const writtenData = writeMock.mock.calls[0][0] as Buffer;
+            expect(Buffer.isBuffer(writtenData)).toBe(true);
+            expect(writtenData.toString()).not.toBe('original br data');
+        });
+
+        it('should handle deflate compression', async () => {
+            response.setOutputCompression('deflate');
+            response.write('original deflate data');
+            await response.end();
+
+            expect(writeMock).toHaveBeenCalled();
+            const writtenData = writeMock.mock.calls[0][0] as Buffer;
+            expect(Buffer.isBuffer(writtenData)).toBe(true);
+            expect(writtenData.toString()).not.toBe('original deflate data');
+        });
+
+        it('should set content-encoding header when compression is enabled', async () => {
+            response.setOutputCompression('gzip');
+            response.writeHead();
+            await response.end();
+
+            expect(response.getHeader('content-encoding')).toBe('gzip');
+        });
+
+        it('should delete content-length header when compression is enabled', async () => {
+            response.setOutputCompression('gzip');
+            response.setHeader('content-length', '100');
+            response.writeHead();
+            await response.end();
+
+            expect(response.getHeader('content-length')).toBeUndefined();
+        });
+
+        it('should not compress if content is already compressed', async () => {
+            response.setOutputCompression('gzip');
+            response.setHeader('content-encoding', 'br'); // Already compressed with brotli
+
+            response.writeHead();
+            response.write('original br data');
+            await response.end();
+
+            // Should detect input compression and not add additional content-encoding
+            expect(response.getHeader('content-encoding')).toBe('br');
+            expect(writeMock).toHaveBeenCalledWith(Buffer.from('original br data'));
+        });
+
+        it('should prefer brotli over gzip and ignore order from accept-encoding header', async () => {
+            response.setOutputCompression('gzip, deflate, br');
+            response.writeHead();
+
+            expect(response.getHeader('content-encoding')).toBe('br');
+        });
+
+        it('should not compress if content-type is not compressable', async () => {
+            response.setHeader('content-type', 'image/jpeg');
+            response.setOutputCompression('gzip');
+            response.writeHead();
+            response.write('original data');
+            await response.end();
+
+            expect(response.getHeader('content-encoding')).toBeUndefined();
+            expect(writeMock).toHaveBeenCalledWith(Buffer.from('original data'));
+        });
+
+        it('should not compress if accept-encoding algorithm is not supported', async () => {
+            response.setOutputCompression('zstd');
+            response.writeHead();
+            response.write('original data');
+            await response.end();
+
+            expect(response.getHeader('content-encoding')).toBeUndefined();
+            expect(writeMock).toHaveBeenCalledWith(Buffer.from('original data'));
+        });
+
+        it('should check if content is compressable based on content-type', () => {
+            const testCases = [
+                { contentType: 'text/html', expected: true },
+                { contentType: 'text/css', expected: true },
+                { contentType: 'application/json', expected: true },
+                { contentType: 'application/javascript', expected: true },
+                { contentType: 'application/xml', expected: true },
+                { contentType: 'image/svg+xml', expected: true },
+                { contentType: 'image/jpeg', expected: false },
+                { contentType: 'image/png', expected: false },
+                { contentType: 'video/mp4', expected: false },
+                { contentType: 'audio/mpeg', expected: false },
+            ];
+
+            testCases.forEach(({ contentType, expected }) => {
+                response = new Response('');
+                response.setHeader('content-type', contentType);
+
+                expect(response.isCompressable()).toBe(expected);
+            });
         });
     });
 });

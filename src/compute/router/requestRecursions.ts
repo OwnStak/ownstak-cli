@@ -1,4 +1,4 @@
-import { ComputeReqRecursionError } from '../errors/computeReqRecursionError.js';
+import { ProjectReqRecursionError } from '../errors/projectReqRecursionError.js';
 import { Request } from './request.js';
 import { HEADERS, MAX_RECURSIONS, BRAND } from '../../constants.js';
 import http from 'http';
@@ -23,7 +23,7 @@ const originalHttpsRequest = https.request;
 export function detectRequestRecursions(request: Request, recursionsLimit: number = MAX_RECURSIONS) {
     const recursionsCount = Number(request.getHeader(HEADERS.XOwnRecursions) || 0);
     if (recursionsCount > recursionsLimit) {
-        throw new ComputeReqRecursionError(
+        throw new ProjectReqRecursionError(
             `The maximum number of allowed recursion requests (${recursionsLimit}) has been reached.\r\n` +
                 `This can happen in cases where your application fetches itself or another ${BRAND} project in an infinite loop.\r\n` +
                 `Please check your code for any potential loops.\r\n`,

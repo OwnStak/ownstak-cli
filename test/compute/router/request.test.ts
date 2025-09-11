@@ -1524,22 +1524,4 @@ describe('Request', () => {
             expect(request.getHeader(HEADERS.XOwnRecursions)).toBe('5');
         });
     });
-
-    describe('deleteAmznHeaders', () => {
-        it('should delete AWS headers', () => {
-            const request = new Request('http://example.com', {
-                headers: {
-                    'x-amz-security-token': 'token123',
-                    'x-amzn-trace-id': 'trace123',
-                    'content-type': 'application/json',
-                },
-            });
-
-            request.deleteAmznHeaders();
-
-            expect(request.getHeader('x-amz-security-token')).toBeUndefined();
-            expect(request.getHeader('x-amzn-trace-id')).toBeUndefined();
-            expect(request.getHeader('content-type')).toBe('application/json');
-        });
-    });
 });

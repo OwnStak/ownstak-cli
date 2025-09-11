@@ -223,6 +223,8 @@ export class Config {
         this.permanentAssets ??= { include: {} };
         this.debugAssets ??= { include: {} };
         this.app ??= { include: {}, entrypoint: undefined };
+        this.app.streaming ??= true;
+        this.app.compression ??= true;
         this.cliVersion ??= '0.0.0';
     }
 
@@ -384,6 +386,51 @@ export class Config {
      */
     setAppEntrypoint(entrypoint: string) {
         this.app.entrypoint = entrypoint;
+        return this;
+    }
+
+    /**
+     * Sets the compression behavior for the responses from your app.
+     * By default, compression is enabled for all the modern browsers/clients that support it
+     * and for supported content-types that are effectively compressable (text/*, application/*, image/svg+xml...).
+     *
+     * Set this option to false if you would like to disable compression for all responses,
+     * for example, to offload the compression to a CDN or proxy server.
+     * Be aware that disabling compression will increase your overall bandwidth usage and possibly latency.
+     * @default true
+     */
+    setAppCompression(compression = true) {
+        this.app.compression = compression;
+        return this;
+    }
+
+    /**
+     * Sets the streaming behavior of the response.
+     *
+     * Set to `false` to disable streaming and buffer the entire response in memory
+     * before sending it to the client. Set to `true` (default) to stream the response
+     * in chunks as it is generated.
+     *
+     * **Behavior when disabled (`false`):**
+     * When streaming is disabled, the full response is buffered in memory until processing is complete,
+     * then sent to the client in a single transmission. This is useful for debugging and error handling.
+     * If any error occurs during processing, regardless of phase, the client will receive a proper 5xx error response.
+     * Downside is higher memory usage and increased latency between your app and the client.
+     *
+     * **Behavior when enabled (`true`):**
+     * When streaming is enabled, each response body chunk is sent directly to the client in increments of up to 32 KiB.
+     * This is useful for large responses, effective memory usage and improving Time To First Byte (TTFB) of your app.
+     * Error handling depends on when the error occurs:
+     * - If the error occurs before response status and headers are sent, the client receives a 5xx error response (same as when streaming is disabled).
+     * - If the error occurs after response status and headers are sent, it is too late to alter the status code.
+     * The client will instead encounter a TCP connection reset, incomplete chunked response, or timeout (depending on your app),
+     * indicating the response with 2xx status is incomplete or corrupted and should not be cached.
+     *
+     * @example setAppStreaming(false)
+     * @default true
+     */
+    setAppStreaming(streaming = true) {
+        this.app.streaming = streaming;
         return this;
     }
 
@@ -1020,6 +1067,44 @@ export interface AppConfig extends FilesConfig {
      * @default false
      */
     bundleDependencies?: boolean;
+
+    /**
+     * Controls the compression behavior of the response.
+     * By default, compression is enabled for all the modern browsers/clients that support it
+     * and for supported content-types that are effectively compressable.
+     *
+     * Set this option to false if you would like to disable compression for all responses,
+     * for example, to offload the compression to a CDN or proxy server.
+     * Be aware that disabling compression will increase your overall bandwidth usage and possibly latency.
+     * @default true
+     */
+    compression?: boolean;
+
+    /**
+     * Controls the streaming behavior of the response.
+     *
+     * Set to `false` to disable streaming and buffer the entire response in memory
+     * before sending it to the client. Set to `true` (default) to stream the response
+     * in chunks as it is generated.
+     *
+     * **Behavior when disabled (`false`):**
+     * When streaming is disabled, the full response is buffered in memory until processing is complete,
+     * then sent to the client in a single transmission. This is useful for debugging and error handling.
+     * If any error occurs during processing, regardless of phase, the client will receive a proper 5xx error response.
+     * Downsides: higher memory usage and increased latency between your app and the client.
+     *
+     * **Behavior when enabled (`true`):**
+     * When streaming is enabled, each response body chunk is sent directly to the client in increments of up to 32 KiB.
+     * This is useful for large responses, effective memory usage and improving Time To First Byte (TTFB) of your app.
+     * Error handling depends on when the error occurs:
+     * - If the error occurs before response status and headers are sent, the client receives a 5xx error response (same as when streaming is disabled).
+     * - If the error occurs after response status and headers are sent, it is too late to alter the status code.
+     * The client will instead encounter a TCP connection reset, incomplete response, or timeout (depending on your app),
+     * indicating the response with 2xx status is incomplete or corrupted and should not be cached.
+     *
+     * @default true
+     */
+    streaming?: boolean;
 }
 
 export interface DebugAssetsConfig extends FilesConfig {}

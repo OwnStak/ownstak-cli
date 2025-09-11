@@ -2,9 +2,10 @@ import { Request } from '../router/request.js';
 import { Config } from '../../config.js';
 import { PORT, BRAND, HEADERS } from '../../constants.js';
 import { logger, LogLevel } from '../../logger.js';
-import { ComputeProjectError } from '../errors/index.js';
 import http from 'http';
 import chalk from 'chalk';
+import { Response } from '../router/response.js';
+import { RequestContext } from '../router/requestContex.js';
 
 (async () => {
     const config = await Config.loadFromBuild();
@@ -12,23 +13,28 @@ import chalk from 'chalk';
 
     const server = http.createServer(async (nodeRequest, nodeResponse) => {
         let request: Request | undefined;
+        let response: Response | undefined;
+        let ctx = new RequestContext();
 
         try {
             await appPromise;
+
             request = await Request.fromNodeRequest(nodeRequest);
             logger.debug(`[Server][Request]: ${request.method} ${request.url}`);
 
-            const response = await config.router.execute(request as Request);
+            response = new Response('', {
+                onWriteHead: async (statusCode, headers) => nodeResponse.writeHead(statusCode, headers),
+                onWrite: async (chunk) => nodeResponse.write(chunk),
+                onEnd: async () => nodeResponse.end(),
+            });
+
+            ctx = new RequestContext({ request, response, config });
+            await config.router.execute(ctx);
+
             logger.debug(`[Server][Response]: ${response.statusCode}`);
-            return response.toNodeResponse(nodeResponse);
+            return ctx.response.end();
         } catch (e: any) {
-            // Wrap all non-ComputeError errors into ComputeError
-            const computeError = ComputeProjectError.fromError(e);
-            computeError.version = config?.cliVersion;
-            computeError.requestId = request?.getHeader(HEADERS.XRequestId);
-            const acceptContentType = request?.getHeader(HEADERS.Accept);
-            console.error(computeError);
-            return computeError.toResponse(acceptContentType).toNodeResponse(nodeResponse);
+            return ctx.handleError(e).toNodeResponse(nodeResponse);
         }
     });
 

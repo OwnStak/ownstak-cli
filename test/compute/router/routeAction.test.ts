@@ -1,6 +1,7 @@
 import { Router } from '../../../src/compute/router/router';
 import { Request } from '../../../src/compute/router/request';
 import { Response } from '../../../src/compute/router/response';
+import { RequestContext } from '../../../src/compute/router/requestContex';
 import http from 'http';
 import { APP_PORT, ASSETS_PORT, HEADERS, PERMANENT_ASSETS_PORT } from '../../../src/constants';
 
@@ -84,7 +85,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-custom')).toBe('custom-header-value');
     });
 
@@ -97,7 +98,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(request.getHeader('x-custom-req')).toBe('custom-req-value');
     });
 
@@ -109,7 +110,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(418);
     });
 
@@ -121,7 +122,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.body?.toString()).toBe('Custom response body content');
         expect(response.getHeader('content-length')).toBe('28');
         expect(response.getHeader('content-encoding')).toBeUndefined();
@@ -139,7 +140,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.body?.toString()).toBe('Custom response body content');
         expect(response.getHeader('content-length')).toBe('28');
         expect(response.getHeader('content-encoding')).toBeUndefined();
@@ -156,7 +157,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeaderArray('x-existing')).toEqual(['value1', 'value2']);
     });
 
@@ -170,7 +171,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-to-delete')).toBeUndefined();
     });
 
@@ -190,7 +191,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-existing')).toBe('original-value');
         expect(response.getHeader('x-new-default')).toBe('new-default-value');
     });
@@ -206,7 +207,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-existing')).toBe('original-value');
     });
 
@@ -226,7 +227,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(request.getHeader('x-existing')).toBe('original-value');
         expect(request.getHeader('x-new-default')).toBe('new-default-value');
     });
@@ -242,7 +243,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(request.getHeader('x-existing')).toBe('original-value');
     });
 
@@ -254,7 +255,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(request.path).toBe('/new-path');
     });
 
@@ -268,7 +269,7 @@ describe('Router - Route Actions', () => {
         ]);
 
         const request = new Request(`http://example.com/products/123`);
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(request.path).toBe('/products/456');
     });
 
@@ -282,7 +283,7 @@ describe('Router - Route Actions', () => {
         ]);
 
         const request = new Request(`http://example.com/products/123`);
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(request.path).toBe('/new/products/123');
     });
 
@@ -296,7 +297,7 @@ describe('Router - Route Actions', () => {
         ]);
 
         const request = new Request(`http://example.com/products/123`);
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(request.path).toBe('/new/products/123');
     });
 
@@ -309,7 +310,7 @@ describe('Router - Route Actions', () => {
         ]);
 
         const request = new Request(`http://example.com/proxy-test`);
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-proxy')).toBe('proxied');
     });
 
@@ -329,7 +330,7 @@ describe('Router - Route Actions', () => {
         });
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.headers['host']).toBe('example.com');
@@ -351,7 +352,7 @@ describe('Router - Route Actions', () => {
         });
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.headers['host']).toBe('127.0.0.1');
@@ -373,7 +374,7 @@ describe('Router - Route Actions', () => {
         });
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.headers['x-req-header']).toBe('true');
@@ -395,7 +396,7 @@ describe('Router - Route Actions', () => {
         });
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.headers['x-req-header']).toBeUndefined();
@@ -413,7 +414,7 @@ describe('Router - Route Actions', () => {
         const request = new Request(`http://example.com/echo/requestPath`);
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.path).toBe('/echo/requestPath');
@@ -431,7 +432,7 @@ describe('Router - Route Actions', () => {
         const request = new Request(`http://example.com/echo/requestPath`);
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.path).toBe('/echo/proxyPath');
@@ -449,7 +450,7 @@ describe('Router - Route Actions', () => {
         const request = new Request(`http://example.com/echo/requestPath?requestQuery=value`);
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath?requestQuery=value');
@@ -467,7 +468,7 @@ describe('Router - Route Actions', () => {
         const request = new Request(`http://example.com/echo/requestPath?requestQuery=value`);
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath?proxyQuery=value');
@@ -485,7 +486,7 @@ describe('Router - Route Actions', () => {
         const request = new Request(`http://example.com/echo/requestPath?requestQuery=value`);
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath');
@@ -503,7 +504,7 @@ describe('Router - Route Actions', () => {
         const request = new Request(`http://example.com/echo//requestPath//another`);
         const response = new Response();
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('application/json');
         const echoOutput = JSON.parse(response.body?.toString() || '{}');
         expect(echoOutput.url).toBe('/echo/requestPath/another');
@@ -519,7 +520,7 @@ describe('Router - Route Actions', () => {
 
         const request = new Request(`http://example.com/test`);
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('image/png');
         expect(response.body?.toString()).toBe('Image content');
     });
@@ -534,7 +535,7 @@ describe('Router - Route Actions', () => {
 
         const request = new Request(`http://example.com/test`);
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('image/png');
         expect(response.body?.toString()).toBe('Permanent image content');
     });
@@ -553,7 +554,7 @@ describe('Router - Route Actions', () => {
             },
         });
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(200);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3003/permanent/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
@@ -575,7 +576,7 @@ describe('Router - Route Actions', () => {
             },
         });
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(200);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
@@ -601,7 +602,7 @@ describe('Router - Route Actions', () => {
             },
         });
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(404);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/404.html`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
@@ -631,7 +632,7 @@ describe('Router - Route Actions', () => {
             },
         });
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(418);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/assets/404.html`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
@@ -649,7 +650,7 @@ describe('Router - Route Actions', () => {
 
         const request = new Request(`http://example.com/test`);
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('image/png');
         expect(response.body?.toString()).toBe('Image content');
     });
@@ -668,7 +669,7 @@ describe('Router - Route Actions', () => {
             },
         });
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(200);
         expect(response.getHeader('location')).toBe(`http://0.0.0.0:3002/asset/image.png`);
         expect(response.getHeader(HEADERS.XOwnFollowRedirect)).toBe('true');
@@ -685,7 +686,7 @@ describe('Router - Route Actions', () => {
 
         const request = new Request(`http://example.com/products/123`);
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('content-type')).toBe('text/html');
         expect(response.body?.toString()).toBe('<html><body>Product 123</body></html>');
     });
@@ -700,7 +701,7 @@ describe('Router - Route Actions', () => {
         // Simulate serving the app
         request.path = '/app';
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-app')).toBe('served');
         expect(response.body?.toString()).toContain('App content');
     });
@@ -714,7 +715,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(302);
         expect(response.getHeader('location')).toBe('http://redirect.example.com');
     });
@@ -729,11 +730,14 @@ describe('Router - Route Actions', () => {
         request.path = '/echo';
 
         // Mock echo behavior
-        const echoResponse = new Response();
-        echoResponse.setHeader('x-echo', 'echoed');
+        const response = new Response('', {
+            headers: {
+                'x-echo': 'echoed',
+            },
+        });
 
-        await router.execute(request, echoResponse);
-        expect(echoResponse.getHeader('x-echo')).toBe('echoed');
+        await router.execute(new RequestContext({ request, response }));
+        expect(response.getHeader('x-echo')).toBe('echoed');
     });
 
     it('should execute imageOptimizer action', async () => {
@@ -743,8 +747,9 @@ describe('Router - Route Actions', () => {
             },
         ]);
         const request = new Request(`${mockServerUrl}/__ownstak__/image?url=/assets/image.png`);
-        await router.execute(request, response);
-        expect(response.getHeader(HEADERS.XOwnImageOptimizer)).toBeDefined();
+        request.setHeader(HEADERS.XOwnDebug, 'true');
+        await router.execute(new RequestContext({ request, response }));
+        expect(response.getHeader(HEADERS.XOwnActions)).toBe('imageOptimizer');
     });
 
     it('should execute healthCheck action', async () => {
@@ -754,7 +759,7 @@ describe('Router - Route Actions', () => {
             },
         ]);
         const request = new Request(`${mockServerUrl}/__ownstak__/project/health`);
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.statusCode).toBe(200);
         expect(response.body?.toString()).toBe('OK');
     });

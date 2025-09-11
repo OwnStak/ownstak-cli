@@ -1,3 +1,2 @@
-export * from './computeError.js';
-export * from './computeProjectError.js';
-export * from './computeReqRecursionError.js';
+export * from './projectError.js';
+export * from './projectReqRecursionError.js';

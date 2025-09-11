@@ -1,6 +1,6 @@
 import { isProxyRequestEvent, Event } from './proxyRequestEvent.js';
 import http from 'http';
-import { HEADERS } from '../../constants.js';
+import { HEADERS, INTERNAL_HEADERS_PREFIX } from '../../constants.js';
 import { stringify } from 'querystring';
 import { randomUUID } from 'crypto';
 
@@ -38,57 +38,6 @@ export class Request {
         this.remoteAddress = options.remoteAddress || '127.0.0.1';
         Object.assign(this, options);
         this.setHeaders(options.headers || {});
-    }
-
-    static fromEvent(event: Event): Request {
-        const request = new Request();
-        if (isProxyRequestEvent(event)) {
-            request.originalEvent = event;
-            // Make sure all header keys are normalized to lowercase
-            request.headers = Object.fromEntries(Object.entries(event.headers).map(([key, value]) => [key.toLowerCase(), value]));
-
-            request.host = request.headers[HEADERS.XForwardedHost]?.toString()?.split(',')?.[0] || request.headers.host?.toString() || 'localhost';
-            request.protocol =
-                request.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (event.requestContext.http.protocol.toLowerCase() as 'http' | 'https');
-            request.remoteAddress = event.requestContext.http.sourceIp || request.headers[HEADERS.XForwardedFor]?.toString()?.split(',')[0] || '127.0.0.1';
-            request.port = Number(request.headers[HEADERS.XForwardedPort]) || (request.protocol === 'https' ? 443 : 80);
-            request.url = new URL(`${request.protocol}://${request.host}${event.rawPath}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`);
-            request.path = event.rawPath;
-            request.method = event.requestContext.http.method;
-            request.body = event.body ? Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf-8') : undefined;
-        } else {
-            throw new Error('Received unsupported event type');
-        }
-
-        request.deleteAmznHeaders();
-        request.setDefaultHeaders();
-        return request;
-    }
-
-    static async fromNodeRequest(nodeRequest: http.IncomingMessage): Promise<Request> {
-        const request = new Request();
-        const isEncrypted = (nodeRequest.socket as any).encrypted;
-        request.originalNodeRequest = nodeRequest;
-        // Make sure all header keys are normalized to lowercase
-        request.headers = Object.fromEntries(Object.entries(nodeRequest.headers).map(([key, value]) => [key.toLowerCase(), value as string | string[]]));
-
-        request.host = request.headers[HEADERS.XForwardedHost]?.toString()?.split(',')[0] || request.headers.host?.toString() || 'localhost';
-        request.protocol = request.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (isEncrypted ? 'https' : 'http');
-        request.remoteAddress = request.headers[HEADERS.XForwardedFor]?.toString()?.split(',')[0] || nodeRequest.socket.remoteAddress || '127.0.0.1';
-        request.port = nodeRequest.socket.localPort || (request.protocol === 'https' ? 443 : 80);
-        request.url = new URL(`${request.protocol}://${request.host}${nodeRequest.url}`);
-        request.method = nodeRequest.method || 'GET';
-
-        // Read body from request
-        const chunks: Buffer[] = [];
-        for await (const chunk of nodeRequest) {
-            chunks.push(chunk);
-        }
-        request.body = Buffer.concat(chunks);
-
-        request.deleteAmznHeaders();
-        request.setDefaultHeaders();
-        return request;
     }
 
     get path() {
@@ -237,15 +186,8 @@ export class Request {
         this.url.searchParams.set(name, value);
     }
 
-    deleteAmznHeaders(): void {
-        // AWS returns 500 errors if we proxy back to another AWS service/API gateway
-        // and headers are present in the request/response.
-        // It happens with Function URLs.
-        for (const key of Object.keys(this.headers)) {
-            if (key.startsWith('x-amz-') || key.startsWith('x-amzn-')) {
-                this.deleteHeader(key);
-            }
-        }
+    get internalHeaders(): Record<string, string | string[]> {
+        return Object.fromEntries(Object.entries(this.headers).filter(([key]) => key.startsWith(INTERNAL_HEADERS_PREFIX)));
     }
 
     setDefaultHeaders() {
@@ -262,5 +204,54 @@ export class Request {
 
         // Set x-request-id header if not set (for example locally)
         this.setHeader(HEADERS.XRequestId, this.getHeader(HEADERS.XRequestId) || randomUUID());
+    }
+
+    static fromEvent(event: Event): Request {
+        const request = new Request();
+        if (isProxyRequestEvent(event)) {
+            request.originalEvent = event;
+            // Make sure all header keys are normalized to lowercase
+            request.headers = Object.fromEntries(Object.entries(event.headers).map(([key, value]) => [key.toLowerCase(), value]));
+
+            request.host = request.headers[HEADERS.XForwardedHost]?.toString()?.split(',')?.[0] || request.headers.host?.toString() || 'localhost';
+            request.protocol =
+                request.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (event.requestContext.http.protocol.toLowerCase() as 'http' | 'https');
+            request.remoteAddress = event.requestContext.http.sourceIp || request.headers[HEADERS.XForwardedFor]?.toString()?.split(',')[0] || '127.0.0.1';
+            request.port = Number(request.headers[HEADERS.XForwardedPort]) || (request.protocol === 'https' ? 443 : 80);
+            request.url = new URL(`${request.protocol}://${request.host}${event.rawPath}${event.rawQueryString ? `?${event.rawQueryString}` : ''}`);
+            request.path = event.rawPath;
+            request.method = event.requestContext.http.method;
+            request.body = event.body ? Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf-8') : undefined;
+        } else {
+            throw new Error('Received unsupported event type');
+        }
+
+        request.setDefaultHeaders();
+        return request;
+    }
+
+    static async fromNodeRequest(nodeRequest: http.IncomingMessage): Promise<Request> {
+        const request = new Request();
+        const isEncrypted = (nodeRequest.socket as any).encrypted;
+        request.originalNodeRequest = nodeRequest;
+        // Make sure all header keys are normalized to lowercase
+        request.headers = Object.fromEntries(Object.entries(nodeRequest.headers).map(([key, value]) => [key.toLowerCase(), value as string | string[]]));
+
+        request.host = request.headers[HEADERS.XForwardedHost]?.toString()?.split(',')[0] || request.headers.host?.toString() || 'localhost';
+        request.protocol = request.headers[HEADERS.XForwardedProto]?.toString()?.split(',')[0] || (isEncrypted ? 'https' : 'http');
+        request.remoteAddress = request.headers[HEADERS.XForwardedFor]?.toString()?.split(',')[0] || nodeRequest.socket.remoteAddress || '127.0.0.1';
+        request.port = nodeRequest.socket.localPort || (request.protocol === 'https' ? 443 : 80);
+        request.url = new URL(`${request.protocol}://${request.host}${nodeRequest.url}`);
+        request.method = nodeRequest.method || 'GET';
+
+        // Read body from request
+        const chunks: Buffer[] = [];
+        for await (const chunk of nodeRequest) {
+            chunks.push(chunk);
+        }
+        request.body = Buffer.concat(chunks);
+
+        request.setDefaultHeaders();
+        return request;
     }
 }

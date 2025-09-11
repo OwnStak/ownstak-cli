@@ -1,6 +1,7 @@
 import { Router } from '../../../src/compute/router/router';
 import { Request } from '../../../src/compute/router/request';
 import { Response } from '../../../src/compute/router/response';
+import { RequestContext } from '../../../src/compute/router/requestContex';
 
 describe('Router - Route Matching', () => {
     let router: Router;
@@ -24,7 +25,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-test')).toBe('test-value');
     });
 
@@ -37,7 +38,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-test')).toBe('regex-test');
     });
 
@@ -50,11 +51,11 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const patternRequest = new Request('http://example.com/test/123');
-        await router.execute(patternRequest, response);
+        const request = new Request('http://example.com/test/123');
+        await router.execute(new RequestContext({ request, response }));
 
         expect(response.getHeader('x-test-id')).toBe('path-to-regex');
-        expect(patternRequest.params).toEqual({ id: '123' });
+        expect(request.params).toEqual({ id: '123' });
     });
 
     it('should match a path-to-regex pattern with optional param', async () => {
@@ -66,11 +67,11 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const patternRequest = new Request('http://example.com/test/123');
-        await router.execute(patternRequest, response);
+        const request = new Request('http://example.com/test/123');
+        await router.execute(new RequestContext({ request, response }));
 
         expect(response.getHeader('x-test-id')).toBe('path-to-regex');
-        expect(patternRequest.params).toEqual({ id: '123' });
+        expect(request.params).toEqual({ id: '123' });
     });
 
     it('should match a path-to-regex pattern with catch all', async () => {
@@ -82,11 +83,11 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const patternRequest = new Request('http://example.com/test/123/456');
-        await router.execute(patternRequest, response);
+        const request = new Request('http://example.com/test/123/456');
+        await router.execute(new RequestContext({ request, response }));
 
         expect(response.getHeader('x-test-id')).toBe('path-to-regex');
-        expect(patternRequest.params).toEqual({ id: ['123', '456'] });
+        expect(request.params).toEqual({ id: ['123', '456'] });
     });
 
     it('should match any value in array of paths', async () => {
@@ -103,20 +104,20 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const patternRequest = new Request('http://example.com/test/123');
-        const patternResponse = new Response();
-        await router.execute(patternRequest, patternResponse);
-        expect(patternResponse.getHeader('x-test')).toBe('array-of-paths');
+        const request = new Request('http://example.com/test/123');
+        const response = new Response();
+        await router.execute(new RequestContext({ request, response }));
+        expect(response.getHeader('x-test')).toBe('array-of-paths');
 
-        const patternRequest2 = new Request('http://example.com/test/456');
-        const patternResponse2 = new Response();
-        await router.execute(patternRequest2, patternResponse2);
-        expect(patternResponse2.getHeader('x-test')).toBe('array-of-paths');
+        const request2 = new Request('http://example.com/test/456');
+        const response2 = new Response();
+        await router.execute(new RequestContext({ request: request2, response: response2 }));
+        expect(response2.getHeader('x-test')).toBe('array-of-paths');
 
-        const patternRequest3 = new Request('http://example.com/test/789');
-        const patternResponse3 = new Response();
-        await router.execute(patternRequest3, patternResponse3);
-        expect(patternResponse3.getHeader('x-test')).toBeUndefined();
+        const request3 = new Request('http://example.com/test/789');
+        const response3 = new Response();
+        await router.execute(new RequestContext({ request: request3, response: response3 }));
+        expect(response3.getHeader('x-test')).toBeUndefined();
     });
 
     it('should match GET method', async () => {
@@ -128,7 +129,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-method')).toBe('GET');
     });
 
@@ -141,11 +142,11 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const postRequest = new Request('http://example.com/test');
-        postRequest.method = 'POST';
-        postRequest.headers = {};
+        const request = new Request('http://example.com/test');
+        request.method = 'POST';
+        request.headers = {};
 
-        await router.execute(postRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-method')).toBe('POST');
     });
 
@@ -158,7 +159,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-matched')).toBe('any-method');
     });
 
@@ -178,13 +179,13 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const headerRequest = new Request('http://example.com/test');
-        headerRequest.method = 'GET';
-        headerRequest.headers = {
+        const request = new Request('http://example.com/test');
+        request.method = 'GET';
+        request.headers = {
             'x-custom-header': 'custom-value',
         };
 
-        await router.execute(headerRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('header-matched');
     });
 
@@ -204,13 +205,13 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const cookieRequest = new Request('http://example.com/test');
-        cookieRequest.method = 'GET';
-        cookieRequest.headers = {
+        const request = new Request('http://example.com/test');
+        request.method = 'GET';
+        request.headers = {
             cookie: 'session=abc123',
         };
 
-        await router.execute(cookieRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('cookie-matched');
     });
 
@@ -230,10 +231,10 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const queryRequest = new Request('http://example.com/test?id=123');
-        queryRequest.method = 'GET';
+        const request = new Request('http://example.com/test?id=123');
+        request.method = 'GET';
 
-        await router.execute(queryRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('query-matched');
     });
 
@@ -251,10 +252,10 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const pathExtensionRequest = new Request('http://example.com/test.html');
-        pathExtensionRequest.method = 'GET';
+        const request = new Request('http://example.com/test.html');
+        request.method = 'GET';
 
-        await router.execute(pathExtensionRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('path-extension-matched');
     });
 
@@ -282,14 +283,14 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const multiConditionRequest = new Request('http://example.com/test?id=123');
-        multiConditionRequest.method = 'GET';
-        multiConditionRequest.headers = {
+        const request = new Request('http://example.com/test?id=123');
+        request.method = 'GET';
+        request.headers = {
             'x-custom-header': 'custom-value',
             cookie: 'session=abc123',
         };
 
-        await router.execute(multiConditionRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('multi-condition-matched');
     });
 
@@ -307,7 +308,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('url-matched');
     });
 
@@ -325,7 +326,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('url-regex-matched');
     });
 
@@ -343,7 +344,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
@@ -361,7 +362,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('path-regex-matched');
     });
 
@@ -379,7 +380,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
@@ -397,10 +398,10 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const pathExtensionRequest = new Request('http://example.com/test.html');
-        pathExtensionRequest.method = 'GET';
+        const request = new Request('http://example.com/test.html');
+        request.method = 'GET';
 
-        await router.execute(pathExtensionRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('path-extension-regex-matched');
     });
 
@@ -418,10 +419,10 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const pathExtensionRequest = new Request('http://example.com/test.html');
-        pathExtensionRequest.method = 'GET';
+        const request = new Request('http://example.com/test.html');
+        request.method = 'GET';
 
-        await router.execute(pathExtensionRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
@@ -439,7 +440,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('method-regex-matched');
     });
 
@@ -457,7 +458,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
@@ -477,13 +478,13 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const cookieRequest = new Request('http://example.com/test');
-        cookieRequest.method = 'GET';
-        cookieRequest.headers = {
+        const request = new Request('http://example.com/test');
+        request.method = 'GET';
+        request.headers = {
             cookie: 'session=abc123',
         };
 
-        await router.execute(cookieRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('cookie-regex-matched');
     });
 
@@ -503,13 +504,13 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const headerRequest = new Request('http://example.com/test');
-        headerRequest.method = 'GET';
-        headerRequest.headers = {
+        const request = new Request('http://example.com/test');
+        request.method = 'GET';
+        request.headers = {
             'x-custom-header': 'custom-value',
         };
 
-        await router.execute(headerRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('header-regex-matched');
     });
 
@@ -529,10 +530,10 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const queryRequest = new Request('http://example.com/test?id=123');
-        queryRequest.method = 'GET';
+        const request = new Request('http://example.com/test?id=123');
+        request.method = 'GET';
 
-        await router.execute(queryRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('query-regex-matched');
     });
 
@@ -561,14 +562,14 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const complexRequest = new Request('http://example.com/test?id=123');
-        complexRequest.method = 'GET';
-        complexRequest.headers = {
+        const request = new Request('http://example.com/test?id=123');
+        request.method = 'GET';
+        request.headers = {
             'x-custom-header': 'custom-value',
             cookie: 'session=abc123',
         };
 
-        await router.execute(complexRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBe('complex-condition-matched');
     });
 
@@ -589,13 +590,13 @@ describe('Router - Route Matching', () => {
         const getRequest = new Request('http://example.com/test', {
             method: 'GET',
         });
-        await router.execute(getRequest, response);
+        await router.execute(new RequestContext({ request: getRequest, response }));
         expect(response.getHeader('x-match-result')).toBe('array-condition-matched');
 
         const postRequest = new Request('http://example.com/test', {
             method: 'POST',
         });
-        await router.execute(postRequest, response);
+        await router.execute(new RequestContext({ request: postRequest, response }));
         expect(response.getHeader('x-match-result')).toBe('array-condition-matched');
     });
 
@@ -613,7 +614,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
@@ -631,7 +632,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
@@ -649,7 +650,7 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-match-result')).toBeUndefined();
     });
 
@@ -674,7 +675,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-first')).toBe('first-header');
         expect(response.getHeader('x-second')).toBeUndefined();
     });
@@ -700,7 +701,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-first')).toBe('first-header');
         expect(response.getHeader('x-second')).toBe('second-header');
     });
@@ -722,7 +723,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-priority')).toBe('second');
     });
 
@@ -740,7 +741,7 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-first')).toBe('first-action');
         expect(response.getHeader('x-second')).toBe('second-action');
     });
@@ -769,14 +770,14 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const complexRequest = new Request('http://example.com/test?id=123');
-        complexRequest.method = 'GET';
-        complexRequest.headers = {
+        const request = new Request('http://example.com/test?id=123');
+        request.method = 'GET';
+        request.headers = {
             'x-custom-header': 'custom-value',
             cookie: 'session=abc123',
         };
 
-        await router.execute(complexRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-complex')).toBe('complex-condition');
     });
 
@@ -794,10 +795,10 @@ describe('Router - Route Matching', () => {
             ],
         );
 
-        const negatedRequest = new Request('http://example.com/other');
-        negatedRequest.method = 'GET';
+        const request = new Request('http://example.com/other');
+        request.method = 'GET';
 
-        await router.execute(negatedRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-negated')).toBe('negated-condition');
     });
 
@@ -810,10 +811,10 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const emptyRequest = new Request('http://example.com');
-        emptyRequest.method = 'GET';
+        const request = new Request('http://example.com');
+        request.method = 'GET';
 
-        await router.execute(emptyRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-empty')).toBe('empty-route');
     });
 
@@ -826,10 +827,10 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const unsupportedRequest = new Request('http://example.com/test');
-        unsupportedRequest.method = 'PUT';
+        const request = new Request('http://example.com/test');
+        request.method = 'PUT';
 
-        await router.execute(unsupportedRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-unsupported')).toBeUndefined();
     });
 
@@ -849,10 +850,10 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const addRouteRequest = new Request('http://example.com');
-        addRouteRequest.method = 'GET';
+        const request = new Request('http://example.com');
+        request.method = 'GET';
 
-        await router.execute(addRouteRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-route-order')).toBe('2');
     });
 
@@ -872,10 +873,10 @@ describe('Router - Route Matching', () => {
             },
         ]);
 
-        const addRouteRequest = new Request('http://example.com');
-        addRouteRequest.method = 'GET';
+        const request = new Request('http://example.com');
+        request.method = 'GET';
 
-        await router.execute(addRouteRequest, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-route-order')).toBe('1');
     });
 
@@ -890,12 +891,12 @@ describe('Router - Route Matching', () => {
 
         const request = new Request('http://example.com/test');
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-matched')).toBe('test');
 
         const request2 = new Request('http://example.com/test/');
         const response2 = new Response();
-        await router.execute(request2, response2);
+        await router.execute(new RequestContext({ request: request2, response: response2 }));
         expect(response2.getHeader('x-matched')).toBe('test');
     });
 
@@ -910,12 +911,12 @@ describe('Router - Route Matching', () => {
 
         const request = new Request('http://example.com/test');
         const response = new Response();
-        await router.execute(request, response);
+        await router.execute(new RequestContext({ request, response }));
         expect(response.getHeader('x-matched')).toBe('test');
 
         const request2 = new Request('http://example.com/test/');
         const response2 = new Response();
-        await router.execute(request2, response2);
+        await router.execute(new RequestContext({ request: request2, response: response2 }));
         expect(response2.getHeader('x-matched')).toBeUndefined();
     });
 });
