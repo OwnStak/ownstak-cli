@@ -218,14 +218,23 @@ export class Config {
         this.memory ??= Config.getDefaultMemory();
         this.timeout ??= Config.getDefaultTimeout();
 
-        this.router ??= new Router();
-        this.assets ??= { include: {} };
-        this.permanentAssets ??= { include: {} };
-        this.debugAssets ??= { include: {} };
-        this.app ??= { include: {}, entrypoint: undefined };
-        this.app.streaming ??= true;
-        this.app.compression ??= true;
         this.cliVersion ??= '0.0.0';
+        this.router ??= new Router();
+
+        this.assets ??= { include: {} };
+        this.assets.include ??= {};
+
+        this.permanentAssets ??= { include: {} };
+        this.permanentAssets.include ??= {};
+
+        this.debugAssets ??= { include: {} };
+        this.debugAssets.include ??= {};
+
+        this.app ??= { include: {} };
+        this.app.include ??= {};
+        this.app.entrypoint ??= undefined;
+        this.app.streaming ??= false;
+        this.app.compression ??= true;
     }
 
     /**

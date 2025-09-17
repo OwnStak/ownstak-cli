@@ -36,6 +36,8 @@ describe('Config', () => {
         expect(config.app.entrypoint).toBeUndefined();
         expect(config.app.copyDependencies).toBeUndefined();
         expect(config.app.bundleDependencies).toBeUndefined();
+        expect(config.app.streaming).toBe(false);
+        expect(config.app.compression).toBe(true);
 
         expect(config.debugAssets.include).toEqual({});
     });
