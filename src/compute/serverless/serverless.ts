@@ -46,8 +46,11 @@ export const handler = awslambda.streamifyResponse(async (event: Event, response
     try {
         context.callbackWaitsForEmptyEventLoop = false;
 
-        request = Request.fromEvent(event);
-        logger.debug(`[Serverless][Request]: ${request.method} ${request.url}`);
+        request = Request.fromEvent(event).log();
+
+        // Attach requestId to logger's global metadata
+        logger.init({ requestId: request.getHeader(HEADERS.XRequestId) });
+        // Detect request recursions on the serverless platform
         detectRequestRecursions(request);
 
         // Detect if the req comes from the proxy with streaming support
@@ -93,10 +96,9 @@ export const handler = awslambda.streamifyResponse(async (event: Event, response
         // Execute the router
         await config.router.execute(ctx);
 
-        logger.debug(`[Serverless][Response]: ${response.statusCode}`);
-        return ctx.response.end();
+        return ctx.response.log().end();
     } catch (e: any) {
-        responseStream.write(JSON.stringify(ctx.handleError(e).toEvent()));
+        responseStream.write(JSON.stringify(ctx.handleError(e).log().toEvent()));
         responseStream.end();
     }
 });

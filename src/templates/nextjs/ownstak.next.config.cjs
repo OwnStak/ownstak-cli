@@ -6,9 +6,12 @@ const ownstakNextConfig = {
         loader: 'custom',
         loaderFile: 'ownstak.image.loader.js',
         remotePatterns: ['localhost', '127.0.0.1'].map(host => ({
-            hostname: host,
             protocol: 'http',
+            hostname: host,
         })),
+    },
+    experimental: {
+        isrFlushToDisk: false,
     },
 };
 

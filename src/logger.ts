@@ -2,12 +2,12 @@ import chalk from 'chalk';
 import { BRAND, NAME } from './constants.js';
 import { CliConfig } from './cliConfig.js';
 
-const originalConsoleError = console.error;
-const originalConsoleWarn = console.warn;
-const originalConsoleDebug = console.debug;
-const originalConsoleLog = console.log;
-const originalConsoleInfo = console.info;
-const originalConsoleTrace = console.trace;
+const originalConsoleInfo = globalThis.console.info;
+const originalConsoleDebug = globalThis.console.debug;
+const originalConsoleLog = globalThis.console.log;
+const originalConsoleWarn = globalThis.console.warn;
+const originalConsoleError = globalThis.console.error;
+const originalConsoleTrace = globalThis.console.trace;
 
 const originalStdoutWrite = process.stdout.write;
 const originalStderrWrite = process.stderr.write;
@@ -27,7 +27,7 @@ export enum LogLevel {
 /**
  * Maps string log level to LogLevel enum
  */
-const LOG_LEVEL_MAP: Record<string, LogLevel> = {
+const LOG_LEVELS_MAP: Record<string, LogLevel> = {
     debug: LogLevel.DEBUG,
     info: LogLevel.INFO,
     warn: LogLevel.WARN,
@@ -36,21 +36,62 @@ const LOG_LEVEL_MAP: Record<string, LogLevel> = {
     success: LogLevel.SUCCESS,
 };
 
-// Symbols for different log levels
-const SYMBOLS = {
-    error: '✖',
-    warn: '⚠',
-    info: '•',
-    debug: '•',
-    success: '✓',
-    line: '─',
+/**
+ * Styles for different log levels
+ */
+const LOG_LEVEL_STYLES = {
+    [LogLevel.DEBUG]: { symbol: '•', color: chalk.gray },
+    [LogLevel.INFO]: { symbol: '•', color: chalk.blueBright },
+    [LogLevel.WARN]: { symbol: '⚠', color: chalk.yellowBright },
+    [LogLevel.ERROR]: { symbol: '✗', color: chalk.redBright },
+    [LogLevel.NONE]: { symbol: '•', color: chalk.white },
+    [LogLevel.SUCCESS]: { symbol: '✓', color: chalk.greenBright },
 };
+export type LogLevelStyle = (typeof LOG_LEVEL_STYLES)[keyof typeof LOG_LEVEL_STYLES];
 
-class Logger {
+/**
+ * Formats for different log levels
+ */
+export const LOG_FORMATS = {
+    text: 'text',
+    json: 'json',
+} as const;
+export type LogFormat = (typeof LOG_FORMATS)[keyof typeof LOG_FORMATS];
+
+export interface LogMetadata {
+    [key: string]: any;
+}
+
+export interface DrawTableOptions {
+    title?: string;
+    borderColor?: 'gray' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'brand';
+    padding?: number;
+    logLevel?: LogLevel;
+    minWidth?: number; // Minimum width for the table content area
+    maxWidth?: number; // Maximum width for the table content area
+}
+
+export class Logger {
     private spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     private spinnerIndex = 0;
     private spinnerInterval: NodeJS.Timeout | null = null;
     private spinnerMessage: string | null = null;
+    private metadata: LogMetadata = {};
+
+    public stdoutBuffer = '';
+    public stderrBuffer = '';
+
+    // Load list of secret ENV variables that should be removed from the logs.
+    // e.g.: process.env.OWNSTAK_SECRETS = 'API_KEY,SECRET_KEY,JWT_TOKEN' => [OWNSTAK_REDACTED_API_KEY]
+    private secretKeys = process.env['OWNSTAK_SECRETS']?.split(',') || [];
+    private secretValues = this.secretKeys.map((key) => process.env[key]);
+    private secretValuePlaceholder = 'OWNSTAK_REDACTED';
+
+    // Pattern to remove other sensitive values and keys, such as set-cookie, cookie, etc...
+    // e.g. { cookie: 'session_id=1234567890' } => { cookie: '[OWNSTAK_REDACTED]' }
+    private secretValuePattern = /(\b(?:\d[ -]*?){13,19}\b)/gi;
+    private secretKeyPattern =
+        /secret|token|access|authorization|api[_-]?key|session|auth|bearer|cookie|set[_-]?cookie|cvv|cvc|ssn|social[_-]?security|pin|pwd|passwd|password|credential|private[_-]?key|public[_-]?key|signature|nonce/i;
 
     constructor() {
         // Override original console methods and stdout/stderr
@@ -61,103 +102,114 @@ class Logger {
         this.overrideStdStreams();
     }
 
+    init(metadata: LogMetadata = {}): void {
+        this.metadata = metadata;
+    }
+
+    get format(): LogFormat {
+        const envFormat = process.env.LOG_FORMAT?.toLowerCase();
+        return envFormat && envFormat in LOG_FORMATS ? LOG_FORMATS[envFormat as keyof typeof LOG_FORMATS] : LOG_FORMATS.text;
+    }
+
     get level(): LogLevel {
         const envLevel = process.env.LOG_LEVEL?.toLowerCase();
-        return envLevel && envLevel in LOG_LEVEL_MAP ? LOG_LEVEL_MAP[envLevel] : LogLevel.INFO;
+        return envLevel && envLevel in LOG_LEVELS_MAP ? LOG_LEVELS_MAP[envLevel] : LogLevel.INFO;
     }
 
     /**
-     * Helper function to format time consistently: HH:MM:SS AM/PM
+     * Debug level logging (lowest level)
      */
-    private getFormattedTime(): string {
-        const now = new Date();
-        const hours = now.getHours();
-        const minutes = now.getMinutes().toString().padStart(2, '0');
-        const seconds = now.getSeconds().toString().padStart(2, '0');
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        const hour12 = (hours % 12 || 12).toString().padStart(2, '0'); // Convert to 12h format with leading zero
-        return `${hour12}:${minutes}:${seconds} ${ampm}`;
+    public debug(message: string, metadata: LogMetadata = {}): void {
+        this.logInternal(LogLevel.DEBUG, message, metadata);
+    }
+    /**
+     * Info level logging
+     */
+    public info(message: string, metadata: LogMetadata = {}): void {
+        this.logInternal(LogLevel.INFO, message, metadata);
     }
 
     /**
-     * Get the appropriate symbol and color for a log level
+     * Warning level logging
      */
-    private getLogLevelStyle(logLevel: LogLevel): { symbol: string; color: any } {
-        switch (logLevel) {
-            case LogLevel.ERROR:
-                return { symbol: SYMBOLS.error, color: chalk.redBright };
-            case LogLevel.WARN:
-                return { symbol: SYMBOLS.warn, color: chalk.yellowBright };
-            case LogLevel.DEBUG:
-                return { symbol: SYMBOLS.debug, color: chalk.gray };
-            case LogLevel.INFO:
-                return { symbol: SYMBOLS.info, color: chalk.blueBright };
-            case LogLevel.SUCCESS:
-                return { symbol: SYMBOLS.success, color: chalk.greenBright };
-            default:
-                return { symbol: '', color: chalk.white };
-        }
+    public warn(message: string, metadata: LogMetadata = {}): void {
+        this.logInternal(LogLevel.WARN, message, metadata);
     }
 
-    private getLogPrefix(logLevel: LogLevel): string {
-        const time = this.getFormattedTime();
-        const { symbol, color } = this.getLogLevelStyle(logLevel);
-
-        const afterSpace = '  ';
-        return color(`${symbol} ${chalk.dim(time)}${afterSpace}`);
+    /**
+     * Error level logging (highest level)
+     */
+    public error(message: string, metadata: LogMetadata = {}): void {
+        this.logInternal(LogLevel.ERROR, message, metadata);
     }
 
-    private logInternal(logLevel: LogLevel, message: string, ...args: any[]): void {
-        if (this.spinnerInterval && logLevel >= this.level) {
+    /**
+     * Success level logging for successful operations
+     */
+    public success(message: string, metadata: LogMetadata = {}): void {
+        this.logInternal(LogLevel.SUCCESS, message, metadata);
+    }
+
+    /**
+     * Log to stdout with NONE log level that is always displayed
+     * regardless of the configured log level.
+     */
+    public none(message: string, metadata: LogMetadata = {}): void {
+        this.logInternal(LogLevel.NONE, message, metadata);
+    }
+
+    /**
+     * Log to stdout with INFO log level and no prefix.
+     */
+    public log(message: string, metadata: LogMetadata = {}): void {
+        this.logInternal(LogLevel.INFO, message, metadata, false);
+    }
+
+    private logInternal(logLevel: LogLevel, messages: any | any[] = [], metadata: LogMetadata = {}, addPrefix = logLevel != LogLevel.NONE): void {
+        // Do not log if log level is less than the current log level
+        if (logLevel < this.level) return;
+
+        // Stop spinner if it was active
+        if (this.spinnerInterval) {
             this.stopSpinner();
         }
 
-        const prefix = this.getLogPrefix(logLevel);
+        // If there is any data in the buffers from the previous stdout/stderr writes,
+        // flush the line first, so they don't corrupt the JSON logs
+        // e.g.: write{ type: "ownstak.log", "message": "test message" } => write\r\n{ type: "ownstak.log", "message": "test message" }
+        if (this.stdoutBuffer.length) process.stdout.write(`\r\n`);
+        if (this.stderrBuffer.length) process.stderr.write(`\r\n`);
 
-        // Use a fixed padding for multi-line messages - this ensures consistent alignment
-        // regardless of ANSI escape characters in the prefix
-        const paddingLength = 15; // Enough space for symbol + timestamp + spacing
+        // Format objects to nice human readable string representation
+        // and correctly handle circular references in objects
+        // e.g.: const obj = { key: 'value' }; obj.self = obj; console.log(obj) => { key: 'value', self: '[CIRCULAR]' }
+        const stringify = (message: any) => {
+            if (typeof message === 'string') return message;
+            if (message instanceof Error) return message?.stack || message.toString();
 
-        const logMessage = message
-            .split('\n')
-            .map((line, index) => {
-                // Only add prefix to the first line
-                const linePrefix = index === 0 ? prefix : ' '.repeat(paddingLength);
+            const seen = new WeakSet();
+            return JSON.stringify(
+                message,
+                (_key, value) => {
+                    if (typeof value === 'object' && value !== null) {
+                        if (seen.has(value)) return '[CIRCULAR]';
+                        seen.add(value);
+                    }
+                    return value;
+                },
+                2,
+            );
+        };
 
-                // If line is empty, don't add prefix
-                if (line.trim() === '') {
-                    return '';
-                }
-
-                if (logLevel === LogLevel.ERROR) {
-                    return `${linePrefix}${chalk.redBright(line)}`;
-                }
-                if (logLevel === LogLevel.WARN) {
-                    return `${linePrefix}${chalk.yellow(line)}`;
-                }
-                if (logLevel === LogLevel.DEBUG) {
-                    return `${linePrefix}${chalk.gray(line)}`;
-                }
-                if (logLevel === LogLevel.INFO) {
-                    return `${linePrefix}${chalk.white(line)}`;
-                }
-                if (logLevel === LogLevel.SUCCESS) {
-                    return `${linePrefix}${chalk.green(line)}`;
-                }
-                return line;
-            })
-            .join('\n');
-
-        const logFunction = {
-            [LogLevel.ERROR]: console.error,
-            [LogLevel.WARN]: console.warn,
-            [LogLevel.DEBUG]: console.debug,
-            [LogLevel.INFO]: console.log,
-            [LogLevel.NONE]: console.log,
-            [LogLevel.SUCCESS]: console.log,
-        }[logLevel];
-
-        logFunction?.(logMessage, ...args);
+        // Log provided messages as separate log entries
+        (Array.isArray(messages) ? messages : [messages]).forEach((message) => {
+            const humanReadableMessage = stringify(message);
+            const formattedMessage = this.formatMessage(logLevel, humanReadableMessage, metadata, addPrefix);
+            // Output the message to the appropriate stream in selected format
+            const stdStream = logLevel === LogLevel.ERROR ? process.stderr : process.stdout;
+            const stdStreamWrite = logLevel === LogLevel.ERROR ? originalStderrWrite : originalStdoutWrite;
+            stdStreamWrite.call(stdStream, `${formattedMessage}\r\n`);
+        });
 
         // Restart spinner if it was active
         if (this.spinnerMessage && logLevel >= this.level) {
@@ -166,45 +218,54 @@ class Logger {
     }
 
     /**
-     * Debug level logging (lowest level)
+     * Helper function to format time consistently: HH:MM:SS AM/PM
+     * or ISO string if json format is enabled
      */
-    public debug(message: string, ...args: any[]): void {
-        this.logInternal(LogLevel.DEBUG, message, ...args);
+    private getTimeStamp(): string {
+        const now = new Date();
+        if (this.format === LOG_FORMATS.json) {
+            return now.toISOString();
+        }
+        const hours = now.getHours();
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const seconds = now.getSeconds().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const hour12 = (hours % 12 || 12).toString().padStart(2, '0'); // Convert to 12h format with leading zero
+        return `${hour12}:${minutes}:${seconds} ${ampm}`;
     }
 
-    /**
-     * Info level logging
-     */
-    public info(message: string, ...args: any[]): void {
-        this.logInternal(LogLevel.INFO, message, ...args);
-    }
+    private formatMessage(logLevel: LogLevel, message: string = '', metadata: LogMetadata = {}, addPrefix = logLevel != LogLevel.NONE): string {
+        // If json format is enabled, return the messages as simple string
+        if (this.format === LOG_FORMATS.json) {
+            const level = logLevel <= LogLevel.NONE ? Object.keys(LOG_LEVELS_MAP)[logLevel].toUpperCase() : 'INFO';
+            const timestamp = this.getTimeStamp();
+            return JSON.stringify(
+                this.hideSecrets({
+                    type: `ownstak.log`,
+                    ...this.metadata,
+                    ...metadata,
+                    message,
+                    level,
+                    timestamp,
+                }),
+            );
+        }
 
-    /**
-     * Warning level logging
-     */
-    public warn(message: string, ...args: any[]): void {
-        this.logInternal(LogLevel.WARN, message, ...args);
-    }
+        // Add message prefix to first line and padding to other lines
+        // and return the result as a string message
+        const { symbol, color } = LOG_LEVEL_STYLES[logLevel] || LOG_LEVEL_STYLES[LogLevel.NONE];
+        // Normalize message lines to handle \r\n properly
+        const messageLines = message.split('\n');
+        const messagePrefix = addPrefix ? color(`${symbol} ${chalk.dim(this.getTimeStamp())}  `) : '';
+        const messagePrefixPadding = messagePrefix ? ' '.repeat(15) : '';
 
-    /**
-     * Error level logging (highest level)
-     */
-    public error(message: string, ...args: any[]): void {
-        this.logInternal(LogLevel.ERROR, message, ...args);
-    }
-
-    /**
-     * Success level logging for successful operations
-     */
-    public success(message: string, ...args: any[]): void {
-        this.logInternal(LogLevel.SUCCESS, message, ...args);
-    }
-
-    /**
-     * Log to stdout without any prefix
-     */
-    public log(message: string, ...args: any[]): void {
-        this.logInternal(LogLevel.NONE, message, ...args);
+        return messageLines
+            .map((message, index) => {
+                // Apply message prefix to first line if not empty
+                if (message.length === 0) return message;
+                return index === 0 ? `${messagePrefix}${message}` : `${messagePrefixPadding}${message}`;
+            })
+            .join('\n');
     }
 
     /**
@@ -213,15 +274,15 @@ class Logger {
     public drawTitle(label: string = ''): void {
         const title = ` ${BRAND} CLI `;
         const subtitle = ` v${CliConfig.getCurrentVersion()} `;
-        console.log(`${chalk.bgBlueBright(' ')}${chalk.bgWhite.bold.blackBright(title)}${chalk.white.bgBlackBright(subtitle)} ${chalk.gray(label)}`);
-        console.log('');
+        this.log(`${chalk.bgBlueBright(' ')}${chalk.bgWhite.bold.blackBright(title)}${chalk.white.bgBlackBright(subtitle)} ${chalk.gray(label)}`);
+        this.log('');
     }
 
     /**
      * Draws "nice-looking" subtitle to the console
      */
     public drawSubtitle(subtitle: string, label?: string): void {
-        console.log(chalk.white.bgBlackBright(` ${subtitle} `) + (label ? ` ${chalk.gray(label)}` : ''));
+        this.log(chalk.white.bgBlackBright(` ${subtitle} `) + (label ? ` ${chalk.gray(label)}` : ''));
     }
 
     /**
@@ -236,7 +297,7 @@ class Logger {
         this.spinnerIndex = 0;
 
         if (process.stdout.isTTY) {
-            const time = this.getFormattedTime();
+            const time = this.getTimeStamp();
             const timePrefix = chalk.dim(time) + '  ';
 
             this.spinnerInterval = setInterval(() => {
@@ -246,7 +307,7 @@ class Logger {
             }, 80);
         } else {
             // If not a TTY, just log the message once
-            console.log(`${chalk.blueBright('⟳')} ${message}`);
+            this.log(`${chalk.blueBright('⟳')} ${message}`);
         }
     }
 
@@ -273,7 +334,7 @@ class Logger {
 
             // If we have a final message, log it with the appropriate level
             if (finalMessage) {
-                console.log(`${this.getLogPrefix(logLevel)}${finalMessage}`);
+                this.log(`${this.formatMessage(logLevel, finalMessage)}`);
             }
 
             this.spinnerMessage = null;
@@ -459,12 +520,12 @@ class Logger {
         if (options.title) {
             const title = ` ${options.title} `;
             const titleLength = getVisibleLength(title);
-            const remainingWidth = totalWidth - titleLength;
+            const remainingWidth = Math.max(0, totalWidth - titleLength);
 
             // Align title to the left with just a small padding
             const leftPadding = 2; // Small padding on the left
             const leftBorder = '─'.repeat(leftPadding);
-            const rightBorder = '─'.repeat(remainingWidth - leftPadding);
+            const rightBorder = '─'.repeat(Math.max(0, remainingWidth - leftPadding));
             topBorder = `╭${leftBorder}${chalk.bold(title)}${rightBorder}╮`;
         } else {
             const border = '─'.repeat(totalWidth);
@@ -517,47 +578,26 @@ class Logger {
      * Override console methods to respect log levels
      */
     public overrideConsole(): void {
-        // Override console.log -> info level
-        globalThis.console.log = (...args: any[]) => {
-            if (this.level <= LogLevel.INFO) {
-                originalConsoleLog(...args);
-            }
-        };
+        // NOTE: Override just the methods, not whole globalThis.console object,
+        // so libs can still use other methods and hold reference to this (e.g. console.dir)
+        globalThis.console.trace = (...messages: any[]) => this.logInternal(LogLevel.DEBUG, messages, {}, false);
+        globalThis.console.debug = (...messages: any[]) => this.logInternal(LogLevel.DEBUG, messages, {}, false);
+        globalThis.console.log = (...messages: any[]) => this.logInternal(LogLevel.INFO, messages, {}, false);
+        globalThis.console.info = (...messages: any[]) => this.logInternal(LogLevel.INFO, messages, {}, false);
+        globalThis.console.warn = (...messages: any[]) => this.logInternal(LogLevel.WARN, messages, {}, false);
+        globalThis.console.error = (...messages: any[]) => this.logInternal(LogLevel.ERROR, messages, {}, false);
+    }
 
-        // Override console.info -> info level
-        globalThis.console.info = (...args: any[]) => {
-            if (this.level <= LogLevel.INFO) {
-                originalConsoleInfo(...args);
-            }
-        };
-
-        // Override console.warn -> warn level
-        globalThis.console.warn = (...args: any[]) => {
-            if (this.level <= LogLevel.WARN) {
-                originalConsoleWarn(...args);
-            }
-        };
-
-        // Override console.error -> error level
-        globalThis.console.error = (...args: any[]) => {
-            if (this.level <= LogLevel.ERROR) {
-                originalConsoleError(...args);
-            }
-        };
-
-        // Override console.debug -> debug level
-        globalThis.console.debug = (...args: any[]) => {
-            if (this.level <= LogLevel.DEBUG) {
-                originalConsoleDebug(...args);
-            }
-        };
-
-        // Override console.trace -> debug level
-        globalThis.console.trace = (...args: any[]) => {
-            if (this.level <= LogLevel.DEBUG) {
-                originalConsoleTrace(...args);
-            }
-        };
+    /**
+     * Restore console methods to original state
+     */
+    public restoreConsole(): void {
+        globalThis.console.trace = originalConsoleTrace;
+        globalThis.console.debug = originalConsoleDebug;
+        globalThis.console.log = originalConsoleLog;
+        globalThis.console.info = originalConsoleInfo;
+        globalThis.console.warn = originalConsoleWarn;
+        globalThis.console.error = originalConsoleError;
     }
 
     /**
@@ -566,43 +606,118 @@ class Logger {
     public overrideStdStreams(): void {
         const logger = this;
 
-        // Override stdout.write - treat as info level
-        process.stdout.write = function (chunk: any, encoding?: any, callback?: any): boolean {
-            if (logger.level <= LogLevel.INFO) {
-                return originalStdoutWrite.call(this, chunk, encoding, callback);
+        const writeToStdStream = function (level: LogLevel, chunk: any, encoding?: any, callback?: any) {
+            // Do not log if log level is less than the current log level
+            if (level < logger.level) return false;
+
+            const stdStream = level === LogLevel.ERROR ? process.stderr : process.stdout;
+            const stdStreamWrite = level === LogLevel.ERROR ? originalStderrWrite : originalStdoutWrite;
+
+            // With LOG_LEVEL=text, output directly without any buffering or formatting,
+            // so spinners etc... will work as expected locally.
+            if (logger.format === LOG_FORMATS.text) {
+                // Pass arguments only when provided
+                if (typeof encoding === 'function') {
+                    // If encoding is a function, it's actually the callback
+                    return stdStreamWrite.call(stdStream, chunk, encoding);
+                } else if (typeof callback === 'function') {
+                    // Both encoding and callback are provided
+                    return stdStreamWrite.call(stdStream, chunk, encoding, callback);
+                } else {
+                    // Only chunk is provided
+                    return stdStreamWrite.call(stdStream, chunk);
+                }
             }
-            // If logging is disabled, still call callback if provided
+
+            // With LOG_LEVEL=json, buffer the chunks until newline is encountered,
+            // so every finished line creates a separate JSON log entry.
+            level === LogLevel.ERROR ? (logger.stderrBuffer += chunk.toString()) : (logger.stdoutBuffer += chunk.toString());
+            const stdStreamBuffer = level === LogLevel.ERROR ? logger.stderrBuffer : logger.stdoutBuffer;
+
+            // Check if buffer contains newline - if so, flush
+            if (stdStreamBuffer.includes('\n')) {
+                const lines = stdStreamBuffer.split('\n');
+                // Process all complete lines (except the last one if it doesn't end with newline)
+                for (let i = 0; i < lines.length - 1; i++) {
+                    if (!lines[i]) continue; // skip empty writes
+                    const formattedLine = logger.formatMessage(level, lines[i].trim()); // format message for JSON logs
+                    stdStreamWrite.call(stdStream, `${formattedLine}\r\n`);
+                }
+                // Keep the last line in buffer if it doesn't end with newline
+                level === LogLevel.ERROR ? (logger.stderrBuffer = lines[lines.length - 1]) : (logger.stdoutBuffer = lines[lines.length - 1]);
+            }
+
+            // Call callback if provided
             if (typeof encoding === 'function') {
-                encoding(); // encoding is actually the callback
+                encoding(); // if encoding is function, it's actually the callback
             } else if (typeof callback === 'function') {
                 callback();
             }
+
             return true;
         };
 
-        // Override stderr.write - treat as error level
-        process.stderr.write = function (chunk: any, encoding?: any, callback?: any): boolean {
-            if (logger.level <= LogLevel.ERROR) {
-                return originalStderrWrite.call(this, chunk, encoding, callback);
-            }
-            // If logging is disabled, still call callback if provided
-            if (typeof encoding === 'function') {
-                encoding(); // encoding is actually the callback
-            } else if (typeof callback === 'function') {
-                callback();
-            }
-            return true;
-        };
+        process.stdout.write = (chunk: any, encoding?: any, callback?: any): boolean => writeToStdStream(LogLevel.INFO, chunk, encoding, callback);
+        process.stderr.write = (chunk: any, encoding?: any, callback?: any): boolean => writeToStdStream(LogLevel.ERROR, chunk, encoding, callback);
     }
-}
 
-export interface DrawTableOptions {
-    title?: string;
-    borderColor?: 'gray' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' | 'brand';
-    padding?: number;
-    logLevel?: LogLevel;
-    minWidth?: number; // Minimum width for the table content area
-    maxWidth?: number; // Maximum width for the table content area
+    /**
+     * Restore stdout/stderr to original state
+     */
+    public restoreStdStreams(): void {
+        process.stdout.write = originalStdoutWrite;
+        process.stderr.write = originalStderrWrite;
+        this.stdoutBuffer = this.stderrBuffer = '';
+    }
+
+    hideSecrets(object: any): any {
+        // No need to do anything for null/undefined/boolean
+        if (object === null || object === undefined || typeof object === 'boolean') {
+            return object;
+        }
+
+        // Remove ENV variables marked as secret from all the logs
+        // e.g.: console.log(`My secret is ${process.env.API_KEY}`) => "My secret is [OWNSTAK_REDACTED_API_KEY]"
+        // Remove potential sensitive patterns from all the strings
+        // e.g.: console.log(`My credit card number is ${process.env.CREDIT_CARD_NUMBER}`) => "My credit card number is [OWNSTAK_REDACTED]"
+        if (typeof object === 'string') {
+            this.secretValues.forEach((value, index) => {
+                const key = this.secretKeys[index];
+                if (!key || !value) return;
+                if (object.toString().includes(value)) {
+                    object = object.toString().replaceAll(value, `[${this.secretValuePlaceholder}_${key.toUpperCase()}]`);
+                }
+            });
+            return object.replace(this.secretValuePattern, `[${this.secretValuePlaceholder}]`);
+        }
+
+        // Call recursively on all the array items
+        // e.g.: console.log(`My secret is:`, [process.env.SECRET, process.env.SECRET]) => "My secret is:\n[OWNSTAK_REDACTED, OWNSTAK_REDACTED]"
+        if (Array.isArray(object)) {
+            return object.map((item) => this.hideSecrets(item));
+        }
+
+        // Remove whole keys from objects that are considered sensitive
+        // and run recursively on all values of the object
+        // e.g.: console.log(`Req headers:`, { cookie: 'session_id=1234567890' }) => "Req headers:\n{ cookie: '[OWNSTAK_REDACTED]' }"
+        if (typeof object === 'object') {
+            const result: any = {};
+
+            for (const [key, value] of Object.entries(object)) {
+                const lowerKey = key.toLowerCase();
+                if (this.secretKeyPattern.test(lowerKey)) {
+                    result[key] = `[${this.secretValuePlaceholder}]`;
+                } else {
+                    result[key] = this.hideSecrets(value);
+                }
+            }
+
+            return result;
+        }
+
+        // Return unchanged
+        return object;
+    }
 }
 
 // Export a default instance for convenience

@@ -11,6 +11,9 @@ const ownstakNextConfig = {
             hostname: host,
         })),
     },
+    experimental: {
+        isrFlushToDisk: false,
+    },
 };
 
 /**

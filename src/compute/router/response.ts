@@ -1,9 +1,9 @@
-import { HEADERS, INTERNAL_HEADERS_PREFIX } from '../../constants.js';
+import { HEADERS, INTERNAL_HEADERS_PREFIX, NAME } from '../../constants.js';
 import { ProxyResponseEvent } from './proxyResponseEvent.js';
 import http from 'http';
 import zlib from 'zlib';
 import { PassThrough } from 'stream';
-import { logger } from '../../logger.js';
+import { logger, LogLevel } from '../../logger.js';
 
 export const RESPONSE_COMPRESSIONS = {
     br: 'br',
@@ -47,6 +47,7 @@ export class Response {
     streaming: boolean;
     streamingStarted: boolean;
     ended: boolean = false;
+    startTime: number = Date.now();
 
     outputCompression?: ResponseCompression = undefined;
     protected outputStream: OutputStream;
@@ -334,5 +335,18 @@ export class Response {
         // Rest such as images, audio, video, etc. are not effectively compressable
         // as they're usually already compressed by some algorithm.
         return false;
+    }
+
+    /**
+     * Logs the outgoing response with metadata
+     */
+    log() {
+        logger.info(`[Response]: ${this.statusCode} ${this.getHeader(HEADERS.ContentType) || 'text/plain'}`, {
+            type: `ownstak.response`,
+            statusCode: this.statusCode,
+            headers: logger.level == LogLevel.DEBUG ? this.headers : undefined,
+            duration: Date.now() - this.startTime,
+        });
+        return this;
     }
 }

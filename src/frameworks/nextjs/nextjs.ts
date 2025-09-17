@@ -36,6 +36,9 @@ export type NextJsConfig = {
     outputFileTracingRoot?: string;
     experimental?: {
         outputFileTracingRoot?: string;
+        // NOTE: Lambda has read-only file system,
+        // so we need to disable isrFlushToDisk to prevent Next.js from logging warnings about failed ISR writes.
+        isrFlushToDisk?: boolean;
     };
 };
 

@@ -1,8 +1,9 @@
 import { isProxyRequestEvent, Event } from './proxyRequestEvent.js';
-import http from 'http';
-import { HEADERS, INTERNAL_HEADERS_PREFIX } from '../../constants.js';
+import { HEADERS, INTERNAL_HEADERS_PREFIX, NAME } from '../../constants.js';
 import { stringify } from 'querystring';
 import { randomUUID } from 'crypto';
+import { logger, LogLevel } from '../../logger.js';
+import http from 'http';
 
 export interface RequestOptions {
     url?: string;
@@ -253,5 +254,21 @@ export class Request {
 
         request.setDefaultHeaders();
         return request;
+    }
+
+    /**
+     * Logs the incoming request with metadata
+     */
+    log() {
+        logger.info(`[Request]: ${this.method} ${this.url}`, {
+            type: `ownstak.request`,
+            method: this.method,
+            url: this.url.toString(),
+            path: this.path,
+            remoteAddress: this.remoteAddress,
+            headers: logger.level == LogLevel.DEBUG ? this.headers : undefined,
+            requestId: this.getHeader(HEADERS.XRequestId),
+        });
+        return this;
     }
 }

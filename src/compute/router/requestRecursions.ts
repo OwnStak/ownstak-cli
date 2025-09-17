@@ -1,6 +1,7 @@
 import { ProjectReqRecursionError } from '../errors/projectReqRecursionError.js';
 import { Request } from './request.js';
-import { HEADERS, MAX_RECURSIONS, BRAND } from '../../constants.js';
+import { HEADERS, MAX_RECURSIONS, BRAND, NAME } from '../../constants.js';
+import { logger, LogLevel } from '../../logger.js';
 import http from 'http';
 import https from 'https';
 
@@ -38,12 +39,34 @@ export function detectRequestRecursions(request: Request, recursionsLimit: numbe
 
 export function overrideFetchClient(requestHeaders: Record<string, string> = {}) {
     const injectHeaders = (originalFetch: typeof fetch) => {
-        return (url: URL | RequestInfo, options: RequestInit = {}) => {
+        return async (url: URL | RequestInfo, options: RequestInit = {}) => {
             options.headers = {
                 ...(options.headers || {}),
                 ...requestHeaders,
             };
-            return originalFetch(url, options);
+            options.method = options.method || 'GET';
+            if (logger.level == LogLevel.DEBUG) {
+                logger.debug(`[UpstreamRequest] ${options.method} ${url.toString()}`, {
+                    type: `ownstak.upstreamRequest`,
+                    client: 'fetch',
+                    url: url.toString(),
+                    method: options.method,
+                    headers: options.headers,
+                });
+            }
+            const startTime = Date.now();
+            const upstreamRes = await originalFetch(url, options);
+            if (logger.level == LogLevel.DEBUG) {
+                logger.debug(`[UpstreamResponse] ${upstreamRes.status} ${upstreamRes.headers.get(HEADERS.ContentType) || 'text/plain'}`, {
+                    type: `ownstak.upstreamResponse`,
+                    client: 'fetch',
+                    url: url.toString(),
+                    statusCode: upstreamRes.status,
+                    headers: upstreamRes.headers,
+                    duration: Date.now() - startTime,
+                });
+            }
+            return upstreamRes;
         };
     };
 
@@ -107,12 +130,38 @@ export function overrideHttpClient(requestHeaders: Record<string, string> = {}) 
                 ...requestHeaders,
             };
 
-            // Call original function with the modified options
-            if (callback) {
-                return originalRequest(options, callback);
-            } else {
-                return originalRequest(options);
+            const method = options.method || 'GET';
+            const urlString = `${options.protocol}//${options.hostname}${options.port ? ':' + options.port : ''}${options.path}`;
+            const startTime = Date.now();
+
+            // Log request
+            if (logger.level == LogLevel.DEBUG) {
+                logger.debug(`[UpstreamRequest] ${method} ${urlString}`, {
+                    type: `ownstak.upstreamRequest`,
+                    client: 'http.request',
+                    url: urlString,
+                    method,
+                    headers: options.headers || {},
+                });
             }
+
+            // Call original function with the modified options
+            return originalRequest(options, (res: http.IncomingMessage) => {
+                // Log response
+                if (logger.level == LogLevel.DEBUG) {
+                    logger.debug(`[UpstreamResponse] ${res.statusCode} ${res.headers?.['content-type'] || 'text/plain'}`, {
+                        type: `ownstak.upstreamResponse`,
+                        client: 'http.request',
+                        url: urlString,
+                        statusCode: res.statusCode,
+                        headers: res.headers || {},
+                        duration: Date.now() - startTime,
+                    });
+                }
+
+                // Call original callback if provided
+                callback?.(res);
+            });
         };
     };
 

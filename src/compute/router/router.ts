@@ -235,7 +235,6 @@ export class Router {
      */
     async execute(ctx: RequestContext = new RequestContext()): Promise<Response> {
         const matchedRoutes = this.matchRoutes(ctx);
-        logger.debug(`[Router][MatchedRoutes]: ${ctx.request.method} ${ctx.request.url.toString()} => Matched ${matchedRoutes.length} routes`);
         for (const [index, route] of matchedRoutes.entries()) {
             // Enable streaming for the last matched route if streaming is enabled in the config
             if (index === matchedRoutes.length - 1) {
@@ -662,9 +661,7 @@ export class Router {
         const proxyPath = action.preservePath !== false ? ctx.request.path : proxyReqUrl.pathname || '/';
         // Preserve query params from original request by default, otherwise use params from proxyUrl
         const proxyQuery = action.preserveQuery !== false ? ctx.request.url.search : proxyReqUrl.search || '';
-
         const proxyTimeout = Math.max(ctx.config.timeout * 1000, 500);
-        logger.debug(`[Router][ProxyRequest]: ${action.url} => ${proxyReqUrl} (timeout: ${proxyTimeout}ms)`);
 
         return new Promise((resolve, reject) => {
             const requestOptions: https.RequestOptions = {
@@ -698,10 +695,7 @@ export class Router {
                 });
 
                 proxyRes.on('data', (chunk) => ctx.response.write(chunk));
-                proxyRes.on('end', async () => {
-                    logger.debug(`[Router][ProxyResponse]: ${ctx.response.statusCode} ${ctx.response.body?.length || 0} bytes`);
-                    resolve();
-                });
+                proxyRes.on('end', () => resolve());
             });
 
             proxyReq.on('error', (error) => {

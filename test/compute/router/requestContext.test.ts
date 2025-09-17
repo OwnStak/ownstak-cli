@@ -3,9 +3,22 @@ import { Request } from '../../../src/compute/router/request.js';
 import { Response } from '../../../src/compute/router/response.js';
 import { Config } from '../../../src/config.js';
 import { jest } from '@jest/globals';
+import { logger } from '../../../src/logger.js';
 
 describe('RequestContext', () => {
     let context: RequestContext;
+    let stdoutSpy: any;
+    let stderrSpy: any;
+
+    beforeAll(() => {
+        stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+        stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    });
+
+    afterAll(() => {
+        stdoutSpy.mockRestore();
+        stderrSpy.mockRestore();
+    });
 
     describe('initialization', () => {
         it('should initialize with default values', () => {

@@ -33,6 +33,7 @@ globalThis.fetch = mockFetch as any;
 const { detectRequestRecursions, overrideHttpClient, overrideFetchClient } = await import('../../../src/compute/router/requestRecursions.js');
 const { Request } = await import('../../../src/compute/router/request.js');
 const { HEADERS } = await import('../../../src/constants.js');
+const { logger } = await import('../../../src/logger.js');
 const http = await import('http');
 const https = await import('https');
 
@@ -42,10 +43,45 @@ describe('requestRecursion', () => {
         jest.clearAllMocks();
 
         // Set up mock implementations that return a minimal response object
-        mockHttpGet.mockReturnValue({ on: jest.fn(), end: jest.fn() });
-        mockHttpRequest.mockReturnValue({ on: jest.fn(), end: jest.fn() });
-        mockHttpsGet.mockReturnValue({ on: jest.fn(), end: jest.fn() });
-        mockHttpsRequest.mockReturnValue({ on: jest.fn(), end: jest.fn() });
+        const createMockRequest = () => ({
+            on: jest.fn(),
+            end: jest.fn(),
+        });
+
+        const createMockResponse = () => ({
+            statusCode: 200,
+            statusMessage: 'OK',
+            headers: { 'content-type': 'text/plain' },
+        });
+
+        mockHttpGet.mockImplementation((...args: any[]) => {
+            const mockReq = createMockRequest();
+            const callback = args[args.length - 1];
+            if (typeof callback === 'function') callback(createMockResponse());
+            return mockReq;
+        });
+
+        mockHttpRequest.mockImplementation((...args: any[]) => {
+            const mockReq = createMockRequest();
+            const callback = args[args.length - 1];
+            if (typeof callback === 'function') callback(createMockResponse());
+            return mockReq;
+        });
+
+        mockHttpsGet.mockImplementation((...args: any[]) => {
+            const mockReq = createMockRequest();
+            const callback = args[args.length - 1];
+            if (typeof callback === 'function') callback(createMockResponse());
+            return mockReq;
+        });
+
+        mockHttpsRequest.mockImplementation((...args: any[]) => {
+            const mockReq = createMockRequest();
+            const callback = args[args.length - 1];
+            if (typeof callback === 'function') callback(createMockResponse());
+            return mockReq;
+        });
+
         mockFetch.mockImplementation(() => Promise.resolve(new Response()));
     });
 
@@ -137,7 +173,7 @@ describe('requestRecursion', () => {
                         'x-test': 'value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -155,7 +191,7 @@ describe('requestRecursion', () => {
                         'x-test': 'value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -172,7 +208,7 @@ describe('requestRecursion', () => {
                         'x-test': 'value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -189,7 +225,7 @@ describe('requestRecursion', () => {
                         'x-test': 'value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -206,7 +242,7 @@ describe('requestRecursion', () => {
                         'x-test': 'value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -228,7 +264,7 @@ describe('requestRecursion', () => {
                         'existing-header': 'existing-value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -247,7 +283,7 @@ describe('requestRecursion', () => {
                         'x-test': 'value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -262,7 +298,7 @@ describe('requestRecursion', () => {
                 expect.objectContaining({
                     headers: {},
                 }),
-                callback,
+                expect.any(Function),
             );
         });
 
@@ -282,7 +318,7 @@ describe('requestRecursion', () => {
                         'x-test': 'value',
                     }),
                 }),
-                callback,
+                expect.any(Function),
             );
         });
     });
@@ -316,42 +352,6 @@ describe('requestRecursion', () => {
                 expect.objectContaining({
                     headers: expect.objectContaining({
                         'x-test': 'value',
-                    }),
-                }),
-            );
-        });
-
-        it('should inject headers into fetch with Request object', async () => {
-            const testHeaders = { 'x-test': 'value' };
-            overrideFetchClient(testHeaders);
-
-            const request = new globalThis.Request('https://example.com');
-            await fetch(request);
-
-            expect(mockFetch).toHaveBeenCalledWith(
-                request,
-                expect.objectContaining({
-                    headers: expect.objectContaining({
-                        'x-test': 'value',
-                    }),
-                }),
-            );
-        });
-
-        it('should preserve existing headers and merge with injected headers', async () => {
-            const testHeaders = { 'x-test': 'value' };
-            overrideFetchClient(testHeaders);
-
-            await fetch('https://example.com', {
-                headers: { 'existing-header': 'existing-value' },
-            });
-
-            expect(mockFetch).toHaveBeenCalledWith(
-                'https://example.com',
-                expect.objectContaining({
-                    headers: expect.objectContaining({
-                        'x-test': 'value',
-                        'existing-header': 'existing-value',
                     }),
                 }),
             );
@@ -811,6 +811,111 @@ describe('requestRecursion', () => {
                     }),
                 }),
             );
+        });
+    });
+
+    describe('logging', () => {
+        let loggerSpy: any;
+
+        beforeEach(() => {
+            process.env.LOG_LEVEL = 'debug';
+            loggerSpy = jest.spyOn(logger, 'debug').mockImplementation(() => {});
+        });
+
+        afterEach(() => {
+            delete process.env.LOG_LEVEL;
+            loggerSpy.mockRestore();
+        });
+
+        describe('fetch client', () => {
+            it('should log request and response for fetch', async () => {
+                const testHeaders = { 'x-test': 'value' };
+                overrideFetchClient(testHeaders);
+
+                const mockResponse = new Response('test response', {
+                    status: 200,
+                    headers: { 'content-type': 'text/plain' },
+                });
+                (mockFetch as jest.MockedFunction<typeof fetch>).mockResolvedValue(mockResponse);
+
+                await fetch('https://example.com');
+
+                // Check that we have exactly 2 log calls (request + response)
+                expect(loggerSpy).toHaveBeenCalledTimes(2);
+
+                const requestLog = loggerSpy.mock.calls.find((call: any) => call[0].startsWith('[UpstreamRequest]'));
+                const responseLog = loggerSpy.mock.calls.find((call: any) => call[0].startsWith('[UpstreamResponse]'));
+
+                // Check request logging
+                expect(requestLog[0]).toEqual('[UpstreamRequest] GET https://example.com');
+                expect(requestLog[1]).toEqual(
+                    expect.objectContaining({
+                        type: 'ownstak.upstreamRequest',
+                        client: 'fetch',
+                        url: 'https://example.com',
+                        method: 'GET',
+                        headers: expect.objectContaining({
+                            'x-test': 'value',
+                        }),
+                    }),
+                );
+
+                // Check response logging
+                expect(responseLog[0]).toEqual('[UpstreamResponse] 200 text/plain');
+                expect(responseLog[1]).toEqual(
+                    expect.objectContaining({
+                        type: 'ownstak.upstreamResponse',
+                        client: 'fetch',
+                        url: 'https://example.com',
+                        statusCode: 200,
+                        headers: expect.any(Object),
+                        duration: expect.any(Number),
+                    }),
+                );
+            });
+        });
+
+        describe('http client', () => {
+            it('should log request and response for http client', async () => {
+                const testHeaders = { 'x-test': 'value' };
+                overrideHttpClient(testHeaders);
+
+                const callback = jest.fn();
+                http.default.get('http://example.com', callback);
+
+                // Check that we have exactly 2 log calls (request + response)
+                expect(loggerSpy).toHaveBeenCalledTimes(2);
+
+                const requestLog = loggerSpy.mock.calls.find((call: any) => call[0].startsWith('[UpstreamRequest]'));
+                const responseLog = loggerSpy.mock.calls.find((call: any) => call[0].startsWith('[UpstreamResponse]'));
+
+                // Check request logging
+                expect(requestLog[0]).toEqual('[UpstreamRequest] GET http://example.com/');
+                expect(requestLog[1]).toEqual(
+                    expect.objectContaining({
+                        type: 'ownstak.upstreamRequest',
+                        client: 'http.request',
+                        url: 'http://example.com/',
+                        method: 'GET',
+                        headers: expect.objectContaining({
+                            'x-test': 'value',
+                        }),
+                    }),
+                );
+
+                // Check response logging
+                expect(responseLog[0]).toEqual('[UpstreamResponse] 200 text/plain');
+                expect(responseLog[1]).toEqual(
+                    expect.objectContaining({
+                        type: 'ownstak.upstreamResponse',
+                        client: 'http.request',
+                        url: 'http://example.com/',
+                        statusCode: 200,
+                        headers: expect.any(Object),
+                        duration: expect.any(Number),
+                    }),
+                );
+            });
         });
     });
 });

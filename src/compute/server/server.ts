@@ -19,8 +19,9 @@ import { RequestContext } from '../router/requestContex.js';
         try {
             await appPromise;
 
-            request = await Request.fromNodeRequest(nodeRequest);
-            logger.debug(`[Server][Request]: ${request.method} ${request.url}`);
+            request = (await Request.fromNodeRequest(nodeRequest)).log();
+            // Attach requestId to logger's global metadata
+            logger.init({ requestId: request.getHeader(HEADERS.XRequestId) });
 
             response = new Response('', {
                 onWriteHead: async (statusCode, headers) => nodeResponse.writeHead(statusCode, headers),
@@ -31,10 +32,9 @@ import { RequestContext } from '../router/requestContex.js';
             ctx = new RequestContext({ request, response, config });
             await config.router.execute(ctx);
 
-            logger.debug(`[Server][Response]: ${response.statusCode}`);
-            return ctx.response.end();
+            return ctx.response.log().end();
         } catch (e: any) {
-            return ctx.handleError(e).toNodeResponse(nodeResponse);
+            return ctx.handleError(e).log().toNodeResponse(nodeResponse);
         }
     });
 
@@ -54,7 +54,7 @@ import { RequestContext } from '../router/requestContex.js';
                     logLevel: LogLevel.SUCCESS,
                 },
             );
+            logger.info('');
         }
-        logger.info('');
     });
 })();
