@@ -466,4 +466,63 @@ describe('Logger', () => {
             expect(parsed.userId).toBe('123');
         });
     });
+
+    describe('spinner functionality', () => {
+        let originalIsTTY: boolean;
+
+        beforeEach(() => {
+            originalIsTTY = process.stdout.isTTY;
+            process.env.LOG_FORMAT = 'text';
+        });
+
+        afterEach(() => {
+            process.stdout.isTTY = originalIsTTY;
+            delete process.env.LOG_FORMAT;
+            if (logger.spinnerInterval) {
+                logger.stopSpinner();
+            }
+        });
+
+        it('should start and stop spinner correctly', () => {
+            process.stdout.isTTY = true;
+            logger = new Logger();
+
+            logger.startSpinner('Test spinner');
+            expect(logger.spinnerInterval).toBeTruthy();
+            expect(logger.spinnerMessage).toBe('Test spinner');
+
+            logger.stopSpinner('Done!', LogLevel.SUCCESS);
+            expect(logger.spinnerInterval).toBeNull();
+            expect(logger.spinnerMessage).toBeNull();
+        });
+
+        it('should handle non-TTY environment gracefully', () => {
+            process.stdout.isTTY = false;
+            logger = new Logger();
+
+            logger.startSpinner('Loading...');
+            expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Loading...'));
+            expect(logger.spinnerInterval).toBeNull();
+            logger.stopSpinner('Success!', LogLevel.SUCCESS);
+            expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Success!'));
+            expect(logger.spinnerMessage).toBeNull();
+        });
+
+        it('should update spinner message', () => {
+            process.stdout.isTTY = true;
+            logger = new Logger();
+
+            logger.startSpinner('Initial message');
+            logger.updateSpinner('Updated message');
+
+            expect(logger.spinnerMessage).toBe('Updated message');
+        });
+
+        it('should not crash when stopping spinner that was not started', () => {
+            logger = new Logger();
+            expect(() => {
+                logger.stopSpinner('No spinner was running');
+            }).not.toThrow();
+        });
+    });
 });

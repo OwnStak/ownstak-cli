@@ -307,7 +307,7 @@ export class Logger {
             }, 80);
         } else {
             // If not a TTY, just log the message once
-            this.log(`${chalk.blueBright('⟳')} ${message}`);
+            process.stdout.write(`${chalk.blueBright('⟳')} ${message}\r\n`);
         }
     }
 
@@ -331,14 +331,13 @@ export class Logger {
             if (process.stdout.isTTY) {
                 process.stdout.write('\r\x1b[K');
             }
-
-            // If we have a final message, log it with the appropriate level
-            if (finalMessage) {
-                this.log(`${this.formatMessage(logLevel, finalMessage)}`);
-            }
-
-            this.spinnerMessage = null;
         }
+        // If we have a final message, log it with the appropriate level
+        if (finalMessage) {
+            process.stdout.write(`${this.formatMessage(logLevel, finalMessage)}\r\n`);
+        }
+
+        this.spinnerMessage = null;
     }
 
     /**
