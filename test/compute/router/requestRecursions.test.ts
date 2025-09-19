@@ -321,6 +321,368 @@ describe('requestRecursion', () => {
                 expect.any(Function),
             );
         });
+
+        it('should apply defaults when protocol, method, and other options are not specified', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            // Call with only options object (no URL string)
+            http.default.get({ hostname: 'example.com' }, callback);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:', // Should default to http: for http.get
+                    hostname: 'example.com',
+                    path: '/', // Should default to /
+                    method: 'GET', // Should default to GET
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should apply https defaults for https.get when options are not specified', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            // Call https.get with only options object (no URL string)
+            https.default.get({ hostname: 'example.com' }, callback);
+
+            expect(mockHttpsGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'https:', // Should default to https: for https.get
+                    hostname: 'example.com',
+                    path: '/', // Should default to /
+                    method: 'GET', // Should default to GET
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle case where third argument is null instead of callback', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            // Simulate the case where third argument is null
+            http.default.get('http://example.com', { hostname: 'example.com' }, null as any);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle case where second argument is options object instead of callback', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            // Simulate the case where second argument is options, not callback
+            http.default.get('http://example.com', { hostname: 'example.com' });
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it("should handle case when there' no callback and two options without failing", () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            // Simulate the case where second argument is options, not callback
+            http.default.get('http://example.com', { hostname: 'example.com' }, { port: 3000 } as any);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        // Test all argument patterns mentioned in comments
+        it('should handle pattern 1: get(url, callback)', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            http.default.get('http://example.com', callback);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle pattern 2: get(url, options, callback)', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            const options = { hostname: 'custom.example.com', port: 8080 };
+            http.default.get('http://example.com', options, callback);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'custom.example.com', // Options hostname takes precedence
+                    port: 8080,
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle pattern 3: get(options, callback)', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            const options = { hostname: 'example.com', port: 3000 };
+            http.default.get(options, callback);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle pattern 4: get(url, options) - no callback', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const options = { hostname: 'example.com', port: 3000 };
+            http.default.get('http://example.com', options);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle pattern 5: get(options) - no callback', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const options = { hostname: 'example.com', port: 3000 };
+            http.default.get(options);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle mixed argument order: get(options, url, callback)', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            const options = { hostname: 'fallback.com' };
+            (http.default.get as any)(options, 'http://example.com', callback);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'fallback.com', // Options should take precedence
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should handle null/undefined arguments gracefully', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            // Test with null arguments mixed in
+            (http.default.get as any)('http://example.com', null, undefined, { hostname: 'example.com' });
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should work with https.get for all patterns', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            const options = { hostname: 'example.com' };
+
+            // Test pattern 3: get(options, callback)
+            https.default.get(options, callback);
+
+            expect(mockHttpsGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'https:', // Should default to https: for https.get
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should work with http.request for all patterns', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            const options = { hostname: 'example.com' };
+
+            // Test pattern 3: request(options, callback)
+            http.default.request(options, callback);
+
+            expect(mockHttpRequest).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:',
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should work with https.request for all patterns', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            const options = { hostname: 'example.com' };
+
+            // Test pattern 3: request(options, callback)
+            https.default.request(options, callback);
+
+            expect(mockHttpsRequest).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'https:', // Should default to https: for https.request
+                    hostname: 'example.com',
+                    path: '/',
+                    method: 'GET',
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should demonstrate options precedence over URL values', () => {
+            const testHeaders = { 'x-test': 'value' };
+            overrideHttpClient(testHeaders);
+
+            const callback = jest.fn();
+            const options = {
+                hostname: 'override.example.com',
+                port: 9999,
+                path: '/custom-path',
+                method: 'POST',
+            };
+
+            // URL provides: hostname: 'example.com', port: '80', path: '/'
+            // Options should override: hostname, port, path, method
+            http.default.get('http://example.com:80/', options, callback);
+
+            expect(mockHttpGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    protocol: 'http:', // From URL
+                    hostname: 'override.example.com', // From options (overrides URL)
+                    port: 9999, // From options (overrides URL)
+                    path: '/custom-path', // From options (overrides URL)
+                    method: 'POST', // From options (overrides default)
+                    headers: expect.objectContaining({
+                        'x-test': 'value',
+                    }),
+                }),
+                expect.any(Function),
+            );
+        });
     });
 
     describe('overrideFetchClient', () => {

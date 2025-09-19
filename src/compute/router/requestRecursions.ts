@@ -2,7 +2,7 @@ import { ProjectReqRecursionError } from '../errors/projectReqRecursionError.js'
 import { Request } from './request.js';
 import { HEADERS, MAX_RECURSIONS, BRAND, NAME } from '../../constants.js';
 import { logger, LogLevel } from '../../logger.js';
-import http from 'http';
+import http, { RequestOptions } from 'http';
 import https from 'https';
 
 const originalFetch = fetch;
@@ -74,39 +74,37 @@ export function overrideFetchClient(requestHeaders: Record<string, string> = {})
 }
 
 export function overrideHttpClient(requestHeaders: Record<string, string> = {}) {
-    const injectHeaders = (originalRequest: typeof http.get | typeof http.request) => {
+    const injectHeaders = (originalRequest: typeof http.get | typeof http.request | typeof https.get | typeof https.request) => {
         return function (...args: any[]) {
-            // Handle different argument patterns for http.get/https.get:
+            // Handle different argument patterns for http.get/https.get/http.request/https.request:
             // 1. get(url, callback)
             // 2. get(url, options, callback)
             // 3. get(options, callback)
+            // 4. get(url, options)
+            // 5. get(options)
+            let url: string | URL | undefined;
+            let options: RequestOptions = {};
+            let callback: ((res: http.IncomingMessage) => void) | undefined;
 
-            let url: any;
-            let options: any = {};
-            let callback: any;
+            // Find the args
+            for (const arg of args) {
+                if (arg == null) continue;
 
-            if (args.length === 1) {
-                // Only url/options provided, no callback
-                if (typeof args[0] === 'string' || args[0] instanceof URL) {
-                    url = args[0];
-                } else {
-                    options = args[0];
+                // Find URL (string or URL object)
+                if (typeof arg === 'string' || arg instanceof URL) {
+                    url = arg;
+                    continue;
                 }
-            } else if (args.length === 2) {
-                if (typeof args[0] === 'string' || args[0] instanceof URL) {
-                    // get(url, callback)
-                    url = args[0];
-                    callback = args[1];
-                } else {
-                    // get(options, callback)
-                    options = args[0];
-                    callback = args[1];
+                // Find callback (function)
+                if (typeof arg === 'function') {
+                    callback = arg;
+                    continue;
                 }
-            } else if (args.length === 3) {
-                // get(url, options, callback)
-                url = args[0];
-                options = args[1] || {};
-                callback = args[2];
+                // Find options (object that's not a function)
+                if (typeof arg === 'object') {
+                    options = arg;
+                    continue;
+                }
             }
 
             // Convert string URL to URL object if needed and merge into options
@@ -114,7 +112,7 @@ export function overrideHttpClient(requestHeaders: Record<string, string> = {}) 
                 if (typeof url === 'string') {
                     url = new URL(url);
                 }
-                // Extract URL components into options
+                // Extract URL components into options, with options taking precedence
                 options = {
                     protocol: url.protocol,
                     hostname: url.hostname,
@@ -130,17 +128,22 @@ export function overrideHttpClient(requestHeaders: Record<string, string> = {}) 
                 ...requestHeaders,
             };
 
-            const method = options.method || 'GET';
+            // Assign defaults when not specified
+            options.protocol = options.protocol || (originalRequest === originalHttpsGet || originalRequest === originalHttpsRequest ? 'https:' : 'http:');
+            options.hostname = options.hostname || 'localhost';
+            options.path = options.path || '/';
+            options.method = options.method || 'GET';
+
             const urlString = `${options.protocol}//${options.hostname}${options.port ? ':' + options.port : ''}${options.path}`;
             const startTime = Date.now();
 
             // Log request
             if (logger.level == LogLevel.DEBUG) {
-                logger.debug(`[UpstreamRequest] ${method} ${urlString}`, {
+                logger.debug(`[UpstreamRequest] ${options.method} ${urlString}`, {
                     type: `ownstak.upstreamRequest`,
                     client: 'http.request',
                     url: urlString,
-                    method,
+                    method: options.method,
                     headers: options.headers || {},
                 });
             }

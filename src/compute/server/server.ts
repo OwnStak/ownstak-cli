@@ -6,6 +6,7 @@ import http from 'http';
 import chalk from 'chalk';
 import { Response } from '../router/response.js';
 import { RequestContext } from '../router/requestContex.js';
+import { detectRequestRecursions } from '../router/requestRecursions.js';
 
 (async () => {
     const config = await Config.loadFromBuild();
@@ -20,8 +21,12 @@ import { RequestContext } from '../router/requestContex.js';
             await appPromise;
 
             request = (await Request.fromNodeRequest(nodeRequest)).log();
-            // Attach requestId to logger's global metadata
+            // Attach requestId to logger's global metadata.
+            // Right now this is used only locally and not correct because the server handles multiple requests at same time compared to serverless.
+            // TODO: Use asyncLocalStorage to track request execution context inside server + within upstream requests to localhost.
             logger.init({ requestId: request.getHeader(HEADERS.XRequestId) });
+            // Detect request recursions on the serverless platform
+            detectRequestRecursions(request);
 
             response = new Response('', {
                 onWriteHead: async (statusCode, headers) => nodeResponse.writeHead(statusCode, headers),
