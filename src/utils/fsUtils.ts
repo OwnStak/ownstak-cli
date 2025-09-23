@@ -1,7 +1,6 @@
 import { access } from 'fs/promises';
 import { createWriteStream, createReadStream } from 'fs';
 import archiver from 'archiver';
-import { ProgressData } from 'archiver';
 import { readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
 import { Transform } from 'stream';
@@ -52,7 +51,9 @@ export interface ZipFolderOptions {
 export async function zipFolder(dir: string, outputFile: string, options: ZipFolderOptions = {}): Promise<void> {
     return new Promise(async (resolve, reject) => {
         const outputStream = createWriteStream(outputFile);
-        const archive = archiver('zip', { zlib: { level: options.compressLevel ?? 6 } });
+        const archive = archiver('zip', {
+            zlib: { level: options.compressLevel ?? 6 },
+        });
 
         archive.on('error', (err: Error) => {
             reject(new Error(`Failed to create zip archive: ${err.message}`));

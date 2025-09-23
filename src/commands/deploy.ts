@@ -8,7 +8,6 @@ import { Config } from '../config.js';
 import { CliConfig } from '../cliConfig.js';
 import ConsoleClient from '../api/ConsoleClient.js';
 import { uploadToPresignedUrl } from '../utils/s3Upload.js';
-import { login } from './login.js';
 import { build } from './build.js';
 import { configInit } from './config/init.js';
 import { ensureAuthenticated } from '../utils/ensureApiKey.js';
@@ -26,7 +25,7 @@ export interface DeployCommandOptions {
 export async function deploy(options: DeployCommandOptions) {
     logger.info(`Let's bring your project to life!`);
 
-    const cliConfig = CliConfig.load();
+    const _cliConfig = CliConfig.load();
     const config = await Config.loadFromSource();
 
     const apiConfig = await ensureAuthenticated(options);
@@ -75,14 +74,14 @@ export async function deploy(options: DeployCommandOptions) {
     let project;
     try {
         project = (await api.resolveProjectSlugs(organizationSlug, projectSlug)).project;
-    } catch (error) {
+    } catch (_error) {
         project = await api.createProject(organization.id, projectSlug);
     }
 
     let environment;
     try {
         environment = (await api.resolveEnvironmentSlugs(organizationSlug, projectSlug, environmentSlug)).environment;
-    } catch (error) {
+    } catch (_error) {
         environment = await api.createEnvironment(project.id, environmentSlug);
     }
 
@@ -188,7 +187,7 @@ export async function deploy(options: DeployCommandOptions) {
         logger.stopSpinner();
         logger.info('');
         logger.warn("Oops! It's too late to cancel the deployment at this point. The deployment to cloud backends will continue on background.");
-        logger.warn('You can watch the progress at: ' + chalk.cyan(draftDeployment.console_url));
+        logger.warn(`You can watch the progress at: ${chalk.cyan(draftDeployment.console_url)}`);
         logger.warn('See you there!');
         process.exit(0);
     });

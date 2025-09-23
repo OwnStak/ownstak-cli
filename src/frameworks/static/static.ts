@@ -1,5 +1,5 @@
 import { logger } from '../../logger.js';
-import { FrameworkAdapter } from '../../config.js';
+import type { FrameworkAdapter } from '../../config.js';
 import { ASSETS_DIR_PATH, FRAMEWORKS, INPUT_CONFIG_FILE, NAME, PERMANENT_ASSETS_DIR_PATH, ARCHS } from '../../constants.js';
 import { resolve } from 'path';
 import { CliError } from '../../cliError.js';
@@ -19,7 +19,7 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
     hooks: {
         'build:start': async ({ config }): Promise<void> => {
             logger.info('Building static project...');
-            if (Object.keys(config.assets.include).length == 0) {
+            if (Object.keys(config.assets.include).length === 0) {
                 throw new CliError(
                     `Looks like you are trying to build static project without any assets. \r\n` +
                         `Please specify the folder with static assets in your project config. \r\n\r\n` +
@@ -37,10 +37,10 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
 
             // Lower the default memory for static projects to save costs.
             // The Node.js itself usually needs around 70MiB.
-            config.memory = config.memory == Config.getDefaultMemory() ? 128 : config.memory;
+            config.memory = config.memory === Config.getDefaultMemory() ? 128 : config.memory;
             // Set the CPU arch for static projects to arm64 to save costs (up to 20% cheaper).
             // Our own JS code can run on any arch. We don't use any native libs/dependencies.
-            config.arch = config.arch == Config.getDefaultArch() ? ARCHS.ARM64 : config.arch;
+            config.arch = config.arch === Config.getDefaultArch() ? ARCHS.ARM64 : config.arch;
 
             if (config.buildCommand) {
                 await runCommand(config.buildCommand);

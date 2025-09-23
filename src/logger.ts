@@ -83,7 +83,7 @@ export class Logger {
 
     // Load list of secret ENV variables that should be removed from the logs.
     // e.g.: process.env.OWNSTAK_SECRETS = 'API_KEY,SECRET_KEY,JWT_TOKEN' => [OWNSTAK_REDACTED_API_KEY]
-    private secretKeys = process.env['OWNSTAK_SECRETS']?.split(',') || [];
+    private secretKeys = process.env.OWNSTAK_SECRETS?.split(',') || [];
     private secretValues = this.secretKeys.map((key) => process.env[key]);
     private secretValuePlaceholder = 'OWNSTAK_REDACTED';
 
@@ -165,7 +165,7 @@ export class Logger {
         this.logInternal(LogLevel.INFO, message, metadata, false);
     }
 
-    private logInternal(logLevel: LogLevel, messages: any | any[] = [], metadata: LogMetadata = {}, addPrefix = logLevel != LogLevel.NONE): void {
+    private logInternal(logLevel: LogLevel, messages: any | any[] = [], metadata: LogMetadata = {}, addPrefix = logLevel !== LogLevel.NONE): void {
         // Do not log if log level is less than the current log level
         if (logLevel < this.level) return;
 
@@ -234,7 +234,7 @@ export class Logger {
         return `${hour12}:${minutes}:${seconds} ${ampm}`;
     }
 
-    private formatMessage(logLevel: LogLevel, message: string = '', metadata: LogMetadata = {}, addPrefix = logLevel != LogLevel.NONE): string {
+    private formatMessage(logLevel: LogLevel, message: string = '', metadata: LogMetadata = {}, addPrefix = logLevel !== LogLevel.NONE): string {
         // If json format is enabled, return the messages as simple string
         if (this.format === LOG_FORMATS.json) {
             const level = logLevel <= LogLevel.NONE ? Object.keys(LOG_LEVELS_MAP)[logLevel].toUpperCase() : 'INFO';
@@ -298,7 +298,7 @@ export class Logger {
 
         if (process.stdout.isTTY) {
             const time = this.getTimeStamp();
-            const timePrefix = chalk.dim(time) + '  ';
+            const timePrefix = `${chalk.dim(time)}  `;
 
             this.spinnerInterval = setInterval(() => {
                 const frame = this.spinnerFrames[this.spinnerIndex];
@@ -373,7 +373,9 @@ export class Logger {
             return input
                 .map((line) =>
                     // Replace \r\n with \n, then replace any remaining \r with \n
-                    line.replace(/\r\n/g, '\n').replace(/\r/g, '\n'),
+                    line
+                        .replace(/\r\n/g, '\n')
+                        .replace(/\r/g, '\n'),
                 )
                 .flatMap((line) =>
                     // Split by \n and create individual lines
@@ -405,7 +407,10 @@ export class Logger {
             while ((match = ansiRegex.exec(text)) !== null) {
                 if (match.index > lastIndex) {
                     // Add text before ANSI code
-                    parts.push({ text: text.substring(lastIndex, match.index), isAnsi: false });
+                    parts.push({
+                        text: text.substring(lastIndex, match.index),
+                        isAnsi: false,
+                    });
                 }
                 // Add ANSI code
                 parts.push({ text: match[0], isAnsi: true });
@@ -456,7 +461,7 @@ export class Logger {
 
                         // Word itself is longer than max width, break the word to multiple lines until it fits
                         let remainingWord = word;
-                        let remainingLineWidth = maxWidth - lineLength;
+                        const remainingLineWidth = maxWidth - lineLength;
 
                         // First, add what fits on the current line
                         if (remainingLineWidth > 0) {
@@ -501,7 +506,7 @@ export class Logger {
         const minContentWidth = options.minWidth ? Math.min(options.minWidth, maxAvailableWidth) : 0;
 
         // Wrap lines and break them to fit within the available width
-        let processedLines: string[] = [];
+        const processedLines: string[] = [];
         for (const line of lines) {
             processedLines.push(...wrapText(line, maxContentWidth));
         }
@@ -603,18 +608,16 @@ export class Logger {
      * Override stdout/stderr to respect log levels
      */
     public overrideStdStreams(): void {
-        const logger = this;
-
-        const writeToStdStream = function (level: LogLevel, chunk: any, encoding?: any, callback?: any) {
+        const writeToStdStream = (level: LogLevel, chunk: any, encoding?: any, callback?: any) => {
             // Do not log if log level is less than the current log level
-            if (level < logger.level) return false;
+            if (level < this.level) return false;
 
             const stdStream = level === LogLevel.ERROR ? process.stderr : process.stdout;
             const stdStreamWrite = level === LogLevel.ERROR ? originalStderrWrite : originalStdoutWrite;
 
             // With LOG_LEVEL=text, output directly without any buffering or formatting,
             // so spinners etc... will work as expected locally.
-            if (logger.format === LOG_FORMATS.text) {
+            if (this.format === LOG_FORMATS.text) {
                 // Pass arguments only when provided
                 if (typeof encoding === 'function') {
                     // If encoding is a function, it's actually the callback
@@ -630,8 +633,8 @@ export class Logger {
 
             // With LOG_LEVEL=json, buffer the chunks until newline is encountered,
             // so every finished line creates a separate JSON log entry.
-            level === LogLevel.ERROR ? (logger.stderrBuffer += chunk.toString()) : (logger.stdoutBuffer += chunk.toString());
-            const stdStreamBuffer = level === LogLevel.ERROR ? logger.stderrBuffer : logger.stdoutBuffer;
+            level === LogLevel.ERROR ? (this.stderrBuffer += chunk.toString()) : (this.stdoutBuffer += chunk.toString());
+            const stdStreamBuffer = level === LogLevel.ERROR ? this.stderrBuffer : this.stdoutBuffer;
 
             // Check if buffer contains newline - if so, flush
             if (stdStreamBuffer.includes('\n')) {
@@ -639,11 +642,11 @@ export class Logger {
                 // Process all complete lines (except the last one if it doesn't end with newline)
                 for (let i = 0; i < lines.length - 1; i++) {
                     if (!lines[i]) continue; // skip empty writes
-                    const formattedLine = logger.formatMessage(level, lines[i].trim()); // format message for JSON logs
+                    const formattedLine = this.formatMessage(level, lines[i].trim()); // format message for JSON logs
                     stdStreamWrite.call(stdStream, `${formattedLine}\r\n`);
                 }
                 // Keep the last line in buffer if it doesn't end with newline
-                level === LogLevel.ERROR ? (logger.stderrBuffer = lines[lines.length - 1]) : (logger.stdoutBuffer = lines[lines.length - 1]);
+                level === LogLevel.ERROR ? (this.stderrBuffer = lines[lines.length - 1]) : (this.stdoutBuffer = lines[lines.length - 1]);
             }
 
             // Call callback if provided

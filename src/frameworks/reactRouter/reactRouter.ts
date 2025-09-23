@@ -1,5 +1,5 @@
 import { logger, LogLevel } from '../../logger.js';
-import { FrameworkAdapter } from '../../config.js';
+import type { FrameworkAdapter } from '../../config.js';
 import { BRAND, FRAMEWORKS } from '../../constants.js';
 import { runCommand } from '../../utils/processUtils.js';
 import { CliError } from '../../cliError.js';

@@ -22,7 +22,7 @@ export class RequestContext {
         this.config = options.config ?? new Config();
 
         // Set output compression based on the request if it's not disabled in the config
-        this.response.setOutputCompression(!!this.config.app.compression ? this.request.getHeader(HEADERS.AcceptEncoding) : undefined);
+        this.response.setOutputCompression(this.config.app.compression ? this.request.getHeader(HEADERS.AcceptEncoding) : undefined);
     }
 
     /**

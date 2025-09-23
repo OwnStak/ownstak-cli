@@ -3,7 +3,7 @@ import { logger } from '../../logger.js';
 import { dirname, resolve } from 'path';
 import { readFile, writeFile, copyFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { BRAND, CONSOLE_API_URL, CONSOLE_URL, INPUT_CONFIG_FILE, NAME } from '../../constants.js';
+import { BRAND, CONSOLE_API_URL, CONSOLE_URL, INPUT_CONFIG_FILE } from '../../constants.js';
 import { fileURLToPath } from 'url';
 import { CliError } from '../../cliError.js';
 import { CliConfig } from '../../cliConfig.js';
@@ -194,7 +194,7 @@ export function modifyConfigSource(sourceCode: string, setOptions: Record<string
     }
 
     const inserts: Array<{ start: number; end: number }> = [];
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = newConfigRegex.exec(sourceCode)) !== null) {
         const start = match.index;
         const end = findFullNewConfig(newConfigRegex.lastIndex - 1);
@@ -209,7 +209,7 @@ export function modifyConfigSource(sourceCode: string, setOptions: Record<string
         const methodCalls = Object.entries(setOptions)
             .map(([key, value]) => `.set${capitalize(key)}(${JSON.stringify(value)})`)
             .join('');
-        sourceCode = sourceCode.slice(0, start) + `${expr}${methodCalls}` + sourceCode.slice(end);
+        sourceCode = `${sourceCode.slice(0, start)}${expr}${methodCalls}${sourceCode.slice(end)}`;
     }
 
     return sourceCode;

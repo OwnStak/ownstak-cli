@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { logger, LogLevel } from '../../logger.js';
-import { FrameworkAdapter, HookArgs } from '../../config.js';
+import type { FrameworkAdapter, HookArgs } from '../../config.js';
 import { BRAND, FRAMEWORKS } from '../../constants.js';
 import { bundleRequire } from 'bundle-require';
 import { CliError } from '../../cliError.js';

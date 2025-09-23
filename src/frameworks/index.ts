@@ -1,4 +1,4 @@
-import { Framework, FrameworkAdapter } from '../config.js';
+import type { Framework, FrameworkAdapter } from '../config.js';
 import { logger, LogLevel } from '../logger.js';
 
 // Import available framework adapters

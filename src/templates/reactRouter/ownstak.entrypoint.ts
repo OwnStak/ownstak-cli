@@ -1,9 +1,8 @@
 // @ts-nocheck
 import { resolve } from 'path';
-import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { createServer } from 'http';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
 import { createRequestListener as createNodeRequestHandler } from '@react-router/node';
 
 /**

@@ -1,30 +1,30 @@
 import http from 'http';
 import https from 'https';
 import { ASSETS_URL, PERMANENT_ASSETS_URL, APP_URL, HEADERS, INTERNAL_PATH_PREFIX, ASSETS_FOLDER, PERMANENT_ASSETS_FOLDER, BRAND } from '../../constants.js';
-import { Response } from './response.js';
+import type { Response } from './response.js';
 import { RequestContext } from './requestContex.js';
 import { logger } from '../../logger.js';
 import { extractPathToRegexpParams, pathToRegexp, substitutePathToRegexpParams } from '../../utils/pathUtils.js';
-import { isNot, Route, RouteCondition } from './route.js';
+import { isNot, type Route, type RouteCondition } from './route.js';
 import { resolve } from 'path';
 import {
-    RouteAction,
-    SetResponseHeader,
-    SetRequestHeader,
-    AddResponseHeader,
-    AddRequestHeader,
-    SetResponseStatus,
-    SetResponseBody,
-    SetDefaultResponseHeader,
-    SetDefaultRequestHeader,
-    DeleteResponseHeader,
-    DeleteRequestHeader,
-    Redirect,
-    Rewrite,
-    Proxy,
-    ServeAsset,
-    ServePermanentAsset,
-    NodeFunction,
+    type RouteAction,
+    type SetResponseHeader,
+    type SetRequestHeader,
+    type AddResponseHeader,
+    type AddRequestHeader,
+    type SetResponseStatus,
+    type SetResponseBody,
+    type SetDefaultResponseHeader,
+    type SetDefaultRequestHeader,
+    type DeleteResponseHeader,
+    type DeleteRequestHeader,
+    type Redirect,
+    type Rewrite,
+    type Proxy,
+    type ServeAsset,
+    type ServePermanentAsset,
+    type NodeFunction,
     isEchoAction,
     isImageOptimizerAction,
     isAddResponseHeaderAction,
@@ -312,7 +312,7 @@ export class Router {
      * @private
      */
     matchRoutes(ctx: RequestContext, includeAfterDone: boolean = false): Route[] {
-        let matchedRoutes: Route[] = [];
+        const matchedRoutes: Route[] = [];
         for (const route of this.routes) {
             if (this.matchRoute(ctx, route)) {
                 matchedRoutes.push(route);
@@ -737,7 +737,7 @@ export class Router {
         // Example:
         // /assets/css/style.css => /assets/css/style.css
         // /images -> /images/index.html
-        if (!assetPath.match(/\.[^\.]+$/)) {
+        if (!assetPath.match(/\.[^.]+$/)) {
             assetPath = `${assetPath}/index.html`;
         }
 
@@ -787,7 +787,7 @@ export class Router {
      * @param action The action to execute.
      * @private
      */
-    async executeServeApp(ctx: RequestContext, action: RouteAction): Promise<void> {
+    async executeServeApp(ctx: RequestContext, _action: RouteAction): Promise<void> {
         return this.executeProxy(ctx, {
             url: APP_URL,
             type: 'proxy',
@@ -838,7 +838,7 @@ export class Router {
      * @param action The action to execute.
      * @private
      */
-    async executeEcho(ctx: RequestContext, action: RouteAction): Promise<void> {
+    async executeEcho(ctx: RequestContext, _action: RouteAction): Promise<void> {
         ctx.response.setHeader(HEADERS.ContentType, 'application/json');
         ctx.response.body = JSON.stringify(
             {
@@ -868,7 +868,7 @@ export class Router {
      * @param action The action to execute.
      * @private
      */
-    async executeImageOptimizer(ctx: RequestContext, action: RouteAction): Promise<void> {
+    async executeImageOptimizer(ctx: RequestContext, _action: RouteAction): Promise<void> {
         const imageUrl = ctx.request.url.searchParams.get('url');
         if (!imageUrl) {
             ctx.response.clear();
@@ -936,7 +936,7 @@ export class Router {
      * @param action The action to execute.
      * @private
      */
-    async executeHealthCheck(ctx: RequestContext, action: RouteAction): Promise<void> {
+    async executeHealthCheck(ctx: RequestContext, _action: RouteAction): Promise<void> {
         ctx.response.statusCode = 200;
         ctx.response.body = 'OK';
     }

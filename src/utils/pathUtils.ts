@@ -75,7 +75,7 @@ export function pathToRegexp(pathToRegexPattern: string) {
 
     return {
         pathParams: keys,
-        pathRegex: new RegExp('^' + result + '(?:\\/)?$', 'i'),
+        pathRegex: new RegExp(`^${result}(?:\\/)?$`, 'i'),
     };
 }
 
@@ -168,6 +168,6 @@ function escapeRx(str: string) {
 // adapted and simplified version from path-to-regexp sources
 function rxForSegment(repeat: boolean, optional: boolean, prefix: number) {
     let capture = repeat ? '((?:[^\\/]+?)(?:\\/(?:[^\\/]+?))*)' : '([^\\/]+?)';
-    if (optional && prefix) capture = '(?:\\/' + capture + ')';
+    if (optional && prefix) capture = `(?:\\/${capture})`;
     return capture + (optional ? '?' : '');
 }

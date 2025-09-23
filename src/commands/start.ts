@@ -3,7 +3,7 @@ import { ASSETS_DIR_PATH, BRAND, BUILD_DIR_PATH, COMPUTE_DIR_PATH, NAME, PERMANE
 import { resolve } from 'path';
 import { logger } from '../logger.js';
 import { stat, access } from 'fs/promises';
-import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import mime from 'mime-types';
 import { createReadStream } from 'fs';
 import { join } from 'path';
@@ -98,7 +98,7 @@ export async function startAssetsServer(assetsDirPath: string, port: number) {
             res.writeHead(200, { 'Content-Type': mimeType });
             const readStream = createReadStream(filePath);
             readStream.pipe(res);
-        } catch (error) {
+        } catch (_error) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('404 Not Found');
         }

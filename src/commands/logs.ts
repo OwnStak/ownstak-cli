@@ -5,9 +5,9 @@ import { CliError } from '../cliError.js';
 import { Config } from '../config.js';
 import ConsoleClient from '../api/ConsoleClient.js';
 import { NAME } from '../constants.js';
-import { ApiRuntimeLogEntry } from '../api/types/entities.js';
+import type { ApiRuntimeLogEntry } from '../api/types/entities.js';
 import { ensureAuthenticated } from '../utils/ensureApiKey.js';
-import { BaseConsoleError, ConsoleValidationError } from '../api/ConsoleError.js';
+import { BaseConsoleError } from '../api/ConsoleError.js';
 
 export interface BaseLogsCommandOptions {
     apiUrl: string;
@@ -117,7 +117,7 @@ async function logs(logType: LogType, options: BaseLogsCommandOptions) {
                 const lastLogTimestamp = logs[logs.length - 1].timestamp;
 
                 logger.debug(`Appending ${logs.length} logs to file: ${options.output!}  (${firstLogTimestamp} and ${lastLogTimestamp})`);
-                await appendFile(options.output!, formattedLogs + '\n', 'utf8');
+                await appendFile(options.output!, `${formattedLogs}\n`, 'utf8');
             }
         });
 
@@ -128,7 +128,7 @@ async function logs(logType: LogType, options: BaseLogsCommandOptions) {
     } else {
         await fetchLogs(api, logType, cloudBackendId, environmentId, options, async (logs) => {
             const formattedLogs = options.json ? logs.map((log) => JSON.stringify(log)).join('\n') : logs.map(displayLogEntry).join('\n');
-            console.log(formattedLogs + '\n');
+            console.log(`${formattedLogs}\n`);
         });
     }
 }

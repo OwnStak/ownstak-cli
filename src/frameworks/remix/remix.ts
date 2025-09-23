@@ -1,5 +1,5 @@
 import { logger, LogLevel } from '../../logger.js';
-import { FrameworkAdapter } from '../../config.js';
+import type { FrameworkAdapter } from '../../config.js';
 import { BRAND, FRAMEWORKS } from '../../constants.js';
 import { runCommand } from '../../utils/processUtils.js';
 import { CliError } from '../../cliError.js';
@@ -49,11 +49,11 @@ export const remixFrameworkAdapter: FrameworkAdapter = {
     name: FRAMEWORKS.Remix,
     hooks: {
         'build:start': async ({ config }) => {
-            const builder = !!getViteConfigPath() ? 'vite' : 'classic';
+            const builder = getViteConfigPath() ? 'vite' : 'classic';
             logger.info(`Detected Remix builder: ${builder}`);
 
             const remixConfig = await loadRemixConfig();
-            const publicPath = remixConfig.publicPath && remixConfig.publicPath.startsWith('/') ? remixConfig.publicPath : `/build/`;
+            const publicPath = remixConfig.publicPath?.startsWith('/') ? remixConfig.publicPath : `/build/`;
             const buildDirectory = builder === 'vite' ? remixConfig.buildDirectory || 'build' : dirname(remixConfig.serverBuildPath || `build/index.js`);
             const clientBuildDirectory = builder === 'vite' ? `${buildDirectory}/client` : remixConfig.assetsBuildDirectory || `public/build/`;
             const serverBuildDirectory = builder === 'vite' ? `${buildDirectory}/server` : dirname(remixConfig.serverBuildPath || `build/index.js`);
@@ -122,7 +122,7 @@ export const remixFrameworkAdapter: FrameworkAdapter = {
 
             // Configure assets
             config.assets.convertHtmlToFolders = true;
-            config.assets.include['public'] = './';
+            config.assets.include.public = './';
             config.assets.include[clientBuildDirectory] = `.${publicPath}`;
             config.assets.include[join(clientBuildDirectory, '**', '*.{html,json}')] = `.${basename}`;
 

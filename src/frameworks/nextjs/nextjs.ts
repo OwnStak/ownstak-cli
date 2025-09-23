@@ -2,15 +2,15 @@ import { existsSync } from 'fs';
 import { readFile, copyFile, rename, rm, writeFile, appendFile } from 'fs/promises';
 import { resolve, dirname, relative } from 'path';
 import { logger, LogLevel } from '../../logger.js';
-import { findMonorepoRoot } from '../../utils/pathUtils.js';
+import { findMonorepoRoot, normalizePath } from '../../utils/pathUtils.js';
 import semver from 'semver';
-import { BuildHookArgs, FrameworkAdapter, HookArgs } from '../../config.js';
+import type { BuildHookArgs, FrameworkAdapter, HookArgs } from '../../config.js';
 import { getFileModuleType, getModuleFileUrl, getModuleVersion, isModulePresent } from '../../utils/moduleUtils.js';
 import { runCommand } from '../../utils/processUtils.js';
 import { BRAND, FRAMEWORKS, NAME } from '../../constants.js';
 import { fileURLToPath } from 'url';
-import { getPrerenderManifest, getRoutesManifest, Has } from './manifests.js';
-import { RouteCondition } from '../../compute/router/route.js';
+import { getPrerenderManifest, getRoutesManifest, type Has } from './manifests.js';
+import type { RouteCondition } from '../../compute/router/route.js';
 import { CliError } from '../../cliError.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -111,7 +111,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
                     process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT = tracingRoot;
                     await runCommand(config.buildCommand || 'npx next build');
                     await cleanupNextConfigWrapper();
-                } catch (e) {
+                } catch (_e) {
                     await cleanupNextConfigWrapper();
                     throw new CliError(
                         `Next.js build failed. Please check the build logs for error details. You might also try to first build the Next.js without ${BRAND} CLI using \`npx next build\`.` +
@@ -182,7 +182,7 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             config.app.include[`${distDir}/standalone/**`] = `./**`;
 
             // Exclude @img and sharp binaries to save up space if our custom image loader is used
-            if (nextConfig.images.loader == 'custom') {
+            if (nextConfig.images.loader === 'custom') {
                 config.app.include[`${distDir}/standalone/node_modules/@img/**`] = false;
                 config.app.include[`${distDir}/standalone/node_modules/sharp/**`] = false;
             }
@@ -413,7 +413,12 @@ export async function addNextConfigWrapper() {
         const nextConfigTemplatePath = resolve(__dirname, '..', '..', 'templates', 'nextjs', `ownstak.next.config.${nextConfigTemplateExtension}`);
 
         logger.info(`Adding ${BRAND} Next.js config (${nextConfigModuleType})...`);
-        const nextConfigTemplate = (await readFile(nextConfigTemplatePath, 'utf-8')).replace('{{ nextConfigOriginalPath }}', nextConfigOriginalPath);
+        // NOTE: It's important to use file:// protocol in import here, otherwise it will fail on Windows.
+        // e.g.: C:\projects\my-nextjs-app\next.config.js -> file://C:\\projects\\my-nextjs-app\\next.config.js
+        const nextConfigTemplate = (await readFile(nextConfigTemplatePath, 'utf-8')).replace(
+            '{{ nextConfigOriginalPath }}',
+            `file://${normalizePath(nextConfigOriginalPath)}`,
+        );
         await writeFile(nextConfigPath, nextConfigTemplate);
     }
 

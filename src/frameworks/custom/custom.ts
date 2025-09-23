@@ -1,5 +1,5 @@
 import { logger } from '../../logger.js';
-import { FrameworkAdapter } from '../../config.js';
+import type { FrameworkAdapter } from '../../config.js';
 import { FRAMEWORKS, NAME } from '../../constants.js';
 import { runCommand } from '../../utils/processUtils.js';
 import { INPUT_CONFIG_FILE } from '../../constants.js';

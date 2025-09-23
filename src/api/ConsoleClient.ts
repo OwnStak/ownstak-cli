@@ -1,17 +1,17 @@
-import { ApiDeployment, ApiDeploymentOnCreate, ApiKeyRequest, ApiLogs, ApiKey, ApiRuntimeLogsResponse } from './types/entities.js';
-import { CreateDeploymentRequest } from './requests/CreateDeployment.js';
-import { ListOrganizationsResponse } from './requests/ListOrganizations.js';
-import { ListProjectsResponse } from './requests/ListProjects.js';
-import {
+import type { ApiDeployment, ApiDeploymentOnCreate, ApiKeyRequest, ApiLogs, ApiKey, ApiRuntimeLogsResponse } from './types/entities.js';
+import type { CreateDeploymentRequest } from './requests/CreateDeployment.js';
+import type { ListOrganizationsResponse } from './requests/ListOrganizations.js';
+import type { ListProjectsResponse } from './requests/ListProjects.js';
+import type {
     ResolveEnvironmentCloudBackendSlugsResponse,
     ResolveEnvironmentSlugsResponse,
     ResolveProjectSlugResponse,
     ResolveOrganizationCloudBackendSlugsResponse,
 } from './requests/ResolveSlugs.js';
-import { ListEnvironmentsResponse } from './requests/ListEnvironements.js';
+import type { ListEnvironmentsResponse } from './requests/ListEnvironements.js';
 import {
     BaseConsoleError,
-    ConsoleErrorResult,
+    type ConsoleErrorResult,
     ConsoleResourceNotFoundError,
     ConsoleUnauthenticatedError,
     ConsoleUnauthorizedError,
@@ -44,19 +44,25 @@ export default class ConsoleClient extends Client {
     }
 
     async resolveEnvironmentSlugs(organizationSlug: string, projectSlug: string, environmentSlug: string) {
-        return this.get({ path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}/environments/${environmentSlug}` })
+        return this.get({
+            path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}/environments/${environmentSlug}`,
+        })
             .then((res) => res.json())
             .then((data) => data as ResolveEnvironmentSlugsResponse);
     }
 
     async resolveProjectSlugs(organizationSlug: string, projectSlug: string) {
-        return this.get({ path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}` })
+        return this.get({
+            path: `/api/slug/organizations/${organizationSlug}/projects/${projectSlug}`,
+        })
             .then((res) => res.json())
             .then((data) => data as ResolveProjectSlugResponse);
     }
 
     async resolveOrganizationCloudBackendSlugs(organizationSlug: string, cloudBackendSlug: string) {
-        return this.get({ path: `/api/slug/organizations/${organizationSlug}/cloud_backends/${cloudBackendSlug}` })
+        return this.get({
+            path: `/api/slug/organizations/${organizationSlug}/cloud_backends/${cloudBackendSlug}`,
+        })
             .then((res) => res.json())
             .then((data) => data as ResolveOrganizationCloudBackendSlugsResponse);
     }
@@ -154,7 +160,9 @@ export default class ConsoleClient extends Client {
     }
 
     async getCloudBackendDeploymentLogs(cloudBackendDeploymentId: string) {
-        return this.get({ path: `/api/cloud_backend_deployments/${cloudBackendDeploymentId}/logs` })
+        return this.get({
+            path: `/api/cloud_backend_deployments/${cloudBackendDeploymentId}/logs`,
+        })
             .then((res) => res.json())
             .then((data) => data as ApiLogs);
     }
@@ -172,7 +180,10 @@ export default class ConsoleClient extends Client {
     }
 
     async retrieveApiKeyFromRequest(apiKeyRequestId: string, apiKeyRequestSecret: string) {
-        return this.post({ path: `/api/api_key_requests/${apiKeyRequestId}/retrieve_api_key`, body: { secret: apiKeyRequestSecret } })
+        return this.post({
+            path: `/api/api_key_requests/${apiKeyRequestId}/retrieve_api_key`,
+            body: { secret: apiKeyRequestSecret },
+        })
             .then((res) => res.json())
             .then((data) => data as ApiKey);
     }
@@ -239,7 +250,7 @@ export default class ConsoleClient extends Client {
                         `The requested resource could not be found. Please verify the resource details and try again. If the problem persists, contact support for assistance.`,
                     ],
                 });
-            case 422:
+            case 422: {
                 let details = '';
 
                 try {
@@ -254,6 +265,7 @@ export default class ConsoleClient extends Client {
                 throw new ConsoleValidationError(result as ConsoleErrorResult, response, {
                     instructions: [`Please address the validation issues below and try again:\n\n${details}`],
                 });
+            }
             default:
                 throw new BaseConsoleError(result as ConsoleErrorResult, response);
         }

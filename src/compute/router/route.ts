@@ -1,4 +1,4 @@
-import { RouteAction } from './routeAction.js';
+import type { RouteAction } from './routeAction.js';
 
 export type Not<T> = { not: T };
 export type Value = string | RegExp;

@@ -1,5 +1,4 @@
-import { CliError, CliErrorOptions } from '../cliError.js';
-import { NAME } from '../constants.js';
+import { CliError, type CliErrorOptions } from '../cliError.js';
 
 export interface ConsoleErrorResult {
     error: string;

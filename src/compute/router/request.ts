@@ -1,9 +1,9 @@
-import { isProxyRequestEvent, Event } from './proxyRequestEvent.js';
-import { HEADERS, INTERNAL_HEADERS_PREFIX, NAME } from '../../constants.js';
+import { isProxyRequestEvent, type Event } from './proxyRequestEvent.js';
+import { HEADERS, INTERNAL_HEADERS_PREFIX } from '../../constants.js';
 import { stringify } from 'querystring';
 import { randomUUID } from 'crypto';
 import { logger, LogLevel } from '../../logger.js';
-import http from 'http';
+import type http from 'http';
 
 export interface RequestOptions {
     url?: string;
@@ -266,7 +266,7 @@ export class Request {
             url: this.url.toString(),
             path: this.path,
             remoteAddress: this.remoteAddress,
-            headers: logger.level == LogLevel.DEBUG ? this.headers : undefined,
+            headers: logger.level === LogLevel.DEBUG ? this.headers : undefined,
             requestId: this.getHeader(HEADERS.XRequestId),
         });
         return this;

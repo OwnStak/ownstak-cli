@@ -168,11 +168,7 @@ export async function postAction(_thisCommand: Command, actionCommand: Command) 
 export async function handleException(e: any) {
     logger.stopSpinner();
     const errorMessage: string = e.message;
-    const errorStack: string = e.stack
-        .split('\n')
-        .map((line: string) => line.trim())
-        .slice(1)
-        .join('\n'); // remove the first line with the error message
+    const errorStack: string = e.stack;
 
     // Show stack trace only for unexpected errors. Not for CLI errors.
     // Do not show stack trace in table, the lines are too long.

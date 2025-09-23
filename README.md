@@ -74,3 +74,30 @@ The CI will also automatically bump the version to the next patch version and co
 Every commit to the opened PR will trigger a preview/next release build that is published under `next` tag.
 The released version has format `{version}-next-{pr_number}-{timestamp}`. For example, `1.0.0-next-39-1744196863`.
 You can find the actual released next version in the CI logs.
+
+## Formatting
+
+Use Biome to format the codebase.
+
+```bash
+# Format all files in ./src
+npm run format
+
+# Check formatting without writing
+npm run format:check
+```
+
+## Linting
+
+Use Biome to lint the codebase. Linting also organizes imports and reports unused imports/variables.
+
+```bash
+# Lint and auto-fix safe issues in ./src
+npm run lint
+
+# Lint and apply unsafe fixes (use with care)
+npm run lint:unsafe
+
+# Run lint checks without writing
+npm run lint:check
+```

@@ -5,7 +5,7 @@ const ownstakNextConfig = {
     images: {
         loader: 'custom',
         loaderFile: 'ownstak.image.loader.js',
-        remotePatterns: ['localhost', '127.0.0.1'].map(host => ({
+        remotePatterns: ['localhost', '127.0.0.1'].map((host) => ({
             protocol: 'http',
             hostname: host,
         })),
@@ -26,23 +26,20 @@ const ownstakNextConfig = {
 module.exports = async function nextConfig() {
     const originalNextConfigFunc = originalNextConfigModule?.default ?? originalNextConfigModule;
     const originalNextConfig = typeof originalNextConfigFunc === 'function' ? await originalNextConfigFunc({}) : originalNextConfigFunc;
-    
+
     const nextConfig = {
         ...originalNextConfig,
         ...ownstakNextConfig,
         images: {
             ...originalNextConfig.images,
             ...(originalNextConfig.images?.loader ? {} : ownstakNextConfig.images),
-            remotePatterns: [
-                ...(originalNextConfig.images?.remotePatterns ?? []),
-                ...ownstakNextConfig.images.remotePatterns,
-            ],
+            remotePatterns: [...(originalNextConfig.images?.remotePatterns ?? []), ...ownstakNextConfig.images.remotePatterns],
         },
         experimental: {
             ...originalNextConfig.experimental,
             ...ownstakNextConfig.experimental,
         },
-    }
-    
+    };
+
     return nextConfig;
-}
+};

@@ -19,7 +19,7 @@ import { basename, dirname, join, relative, resolve } from 'path';
 import { logger } from './logger.js';
 import { fileURLToPath } from 'url';
 import { Router } from './compute/router/router.js';
-import { RouteCondition } from './compute/router/route.js';
+import type { RouteCondition } from './compute/router/route.js';
 import { waitForSocket } from './utils/portUtils.js';
 import { normalizePath } from './utils/pathUtils.js';
 import { findModuleLocation, installDependency } from './utils/moduleUtils.js';
@@ -845,7 +845,7 @@ export class Config {
         // when they delete node_modules or have local symlink version of ownstak
         try {
             await findModuleLocation(NAME);
-        } catch (e: any) {
+        } catch (_e: any) {
             const cliVersion = CliConfig.getCurrentVersion();
             logger.info(`Installing ${NAME} CLI v${cliVersion} into your project...`);
             await installDependency(NAME, cliVersion);
@@ -875,7 +875,7 @@ export class Config {
 
             // Check if the exported config is in the correct format.
             const importedConfig = mod?.default?.default || mod?.default || new Config();
-            if (importedConfig.toString() != new Config().toString()) {
+            if (importedConfig.toString() !== new Config().toString()) {
                 const exampleConfigFilePath = resolve(__dirname, 'templates', 'config', 'ownstak.config.js');
                 const exampleConfig = await readFile(exampleConfigFilePath, 'utf8');
                 throw new CliError(

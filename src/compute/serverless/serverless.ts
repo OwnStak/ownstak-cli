@@ -1,4 +1,4 @@
-import { Event } from '../router/proxyRequestEvent.js';
+import type { Event } from '../router/proxyRequestEvent.js';
 import { Config } from '../../config.js';
 import { logger } from '../../logger.js';
 import { detectRequestRecursions } from '../router/requestRecursions.js';
@@ -6,7 +6,7 @@ import { Request } from '../router/request.js';
 import { Response } from '../router/response.js';
 import { RequestContext } from '../router/requestContex.js';
 import { HEADERS } from '../../constants.js';
-import { ProxyResponseEvent } from '../router/proxyResponseEvent.js';
+import type { ProxyResponseEvent } from '../router/proxyResponseEvent.js';
 
 interface Context {
     callbackWaitsForEmptyEventLoop: boolean;

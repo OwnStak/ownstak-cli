@@ -1,8 +1,8 @@
 import { ProjectReqRecursionError } from '../errors/projectReqRecursionError.js';
-import { Request } from './request.js';
-import { HEADERS, MAX_RECURSIONS, BRAND, NAME } from '../../constants.js';
+import type { Request } from './request.js';
+import { HEADERS, MAX_RECURSIONS, BRAND } from '../../constants.js';
 import { logger, LogLevel } from '../../logger.js';
-import http, { RequestOptions } from 'http';
+import http, { type RequestOptions } from 'http';
 import https from 'https';
 
 const originalFetch = fetch;
@@ -45,7 +45,7 @@ export function overrideFetchClient(requestHeaders: Record<string, string> = {})
                 ...requestHeaders,
             };
             options.method = options.method || 'GET';
-            if (logger.level == LogLevel.DEBUG) {
+            if (logger.level === LogLevel.DEBUG) {
                 logger.debug(`[UpstreamRequest] ${options.method} ${url.toString()}`, {
                     type: `ownstak.upstreamRequest`,
                     client: 'fetch',
@@ -56,7 +56,7 @@ export function overrideFetchClient(requestHeaders: Record<string, string> = {})
             }
             const startTime = Date.now();
             const upstreamRes = await originalFetch(url, options);
-            if (logger.level == LogLevel.DEBUG) {
+            if (logger.level === LogLevel.DEBUG) {
                 logger.debug(`[UpstreamResponse] ${upstreamRes.status} ${upstreamRes.headers.get(HEADERS.ContentType) || 'text/plain'}`, {
                     type: `ownstak.upstreamResponse`,
                     client: 'fetch',
@@ -75,7 +75,7 @@ export function overrideFetchClient(requestHeaders: Record<string, string> = {})
 
 export function overrideHttpClient(requestHeaders: Record<string, string> = {}) {
     const injectHeaders = (originalRequest: typeof http.get | typeof http.request | typeof https.get | typeof https.request) => {
-        return function (...args: any[]) {
+        return (...args: any[]) => {
             // Handle different argument patterns for http.get/https.get/http.request/https.request:
             // 1. get(url, callback)
             // 2. get(url, options, callback)
@@ -103,7 +103,6 @@ export function overrideHttpClient(requestHeaders: Record<string, string> = {}) 
                 // Find options (object that's not a function)
                 if (typeof arg === 'object') {
                     options = arg;
-                    continue;
                 }
             }
 
@@ -134,11 +133,11 @@ export function overrideHttpClient(requestHeaders: Record<string, string> = {}) 
             options.path = options.path || '/';
             options.method = options.method || 'GET';
 
-            const urlString = `${options.protocol}//${options.hostname}${options.port ? ':' + options.port : ''}${options.path}`;
+            const urlString = `${options.protocol}//${options.hostname}${options.port ? `:${options.port}` : ''}${options.path}`;
             const startTime = Date.now();
 
             // Log request
-            if (logger.level == LogLevel.DEBUG) {
+            if (logger.level === LogLevel.DEBUG) {
                 logger.debug(`[UpstreamRequest] ${options.method} ${urlString}`, {
                     type: `ownstak.upstreamRequest`,
                     client: 'http.request',
@@ -151,7 +150,7 @@ export function overrideHttpClient(requestHeaders: Record<string, string> = {}) 
             // Call original function with the modified options
             return originalRequest(options, (res: http.IncomingMessage) => {
                 // Log response
-                if (logger.level == LogLevel.DEBUG) {
+                if (logger.level === LogLevel.DEBUG) {
                     logger.debug(`[UpstreamResponse] ${res.statusCode} ${res.headers?.['content-type'] || 'text/plain'}`, {
                         type: `ownstak.upstreamResponse`,
                         client: 'http.request',

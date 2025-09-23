@@ -1,6 +1,6 @@
-import { HEADERS, INTERNAL_HEADERS_PREFIX, NAME } from '../../constants.js';
-import { ProxyResponseEvent } from './proxyResponseEvent.js';
-import http from 'http';
+import { HEADERS, INTERNAL_HEADERS_PREFIX } from '../../constants.js';
+import type { ProxyResponseEvent } from './proxyResponseEvent.js';
+import type http from 'http';
 import zlib from 'zlib';
 import { PassThrough } from 'stream';
 import { logger, LogLevel } from '../../logger.js';
@@ -78,7 +78,7 @@ export class Response {
     addHeader(key: string, value: string | string[]) {
         key = key.toLowerCase();
         const newValues = [...(this.getHeaderArray(key) || []), ...(Array.isArray(value) ? value : [value])];
-        if (key == HEADERS.SetCookie.toLowerCase()) {
+        if (key === HEADERS.SetCookie.toLowerCase()) {
             // Set-Cookie header is the only case that can be duplicated and returned as an array
             this.headers[key] = newValues;
         } else {
@@ -344,7 +344,7 @@ export class Response {
         logger.info(`[Response]: ${this.statusCode} ${this.getHeader(HEADERS.ContentType) || 'text/plain'}`, {
             type: `ownstak.response`,
             statusCode: this.statusCode,
-            headers: logger.level == LogLevel.DEBUG ? this.headers : undefined,
+            headers: logger.level === LogLevel.DEBUG ? this.headers : undefined,
             duration: Date.now() - this.startTime,
         });
         return this;

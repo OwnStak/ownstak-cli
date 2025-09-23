@@ -27,7 +27,7 @@ import { logger, LogLevel } from '../logger.js';
 import { BRAND } from '../constants.js';
 import { normalizePath } from '../utils/pathUtils.js';
 import { glob } from 'glob';
-import { Config, FilesConfig, Framework } from '../config.js';
+import { Config, type FilesConfig, type Framework } from '../config.js';
 import { detectFramework, getFrameworkAdapter } from '../frameworks/index.js';
 import { CliError } from '../cliError.js';
 import { CliConfig } from '../cliConfig.js';
@@ -206,11 +206,13 @@ export async function build(options: BuildCommandOptions = {}) {
     // .ownstak/assets/logo.png -> /logo.png
     // .ownstak/assets/images/logo.png -> /images/logo.png
     // .ownstak/assets/something.html -> /something
-    const assets = await glob.glob(join(ASSETS_DIR_PATH, '**/*'), {
-        cwd: ASSETS_DIR_PATH,
-        absolute: false,
-        nodir: true,
-    });
+    const assets = (
+        await glob.glob(normalizePath(join(ASSETS_DIR_PATH, '**/*')), {
+            cwd: ASSETS_DIR_PATH,
+            absolute: false,
+            nodir: true,
+        })
+    ).map(normalizePath); // normalize found paths to common format to avoid issues on Windows
     const assetsPaths = assets.map((path) => {
         const tranformedPath = `/${path}`
             .replace('index.html', '/') // replace index.html with just / in paths
@@ -263,11 +265,13 @@ export async function build(options: BuildCommandOptions = {}) {
     // Create routes for permanent assets
     // For example:
     // .ownstak/permanentAssets/chunks/af0123456789.js -> /chunks/af0123456789.js
-    const permanentAssets = await glob.glob(join(PERMANENT_ASSETS_DIR_PATH, '**/*'), {
-        cwd: PERMANENT_ASSETS_DIR_PATH,
-        absolute: false,
-        nodir: true,
-    });
+    const permanentAssets = (
+        await glob.glob(normalizePath(join(PERMANENT_ASSETS_DIR_PATH, '**/*')), {
+            cwd: PERMANENT_ASSETS_DIR_PATH,
+            absolute: false,
+            nodir: true,
+        })
+    ).map(normalizePath); // normalize found paths to common format to avoid issues on Windows
     const permanentAssetsPaths = permanentAssets.map((path) => {
         const tranformedPath = `/${path}`
             .replace('index.html', '/') // replace index.html with just / in paths
@@ -490,11 +494,13 @@ export async function copyFiles(filesConfig: FilesConfig, destDir: string) {
 
         // Get list of files matched by the glob pattern
         // without the files that match the exclude patterns
-        const srcFiles = await glob.glob(srcPattern, {
-            ignore: excludePatterns,
-            dot: true, // include files and dirs starting with . (for example .next)
-            nodir: true, // do not return directories as separate entries
-        });
+        const srcFiles = (
+            await glob.glob(srcPattern, {
+                ignore: excludePatterns,
+                dot: true, // include files and dirs starting with . (for example .next)
+                nodir: true, // do not return directories as separate entries
+            })
+        ).map(normalizePath); // normalize paths to common format to avoid issues on Windows
 
         // Process each found file/directory
         for (const srcFile of srcFiles) {

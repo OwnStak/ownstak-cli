@@ -13,7 +13,7 @@ import { exec } from 'child_process';
 export async function findModuleLocation(moduleName: string): Promise<string> {
     // Get the project root (where package.json is)
     const projectRoot = process.cwd();
-    const require = createRequire(projectRoot + '/package.json');
+    const require = createRequire(`${projectRoot}/package.json`);
 
     try {
         // First get the package.json path
@@ -35,10 +35,10 @@ export async function isModulePresent(moduleName: string): Promise<boolean> {
     if (!existsSync(packageJsonPath)) return false;
     const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
 
-    if (packageJson.dependencies && packageJson.dependencies[moduleName]) {
+    if (packageJson.dependencies?.[moduleName]) {
         return true;
     }
-    if (packageJson.devDependencies && packageJson.devDependencies[moduleName]) {
+    if (packageJson.devDependencies?.[moduleName]) {
         return true;
     }
     return false;
@@ -58,7 +58,7 @@ export async function getModuleVersion(moduleName: string): Promise<string | und
 
         const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
         return packageJson.version;
-    } catch (error) {
+    } catch (_error) {
         return undefined;
     }
 }

@@ -1,4 +1,4 @@
-import { ProjectError, ProjectErrorOptions } from './projectError.js';
+import { ProjectError, type ProjectErrorOptions } from './projectError.js';
 import { STATUS_CODES } from '../../constants.js';
 
 export class ProjectReqRecursionError extends ProjectError {

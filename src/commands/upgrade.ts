@@ -1,6 +1,6 @@
 import { logger, LogLevel } from '../logger.js';
 import { BRAND, NAME } from '../constants.js';
-import { installDependencies, installDependency } from '../utils/moduleUtils.js';
+import { installDependency } from '../utils/moduleUtils.js';
 import { CliConfig } from '../cliConfig.js';
 import { CliError } from '../cliError.js';
 import chalk from 'chalk';

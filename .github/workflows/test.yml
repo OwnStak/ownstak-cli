@@ -19,7 +19,7 @@ defaults:
 
 jobs:
     format-check:
-        name: Tests & format check
+        name: Tests & Lint & Format check
         runs-on: [self-hosted, linux, arm64]
         timeout-minutes: 15
         continue-on-error: true
@@ -44,6 +44,9 @@ jobs:
 
             - name: Run unit tests
               run: npm run test
+
+            - name: Run lint check
+              run: npm run lint:check
 
             - name: Run format check
               run: npm run format:check

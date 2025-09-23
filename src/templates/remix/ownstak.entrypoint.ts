@@ -1,10 +1,9 @@
 // @ts-nocheck
 import { resolve } from 'path';
-import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { createServer } from 'http';
 import type { http } from 'node:http';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
 import { installGlobals, createRequestHandler } from '@remix-run/node';
 import { createReadableStreamFromReadable, writeReadableStreamToWritable } from '@remix-run/node';
 
@@ -56,7 +55,7 @@ export function createNodeRequestHandler({ build, mode }: { build: any; mode?: s
         nodeResponse.statusCode = response.status;
         nodeResponse.statusMessage = response.statusText;
 
-        for (let [key, values] of response.headers.entries()) {
+        for (const [key, values] of response.headers.entries()) {
             nodeResponse.appendHeader(key, values);
         }
         if (response.body) {
@@ -98,10 +97,10 @@ export function createRequest(nodeRequest: http.IncomingMessage, nodeResponse: h
  */
 export function createHeaders(nodeHeaders: http.IncomingHttpHeaders): Headers {
     const headers = new Headers();
-    for (let [key, values] of Object.entries(nodeHeaders)) {
+    for (const [key, values] of Object.entries(nodeHeaders)) {
         if (!values) continue;
         if (Array.isArray(values)) {
-            for (let value of values) {
+            for (const value of values) {
                 headers.append(key, value);
             }
         } else {

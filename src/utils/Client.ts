@@ -85,7 +85,7 @@ export class Client {
             });
         }
 
-        if (headers[HEADERS.ContentType] == 'application/json') {
+        if (headers[HEADERS.ContentType] === 'application/json') {
             body = JSON.stringify(body);
         }
 
