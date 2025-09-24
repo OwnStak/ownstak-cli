@@ -413,11 +413,11 @@ export async function addNextConfigWrapper() {
         const nextConfigTemplatePath = resolve(__dirname, '..', '..', 'templates', 'nextjs', `ownstak.next.config.${nextConfigTemplateExtension}`);
 
         logger.info(`Adding ${BRAND} Next.js config (${nextConfigModuleType})...`);
-        // NOTE: It's important to use file:// protocol in import here, otherwise it will fail on Windows.
+        // NOTE: It's important to use file:// protocol with ESM module imports here, otherwise it will fail on Windows.
         // e.g.: C:\projects\my-nextjs-app\next.config.js -> file://C:\\projects\\my-nextjs-app\\next.config.js
         const nextConfigTemplate = (await readFile(nextConfigTemplatePath, 'utf-8')).replace(
             '{{ nextConfigOriginalPath }}',
-            `file://${normalizePath(nextConfigOriginalPath)}`,
+            `${nextConfigModuleType === 'module' ? 'file://' : ''}${normalizePath(nextConfigOriginalPath)}`,
         );
         await writeFile(nextConfigPath, nextConfigTemplate);
     }
