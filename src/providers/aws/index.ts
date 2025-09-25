@@ -22,12 +22,12 @@ export default class AwsProvider extends Provider {
 
         requiredEnvVars.forEach((envVar) => {
             if (!process.env[envVar]?.length) {
-                throw new CliError(`${envVar} must be set to use --provider aws`);
+                throw new CliError(`${envVar} must be set to use --provider-type aws`);
             }
         });
 
         if (!this.options.environment?.length) {
-            throw new CliError(`--environment must be set to use --provider aws`);
+            throw new CliError(`--environment must be set to use --provider-type aws`);
         }
 
         if (!this.options.environment.match(/^[a-z0-9-]+$/)) {
