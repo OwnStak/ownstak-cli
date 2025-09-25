@@ -1008,9 +1008,9 @@ export interface FrameworkAdapter {
     };
 }
 
-export type Framework = (typeof FRAMEWORKS)[keyof typeof FRAMEWORKS] | string;
-export type Runtime = (typeof RUNTIMES)[keyof typeof RUNTIMES] | string;
-export type Architecture = (typeof ARCHS)[keyof typeof ARCHS] | string;
+export type Framework = (typeof FRAMEWORKS)[keyof typeof FRAMEWORKS];
+export type Runtime = (typeof RUNTIMES)[keyof typeof RUNTIMES];
+export type Architecture = (typeof ARCHS)[keyof typeof ARCHS];
 
 export interface FilesConfig {
     /**

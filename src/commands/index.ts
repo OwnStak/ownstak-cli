@@ -72,6 +72,7 @@ const withEnvironmentSlugsOptions = (command: Command) =>
 withEnvironmentSlugsOptions(withApiOptions(program.command('deploy')))
     .description('Deploy the project to the platform')
     .action(deploy)
+    .addOption(new Option(`--provider-type <provider>`, `Deploy the project directly to your cloud provider`))
     .addOption(new Option(`--skip-build`, `Skip the build step and use existing build output from npx ${NAME} build`))
     .addOption(new Option(`--skip-framework-build`, `Skip the build of the framework in the build step`))
     .addOption(new Option(`--assets-dir <dir>`, `Optional directory with static assets to include in the build`))

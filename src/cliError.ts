@@ -10,7 +10,6 @@ export class CliError extends Error {
 
     constructor(message: string, options: CliErrorOptions = {}) {
         super(message);
-
         this.instructions = options.instructions || [];
     }
 

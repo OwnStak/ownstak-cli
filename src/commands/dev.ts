@@ -1,12 +1,12 @@
 import { detectFramework, getFrameworkAdapters } from '../frameworks/index.js';
 import { getFrameworkAdapter } from '../frameworks/index.js';
 import { NAME, PORT } from '../constants.js';
-import { Config } from '../config.js';
+import { Config, type Framework } from '../config.js';
 import { CliError } from '../cliError.js';
 import { getNearestFreePort } from '../utils/portUtils.js';
 
 export interface DevCommandOptions {
-    framework?: string;
+    framework?: Framework;
 }
 
 export async function dev(options: DevCommandOptions) {

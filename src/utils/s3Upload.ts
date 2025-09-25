@@ -3,16 +3,25 @@ import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 import { HEADERS } from '../constants.js';
 import { Transform } from 'stream';
+import * as mime from 'mime-types';
 
 export interface UploadOptions {
     onProgress?: (percentage: number) => void;
+}
+
+/**
+ * Get content type based on file extension using mime-types package
+ */
+export function getContentType(filePath: string): string {
+    const contentType = mime.lookup(filePath);
+    return contentType || 'application/octet-stream';
 }
 
 export async function uploadToPresignedUrl(fullUrl: string, filePath: string, options: UploadOptions = {}) {
     const url = new URL(fullUrl);
 
     const client = new Client(`${url.protocol}//${url.host}`, {
-        [HEADERS.ContentType]: 'application/octet-stream',
+        [HEADERS.ContentType]: getContentType(filePath),
     });
 
     const { size: fileSize } = await stat(filePath);

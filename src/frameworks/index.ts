@@ -32,7 +32,7 @@ export async function detectFramework(): Promise<Framework | undefined> {
         if (frameworkAdapter.isPresent && (await frameworkAdapter.isPresent())) {
             const detectedFramework = frameworkAdapter.name;
             logger.stopSpinner(`Detected framework: ${detectedFramework}`, LogLevel.SUCCESS);
-            return detectedFramework;
+            return detectedFramework as Framework;
         }
     }
     logger.stopSpinner(`No framework was detected`, LogLevel.WARN);
