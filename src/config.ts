@@ -26,6 +26,7 @@ import { findModuleLocation, installDependency } from './utils/moduleUtils.js';
 import { CliError } from './cliError.js';
 import { CliConfig } from './cliConfig.js';
 import chalk from 'chalk';
+import { loadEnvVariables } from './utils/envUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -682,8 +683,12 @@ export class Config {
         process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
         process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
+        // Load ENV variables from the corresponding .env files.
+        await loadEnvVariables();
+
         // Set the port to listen on for the app.
         process.env.PORT = APP_PORT.toString();
+
         // Change the working directory to the app folder,
         // so the relative imports are same as in the project root.
         process.chdir('app');
