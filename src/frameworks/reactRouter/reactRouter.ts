@@ -114,12 +114,12 @@ export const reactRouterFrameworkAdapter: FrameworkAdapter = {
                 // Copy the ownstak entrypoint with HTTP server to the react-router build directory
                 await copyFile(
                     resolve(__dirname, '..', '..', 'templates', 'reactRouter', 'ownstak.entrypoint.js'),
-                    join(serverBuildDirectory, 'entrypoint.mjs'),
+                    join(serverBuildDirectory, 'ownstak.entrypoint.mjs'),
                 );
 
                 // Set entrypoint to the ownstak entrypoint file and include/copy all dependencies.
                 // The entrypoint file creates HTTP server with the React Router Request handler from the index.js file.
-                config.app.entrypoint = config.app.entrypoint || join(serverBuildDirectory, 'entrypoint.mjs');
+                config.app.entrypoint = config.app.entrypoint || join(serverBuildDirectory, 'ownstak.entrypoint.mjs');
                 config.app.include[buildDirectory] = true;
                 config.app.include[clientBuildDirectory] = false;
                 config.app.include['node_modules/@react-router'] = true;
@@ -144,6 +144,10 @@ export const reactRouterFrameworkAdapter: FrameworkAdapter = {
                         type: 'serveAsset',
                         path: `${basename}404.html`,
                         description: 'Serve React Router static not found page by default',
+                    },
+                    {
+                        type: 'setResponseStatus',
+                        statusCode: 404,
                     },
                 ]);
             }
@@ -172,6 +176,7 @@ async function loadReactRouterConfig(): Promise<ReactRouterConfig> {
     if (!reactRouterConfigPath) {
         // react-router.config.js is optional file, we fallback to config defaults
         // if the file doesn't exist
+        logger.debug('No React Router config file found, using default config...');
         return {};
     }
 
@@ -200,7 +205,6 @@ async function loadReactRouterConfig(): Promise<ReactRouterConfig> {
         );
         logger.debug(`React Router config error: ${e.message}`);
         logger.debug(`Stack: ${e.stack}`);
+        return {};
     }
-
-    return {};
 }

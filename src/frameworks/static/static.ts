@@ -21,8 +21,8 @@ export const staticFrameworkAdapter: FrameworkAdapter = {
             logger.info('Building static project...');
             if (Object.keys(config.assets.include).length === 0) {
                 throw new CliError(
-                    `Looks like you are trying to build static project without any assets. \r\n` +
-                        `Please specify the folder with static assets in your project config. \r\n\r\n` +
+                    `Oops! No framework was auto-detected. Supported frameworks are: ${Object.values(FRAMEWORKS).join(', ')}\r\n\r\n` +
+                        `Are you trying to build a static project? To build a static project, specify the folder with static assets in your project config. \r\n\r\n` +
                         `Example ${INPUT_CONFIG_FILE}:\r\n` +
                         `import { Config } from '${NAME}';\r\n` +
                         `export default new Config().includeAsset("./static")\r\n\r\n` +

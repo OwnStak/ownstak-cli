@@ -5,6 +5,8 @@ import { writeFile, readFile } from 'fs/promises';
 import util from 'util';
 import { exec } from 'child_process';
 
+let isModulePresentCache: Record<string, any> | undefined;
+
 /**
  * Finds the location of a module in the project's node_modules
  * @param moduleName The name of the module to find
@@ -30,17 +32,18 @@ export async function findModuleLocation(moduleName: string): Promise<string> {
  * NOTE: Unlike `findModuleLocation`, this function returns false if the module is installed in the parent folder.
  * @returns `true` if the module is present, `false` otherwise
  */
-export async function isModulePresent(moduleName: string): Promise<boolean> {
+export async function isModulePresent(moduleName: string, cache: boolean = true): Promise<boolean> {
     const packageJsonPath = resolve('package.json');
     if (!existsSync(packageJsonPath)) return false;
-    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+    isModulePresentCache = cache && isModulePresentCache ? isModulePresentCache : JSON.parse(await readFile(packageJsonPath, 'utf-8'));
 
-    if (packageJson.dependencies?.[moduleName]) {
+    if (isModulePresentCache?.dependencies?.[moduleName]) {
         return true;
     }
-    if (packageJson.devDependencies?.[moduleName]) {
+    if (isModulePresentCache?.devDependencies?.[moduleName]) {
         return true;
     }
+
     return false;
 }
 

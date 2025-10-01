@@ -178,6 +178,10 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
                         path: `${basePath}404.html`,
                         description: 'Serve 404.html page by default',
                     },
+                    {
+                        type: 'setResponseStatus',
+                        statusCode: 404,
+                    },
                 ]);
             }
         },
@@ -199,7 +203,8 @@ export const astroFrameworkAdapter: FrameworkAdapter = {
 async function loadAstroConfig(): Promise<AstroConfig> {
     const astroConfigPath = [resolve('astro.config.ts'), resolve('astro.config.mjs'), resolve('astro.config.cjs'), resolve('astro.config.js')].find(existsSync);
     if (!astroConfigPath) {
-        throw new CliError('Astro config file was not found. Please create an astro.config.mjs file.');
+        logger.debug('No Astro config file found, using default config...');
+        return {};
     }
 
     try {
@@ -227,6 +232,6 @@ async function loadAstroConfig(): Promise<AstroConfig> {
         );
         logger.debug(`Astro config error: ${e.message}`);
         logger.debug(`Stack: ${e.stack}`);
+        return {};
     }
-    return {};
 }

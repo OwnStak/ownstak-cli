@@ -112,6 +112,7 @@ export async function build(options: BuildCommandOptions = {}) {
 
     // Trace and copy all app entrypoint dependencies if copyDependencies is true
     if (config.app.entrypoint && config.app.copyDependencies) {
+        const tracedFiles: Record<string, boolean> = {};
         try {
             logger.info(`Copying app entrypoint ('${config.app.entrypoint}') dependencies...`);
             const entrypointAbsolute = resolve(config.app.entrypoint);
@@ -119,11 +120,16 @@ export async function build(options: BuildCommandOptions = {}) {
             for (const file of fileList) {
                 // Skip files that are already in the output directory
                 if (file.startsWith(BUILD_DIR_PATH)) continue;
-                config.app.include[file] = true;
+                tracedFiles[file] = true;
             }
         } catch (e) {
             throw new CliError(`Failed to copy app entrypoint ('${config.app.entrypoint}') dependencies during the ${BRAND} build:\r\n\r\n${e}`);
         }
+        // Add all traced files to the config and then apply all other user defined included/excluded files
+        config.app.include = {
+            ...tracedFiles,
+            ...config.app.include,
+        };
     }
 
     // Bundle all app entrypoint dependencies if bundleDependencies is true

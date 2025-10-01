@@ -131,11 +131,14 @@ export const remixFrameworkAdapter: FrameworkAdapter = {
                 // Create a copy of the server build file with index.js name in the remix build directory
                 await copyFile(resolve(serverBuildDirectory, serverBuildFile), resolve(serverBuildDirectory, 'index.js'));
                 // Copy the ownstak entrypoint with HTTP server to the remix build directory
-                await copyFile(resolve(__dirname, '..', '..', 'templates', 'remix', 'ownstak.entrypoint.js'), resolve(serverBuildDirectory, 'entrypoint.mjs'));
+                await copyFile(
+                    resolve(__dirname, '..', '..', 'templates', 'remix', 'ownstak.entrypoint.js'),
+                    resolve(serverBuildDirectory, 'ownstak.entrypoint.mjs'),
+                );
 
                 // Set entrypoint to the ownstak entrypoint file and include/copy all dependencies.
                 // The entrypoint file creates HTTP server with the Remix Request handler from the index.js file.
-                config.app.entrypoint = config.app.entrypoint || join(serverBuildDirectory, 'entrypoint.mjs');
+                config.app.entrypoint = config.app.entrypoint || join(serverBuildDirectory, 'ownstak.entrypoint.mjs');
                 config.app.include[buildDirectory] = true;
                 config.app.include[clientBuildDirectory] = false;
                 config.app.include['node_modules/@remix-run'] = true;
@@ -160,6 +163,10 @@ export const remixFrameworkAdapter: FrameworkAdapter = {
                         type: 'serveAsset',
                         path: `${basename}404.html`,
                         description: 'Serve Remix static not found page by default',
+                    },
+                    {
+                        type: 'setResponseStatus',
+                        statusCode: 404,
                     },
                 ]);
             }

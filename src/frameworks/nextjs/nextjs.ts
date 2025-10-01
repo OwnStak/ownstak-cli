@@ -339,8 +339,12 @@ export const nextjsFrameworkAdapter: FrameworkAdapter = {
             ]);
         },
         'dev:start': async ({ config }: HookArgs): Promise<void> => {
-            logger.info('Starting Next.js development server...');
-            await runCommand(config.devCommand || `next dev --port ${process.env.PORT || '3000'}`);
+            try {
+                logger.info('Starting Next.js development server...');
+                await runCommand(config.devCommand || `next dev --port ${process.env.PORT || '3000'}`);
+            } catch (e) {
+                throw new CliError(`Failed to start Next.js development server: ${e}`);
+            }
         },
     },
 
