@@ -12,6 +12,7 @@ concurrency:
 
 env:
     DEBIAN_FRONTEND: noninteractive
+    NODE_VERSION: 20.x
 
 defaults:
     run:
@@ -20,14 +21,17 @@ defaults:
 jobs:
     format-check:
         name: Tests & Lint & Format check
-        runs-on: [self-hosted, linux, arm64]
+        runs-on: ubuntu-slim
         timeout-minutes: 15
         continue-on-error: true
-        container:
-            image: node:20
         steps:
             - name: Checkout
               uses: actions/checkout@v5
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
 
             - name: Setup cache
               uses: actions/cache@v4
