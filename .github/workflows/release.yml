@@ -72,7 +72,6 @@ jobs:
                       echo "tag=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
                   fi
 
-
             # NOTE: Runs only for latest tag
             - name: Set version from release tag
               if: steps.npm_tag.outputs.tag == 'latest'
@@ -92,7 +91,7 @@ jobs:
               run: npm run build
 
             - name: Release
-              run: cd ./dist && npm publish --provenance --access public --tag=${{ steps.npm_tag.outputs.tag }}
+              run: cd ./dist && npm publish --access public --tag=${{ steps.npm_tag.outputs.tag }}
 
             - name: Bump version and push it to main (only for latest tag)
               if: steps.npm_tag.outputs.tag == 'latest'
