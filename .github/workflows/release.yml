@@ -35,7 +35,7 @@ jobs:
               uses: actions/checkout@v5
 
             - name: Setup Node.js
-              uses: actions/setup-node@v5
+              uses: actions/setup-node@v6
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   registry-url: https:${{ env.NPM_REGISTRY }}
