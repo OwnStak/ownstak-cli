@@ -1,3 +1,5 @@
+![OwnStak CLI Banner](.github/assets/banner.jpg)
+
 # OwnStak CLI
 
 The **OwnStak CLI** is a powerful tool that allows users to build, deploy, and manage their projects on the Ownstak platform. With a focus on simplicity and efficiency, this CLI provides a seamless experience for developers.

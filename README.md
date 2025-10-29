@@ -1,3 +1,5 @@
+![OwnStak CLI Banner](.github/assets/banner.jpg)
+
 # OwnStak CLI
 
 The **OwnStak CLI** is an useful tool that allows users to build, deploy, and manage their projects on the Ownstak platform.
@@ -6,7 +8,7 @@ With a focus on simplicity and efficiency, this CLI provides a seamless experien
 ## Requirements
 
 - NodeJS: 20.x
-- NPM: 10.x
+- NPM: 11.5.1 or later
 
 ## Installation
 
