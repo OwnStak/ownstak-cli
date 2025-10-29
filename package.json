@@ -1,6 +1,6 @@
 {
     "name": "ownstak",
-    "version": "0.1.22",
+    "version": "0.1.23",
     "description": "The command line interface for OwnStak platform",
     "type": "module",
     "author": "OwnStak, Inc.",
