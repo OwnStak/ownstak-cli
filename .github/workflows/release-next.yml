@@ -1,4 +1,4 @@
-name: MR CI
+name: Release NEXT
 on:
   workflow_dispatch:
 
