@@ -91,7 +91,7 @@ jobs:
               run: npm run build
 
             - name: Release
-              run: cd ./dist && npm publish --provenance --access public --tag=${{ steps.npm_tag.outputs.tag }}
+              run: cd ./dist && npm publish --access public --tag=${{ steps.npm_tag.outputs.tag }}
 
             - name: Bump version and push it to main (only for latest tag)
               if: steps.npm_tag.outputs.tag == 'latest'
