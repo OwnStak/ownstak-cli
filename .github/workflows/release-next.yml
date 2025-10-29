@@ -30,7 +30,6 @@ jobs:
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   registry-url: https:${{ env.NPM_REGISTRY }}
-                  always-auth: false
 
             - name: Setup cache
               uses: actions/cache@v4
