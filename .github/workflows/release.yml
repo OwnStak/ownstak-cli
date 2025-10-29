@@ -1,32 +1,44 @@
-name: Release CI
+name: Release
 
 on:
     release:
         types: [published]
+    workflow_dispatch:
+        inputs:
+            version_tag:
+                description: 'NPM version tag (e.g., next, beta)'
+                required: true
+                type: string
+                default: 'next'
 
 env:
     DEBIAN_FRONTEND: noninteractive
     NODE_VERSION: 20.x
-    NPM_TOKEN: ${{ secrets.OWNSTAK_NPM_TOKEN }}
     NPM_REGISTRY: '//registry.npmjs.org'
+
+permissions:
+    id-token: write
+    contents: write
 
 defaults:
     run:
         shell: bash
 
 jobs:
-    release-next:
-        name: Build and release
+    release:
+        name: Release
         timeout-minutes: 10
-        runs-on: [self-hosted, linux, arm64]
-        container:
-            image: node:20
-        permissions:
-            contents: write
+        runs-on: ubuntu-slim
 
         steps:
             - name: Checkout
               uses: actions/checkout@v5
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v5
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  registry-url: https:${{ env.NPM_REGISTRY }}
 
             - name: Setup cache
               uses: actions/cache@v4
@@ -44,28 +56,47 @@ jobs:
                   git config --global user.email "github-actions[bot]@users.noreply.github.com"
                   git config --global user.name "github-actions[bot]"
 
-            - name: Configure NPM authentication
-              if: env.NPM_TOKEN != ''
-              run: npm set "${{ env.NPM_REGISTRY }}/:_authToken=${{ env.NPM_TOKEN }}"
-
+            # Ensure npm 11.5.1 or later is installed for OIDC support
+            - name: Update npm
+              run: npm install -g npm@latest
+              
             - name: Install dependencies
               run: npm install --no-audit
 
+            - name: Determine NPM tag
+              id: npm_tag
+              run: |
+                  if [ "${{ github.event_name }}" == "release" ] || [ "${{ inputs.version_tag }}" == "" ]; then
+                      echo "tag=latest" >> $GITHUB_OUTPUT
+                  else
+                      echo "tag=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
+                  fi
+
+            # NOTE: Runs only for latest tag (e.g. 1.0.1)
             - name: Set version from release tag
-              run: npm version ${GITHUB_REF_NAME#v} --no-git-tag-version || echo "No version change" # e.g. 1.0.1
+              if: steps.npm_tag.outputs.tag == 'latest'
+              run: npm version ${GITHUB_REF_NAME#v} --no-git-tag-version || echo "No version change"
+
+            # NOTE: Runs only for non-latest tags (e.g. 1.0.1-next-a1b2c3d-1744196863)
+            - name: Set version to tag + commit hash + timestamp
+              if: steps.npm_tag.outputs.tag != 'latest'
+              run: |
+                  VERSION=$(npm pkg get version | tr -d '"')
+                  TAG="${{ steps.npm_tag.outputs.tag }}"
+                  COMMIT_HASH=$(echo "${{ github.sha }}" | cut -c1-7)
+                  TIMESTAMP=$(date +%s)
+                  npm version "${VERSION}-${TAG}-${COMMIT_HASH}-${TIMESTAMP}" --no-git-tag-version
 
             - name: Build
               run: npm run build
 
             - name: Release
-              if: env.NPM_TOKEN != ''
-              run: cd ./dist && npm publish --access public --tag=latest
+              run: cd ./dist && npm publish --access public --tag=${{ steps.npm_tag.outputs.tag }}
 
-            - name: Bump version
-              run: npm run bump-version
-
-            - name: Push the new version to the repository
+            - name: Bump version and push it to main (only for latest tag)
+              if: steps.npm_tag.outputs.tag == 'latest'
               run: |
+                  npm run bump-version
                   git config --global --add safe.directory $(pwd)
                   git config --global user.email "github-actions[bot]@users.noreply.github.com"
                   git config --global user.name "github-actions[bot]"

@@ -1,3 +1,5 @@
+![OwnStak CLI Banner](.github/assets/banner.jpg)
+
 # OwnStak CLI
 
 The **OwnStak CLI** is an useful tool that allows users to build, deploy, and manage their projects on the Ownstak platform.
@@ -6,7 +8,7 @@ With a focus on simplicity and efficiency, this CLI provides a seamless experien
 ## Requirements
 
 - NodeJS: 20.x
-- NPM: 10.x
+- NPM: 11.5.1 or later
 
 ## Installation
 
@@ -70,9 +72,15 @@ Steps to release a new version:
 The CI will also automatically bump the version to the next patch version and commit and push it back to the repository for a new release.
 
 ## Preview/Next release
+To preview a release candidate or publish changes under a custom tag (e.g., `next`, `beta`), you can manually trigger the release workflow from any branch.
 
-Every commit to the opened PR will trigger a preview/next release build that is published under `next` tag.
-The released version has format `{version}-next-{pr_number}-{timestamp}`. For example, `1.0.0-next-39-1744196863`.
+1. Go to the [Release workflow](https://github.com/OwnStak/ownstak-cli-old/actions/workflows/release.yml) page
+2. Click "Run workflow"
+3. Select the branch you want to release from
+4. Optionally specify a version tag (`next`, `beta`, etc.)
+5. Click "Run workflow"
+
+The released version has format `{version}-next-{commit-hash}-{timestamp}`. For example, `1.0.0-next-a23sdf-1744196863`.
 You can find the actual released next version in the CI logs.
 
 ## Formatting
