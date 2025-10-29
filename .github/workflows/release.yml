@@ -7,26 +7,32 @@ on:
 env:
     DEBIAN_FRONTEND: noninteractive
     NODE_VERSION: 20.x
-    NPM_TOKEN: ${{ secrets.OWNSTAK_NPM_TOKEN }}
     NPM_REGISTRY: '//registry.npmjs.org'
+
+permissions:
+    id-token: write
+    contents: write
 
 defaults:
     run:
         shell: bash
 
 jobs:
-    release-next:
-        name: Build and release
+    release-latest:
+        name: Release LATEST
         timeout-minutes: 10
-        runs-on: [self-hosted, linux, arm64]
-        container:
-            image: node:20
-        permissions:
-            contents: write
+        runs-on: ubuntu-slim
 
         steps:
             - name: Checkout
               uses: actions/checkout@v5
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  registry-url: https:${{ env.NPM_REGISTRY }}
+                  always-auth: false
 
             - name: Setup cache
               uses: actions/cache@v4
@@ -44,10 +50,6 @@ jobs:
                   git config --global user.email "github-actions[bot]@users.noreply.github.com"
                   git config --global user.name "github-actions[bot]"
 
-            - name: Configure NPM authentication
-              if: env.NPM_TOKEN != ''
-              run: npm set "${{ env.NPM_REGISTRY }}/:_authToken=${{ env.NPM_TOKEN }}"
-
             - name: Install dependencies
               run: npm install --no-audit
 
@@ -57,9 +59,8 @@ jobs:
             - name: Build
               run: npm run build
 
-            - name: Release
-              if: env.NPM_TOKEN != ''
-              run: cd ./dist && npm publish --access public --tag=latest
+            - name: Release LATEST
+              run: cd ./dist && npm publish --provenance --access public --tag=latest
 
             - name: Bump version
               run: npm run bump-version
