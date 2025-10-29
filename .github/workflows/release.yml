@@ -72,12 +72,14 @@ jobs:
                       echo "tag=${{ inputs.version_tag }}" >> $GITHUB_OUTPUT
                   fi
 
+
+            # NOTE: Runs only for latest tag
             - name: Set version from release tag
-              if: github.event_name == 'release'
+              if: steps.npm_tag.outputs.tag == 'latest'
               run: npm version ${GITHUB_REF_NAME#v} --no-git-tag-version || echo "No version change" # e.g. 1.0.1
 
-            # When releasing under a specific tag, append the tag to the version with commit hash and timestamp e.g. 1.0.0-next-a1b2c3d-1744196863
-            - name: Append tag to version if not latest
+            # NOTE: Runs only for non-latest tags
+            - name: Set version to tag + commit hash + timestamp
               if: steps.npm_tag.outputs.tag != 'latest'
               run: |
                   VERSION=$(npm pkg get version | tr -d '"')
