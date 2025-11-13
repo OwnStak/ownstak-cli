@@ -1,1 +1,5 @@
 * @adrien-k @thehansys @KaarelKelk
+
+# Don't automatically assign reviewers for Dependabot MRs.
+package.json
+package-lock.json
