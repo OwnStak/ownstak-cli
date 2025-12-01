@@ -39,7 +39,7 @@
         "prepare": "husky || true"
     },
     "dependencies": {
-        "@aws-sdk/client-lambda": "3.938.0",
+        "@aws-sdk/client-lambda": "3.942.0",
         "@aws-sdk/client-s3": "3.940.0",
         "@inquirer/prompts": "8.0.1",
         "@vercel/nft": "1.1.0",
