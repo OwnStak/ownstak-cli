@@ -41,7 +41,7 @@ jobs:
                   registry-url: https:${{ env.NPM_REGISTRY }}
 
             - name: Setup cache
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               with:
                   path: |
                       node_modules
